@@ -113,6 +113,7 @@ func _run_selftest() -> void:
 	_test_background_grace()
 	_test_platforms()
 	_test_hibernation()
+	_test_worker_threads()
 	_test_game_ids()
 	_test_targeting()
 	_test_scoreboard_own_row()

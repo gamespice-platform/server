@@ -27,6 +27,8 @@ Or headless, the usual way to run a dedicated server:
 
 `--sv-*` sets configuration and `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [dot-serve](https://github.com/modcommunity/dot-serve).
 
+Threaded work (snapshots, NPCs) uses `sv_worker_threads` workers: -1 (default) is the core count less one, at most `sv_worker_threads_auto_max` (default 8, 0 = no cap); 0 keeps everything on the main thread.
+
 ## Connect a client
 
 ```gdscript

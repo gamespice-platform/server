@@ -287,6 +287,9 @@ func _apply_cvars_to_config() -> void:
 		"sv_hibernate_when_empty", config.hibernate_when_empty
 	)
 	config.worker_threads = console.get_int("sv_worker_threads", config.worker_threads)
+	config.worker_threads_auto_max = console.get_int(
+		"sv_worker_threads_auto_max", config.worker_threads_auto_max
+	)
 	config.threads_net = console.get_bool("sv_threads_net", config.threads_net)
 	config.threads_npc = console.get_bool("sv_threads_npc", config.threads_npc)
 	config.net_native = console.get_bool("net_native", config.net_native)

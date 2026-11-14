@@ -275,7 +275,7 @@ func describe() -> Dictionary:
 ## from the project because nothing in the process can change it. The figures come from
 ## dot-core's [DotParallel], whose labels the threaded subsystems name ("net.snapshot").
 func describe_threads() -> String:
-	var workers := config.worker_threads if config != null else 0
+	var workers := config.resolved_workers() if config != null else 0
 	var resolved := DotParallel.resolve_workers(workers)
 	var labels: Dictionary = DotParallel.describe()["labels"]
 	var parts := PackedStringArray()

@@ -43,6 +43,12 @@ func _validate_logging() -> DotResult:
 			"worker_threads must be -1 (automatic), 0 (main thread only) or a count.",
 			str(worker_threads)
 		)
+	if worker_threads_auto_max < 0:
+		return DotResult.fail(
+			DotError.CODE_INVALID,
+			"worker_threads_auto_max must be 0 (no cap) or a count.",
+			str(worker_threads_auto_max)
+		)
 	if parse_log_level(log_level) < 0:
 		return DotResult.fail(
 			DotError.CODE_INVALID,
@@ -260,16 +266,27 @@ func public_slots() -> int:
 	return maxi(0, max_players - reserved_slots)
 
 
+## [member worker_threads] as a count: -1 becomes the processor count less one (at least one),
+## at most [member worker_threads_auto_max] unless that is 0; 0 and explicit counts pass through.
+## Where [method DotParallel.available] is false DotParallel still runs everything inline.
+func resolved_workers() -> int:
+	if worker_threads >= 0:
+		return worker_threads
+	var n := maxi(1, OS.get_processor_count() - 1)
+	if worker_threads_auto_max > 0:
+		n = mini(n, worker_threads_auto_max)
+	return n
+
+
 ## The worker count for dot-net's snapshot build: 0 unless [member threads_net] is on, then
-## [member worker_threads] (-1 automatic, 0 inline). Never more than DotParallel allows on
-## this machine, which it decides itself.
+## [method resolved_workers]. Never more than DotParallel allows on this machine.
 func net_snapshot_workers() -> int:
-	return worker_threads if threads_net else 0
+	return resolved_workers() if threads_net else 0
 
 
 ## The worker count for NPC decisions and paths, the same way as [method net_snapshot_workers].
 func npc_workers() -> int:
-	return worker_threads if threads_npc else 0
+	return resolved_workers() if threads_npc else 0
 
 
 ## UDP port ENet listens on in [code]dual[/code] and [code]enet[/code] modes.

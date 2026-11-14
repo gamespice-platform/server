@@ -102,9 +102,14 @@ extends DotConfig
 
 @export_group("Threads")
 
-## Worker threads each subsystem may use (cvar [code]sv_worker_threads[/code], live). -1: processors less one, at most eight; 0: main thread.
-## Nothing is threaded until its own switch below is on.
-@export_range(-1, 64) var worker_threads: int = -1
+## Worker threads each subsystem may use (cvar [code]sv_worker_threads[/code], live). -1: processors less one, at most
+## [member worker_threads_auto_max]; 0: main thread. Nothing is threaded until its own switch below is on.
+@export_range(-1, 64, 1, "or_greater") var worker_threads: int = -1
+
+## The most workers the automatic count ([member worker_threads] -1) takes (cvar [code]sv_worker_threads_auto_max[/code],
+## live). Default 8, 0 = no cap (every core less one). The gain flattened well before eight on the box it was measured on,
+## and the pool is shared with the engine; raise it on a big box that runs one server.
+@export_range(0, 64, 1, "or_greater") var worker_threads_auto_max: int = 8
 
 ## Build each player's snapshot on the workers (cvar [code]sv_threads_net[/code]). On by default: dot-net's snapshot_bench
 ## (native core, 213 NPCs) measured byte-identical payloads and a build 2 to 4 times cheaper at 64 and 100 players.

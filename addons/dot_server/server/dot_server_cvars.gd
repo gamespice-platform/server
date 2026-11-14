@@ -7,11 +7,19 @@ extends RefCounted
 static func register_threads(server: DotServer) -> void:
 	server.console.cvar(
 		"sv_worker_threads", str(server.config.worker_threads),
-		"Worker threads each threaded subsystem may use. -1 automatic (cores less one, at most 8; set it when several servers share a machine), 0 runs everything on the main thread.",
+		"Worker threads each threaded subsystem may use. -1 automatic (cores less one, at most sv_worker_threads_auto_max; set it when several servers share a machine), 0 runs everything on the main thread.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(-1, 64).changed.connect(
+	).with_min(-1).changed.connect(
 		func(_old: String, value: String) -> void:
 			server.config.worker_threads = value.to_int()
+	)
+	server.console.cvar(
+		"sv_worker_threads_auto_max", str(server.config.worker_threads_auto_max),
+		"Most workers sv_worker_threads -1 takes. Default 8, 0 = no cap (cores less one).",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0).changed.connect(
+		func(_old: String, value: String) -> void:
+			server.config.worker_threads_auto_max = value.to_int()
 	)
 	server.console.cvar(
 		"sv_threads_net", "1" if server.config.threads_net else "0",

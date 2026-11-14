@@ -515,6 +515,38 @@ func _test_boot_hibernation() -> void:
 	server._apply_tickrate()
 	_done()
 
+func _test_worker_threads() -> void:
+	print("")
+	_section("[worker threads]")
+
+	# No hard caps: the automatic count's ceiling is a setting, default 8, 0 = no cap.
+	var cfg := DotServerConfig.new()
+	var cores := OS.get_processor_count()
+	_check("the automatic ceiling defaults to 8", cfg.worker_threads_auto_max == 8)
+	_check("-1 resolves to cores less one, at most 8",
+		cfg.resolved_workers() == mini(maxi(1, cores - 1), 8))
+	cfg.worker_threads_auto_max = 0
+	_check("auto max 0 takes every core less one", cfg.resolved_workers() == maxi(1, cores - 1))
+	cfg.worker_threads_auto_max = 1
+	_check("auto max 1 takes one", cfg.resolved_workers() == 1)
+	cfg.worker_threads = 200
+	_check("an explicit count is not clamped", cfg.resolved_workers() == 200)
+	cfg.threads_net = true
+	_check("net_snapshot_workers follows the resolved count", cfg.net_snapshot_workers() == 200)
+	cfg.worker_threads = 0
+	_check("0 stays on the main thread", cfg.resolved_workers() == 0)
+	cfg.worker_threads_auto_max = -1
+	_check("a negative auto max is refused", not cfg.validate().ok)
+
+	var auto_max := server.config.worker_threads_auto_max
+	server.console.execute("sv_worker_threads_auto_max 0")
+	_check("the cvar writes the config", server.config.worker_threads_auto_max == 0)
+	server.console.execute("sv_worker_threads 128")
+	_check("sv_worker_threads takes 128", server.config.worker_threads == 128)
+	server.console.execute("sv_worker_threads_auto_max %d" % auto_max)
+	server.console.execute("sv_worker_threads -1")
+
+
 func _test_platforms() -> void:
 	print("")
 	_section("[platforms]")
