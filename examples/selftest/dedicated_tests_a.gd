@@ -545,6 +545,7 @@ func _test_worker_threads() -> void:
 	_check("sv_worker_threads takes 128", server.config.worker_threads == 128)
 	server.console.execute("sv_worker_threads_auto_max %d" % auto_max)
 	server.console.execute("sv_worker_threads -1")
+	_done()
 
 
 func _test_platforms() -> void:
