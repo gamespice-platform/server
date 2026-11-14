@@ -1,24 +1,11 @@
-This is the **dedicated server** asset for TMC's **Dot** collection. It is the piece a server owner actually runs, and it is shaped after twenty years of dedicated-server practice rather than invented from scratch.
+# dot-server
 
-This collection of assets provides modular building blocks for creating games and applications within the TMC ecosystem, ensuring consistency and interoperability across all `dot-*` assets. This includes core functionality, networking, authentication, cloud integration, and more.
-
-**These assets are COMPLETELY OPEN SOURCE**. You are free to use, modify, and distribute them under the terms of the MIT license. The only thing not open source is the back-end web infrastructure. So if you opt into using your own authentication backend instead of integrating with TMC, you will need to build and integrate your own back-end infrastructure.
-
-## From Maintainer & WARNING
-This asset, along with all the others, was built initially with **Claude Code** and will continue to be maintained and extended using it. This is because I (`gamemann`) cannot build the entire TMC platform alone (I wish I could lol).
-
-**Please treat this as partially tested.** Every asset has its own headless test suite and those suites pass, but very little of this has been in front of real players yet. Expect rough edges, and please report anything you run into.
-
-I intend on reviewing code, testing, and editing documentation regularly. If you're interested in helping out, please let me know!
-
-## A Console-Driven Dedicated Server
-A dedicated server framework for Godot 4. Console variables and commands, RCON, server queries, admin permissions with immunity, bans and mutes, votes, hot-loadable modules, and switching games while players stay connected.
-
-Part of the `dot-*` family alongside [dot-core](https://github.com/modcommunity/dot-core), [dot-auth](https://github.com/modcommunity/dot-auth) and [dot-cloud](https://github.com/modcommunity/dot-cloud).
+A console-driven dedicated server for Godot 4. It is the piece a server owner runs: console variables and commands, RCON, admin permissions with immunity, bans and mutes, hot-loadable modules, and switching games while players stay connected.
 
 ## Install
 
-Copy `addons/dot_core/` and `addons/dot_server/` into your project and enable both in *Project → Project Settings → Plugins*. Requires Godot 4.7+.
+1. Get [Godot 4.7](https://godotengine.org/download).
+2. Either use [dot-bootstrap](https://github.com/modcommunity/dot-bootstrap), which clones every project and links the addons, or copy `addons/dot_core/` and `addons/dot_server/` into your project and enable both in *Project > Project Settings > Plugins*.
 
 ## Run a server
 
@@ -31,14 +18,14 @@ server.config.rcon_password = "something-long"
 add_child(server)
 ```
 
-Or headless, the way a dedicated server is normally run:
+Or headless, the usual way to run a dedicated server:
 
 ```bash
-godot --headless --path . res://server.tscn -- \
-    --sv-port 27015 --sv-hostname "My Server" +sv_maxplayers 24 +changelevel dm_arena
+<godot> --headless --path . res://server.tscn -- \
+    --sv-port 27015 --sv-hostname "My Server" +sv_maxplayers 24 +changelevel dm_box
 ```
 
-`--sv-*` sets configuration; `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which is what a systemd unit or a container wants.
+`--sv-*` sets configuration and `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [dot-serve](https://github.com/modcommunity/dot-serve).
 
 ## Connect a client
 
@@ -52,46 +39,44 @@ link.spawned.connect(func(): ui.show_game())
 await link.connect_to_server("wss://play.example.com/game")
 ```
 
-The client downloads whatever content the current game needs (via dot-cloud), loads the scene the server names, and reports ready. The join flow is handled for you.
+The client downloads the content the current game needs (via dot-cloud), loads the scene the server names and reports ready. The join flow is handled for you.
 
-## What it gives you
+## Features
 
-**A real console.** `DotConVar`s with the flag semantics operators know: `FLAG_CHEAT` gated behind `sv_cheats`, `FLAG_PROTECTED` never printed anywhere including the log, `FLAG_STARTUP_ONLY` locked once listening, and `FLAG_ARCHIVE` persisted by `writeconfig`. Config file execution with search paths, a command buffer supporting `wait`, aliases, tab completion, and "did you mean" on typos.
+| Feature | What you get |
+| --- | --- |
+| Console | `DotConVar`s with familiar flags: `FLAG_CHEAT` (needs `sv_cheats`), `FLAG_PROTECTED` (never printed, not even in the log), `FLAG_STARTUP_ONLY` (locked once listening), `FLAG_ARCHIVE` (saved by `writeconfig`). Config files with search paths, a command buffer with `wait`, aliases, tab completion and "did you mean" on typos. |
+| RCON | The classic RCON wire protocol, so existing clients and panels work. Constant-time password comparison, per-address lockout, optional allow-list, and a WebSocket variant for browser panels. |
+| Permissions | String flags rather than fixed roles, and numeric immunity so admins cannot kick each other. Admins come from a JSON file, dot-auth site groups or your own source, all merged. |
+| Moderation | Bans by account and by address with durations (`30m`, `2h`, `7d`), mutes and gags, and an append-only JSONL audit log flushed per entry. |
+| In-game moderation | `/ban`, `/kick`, `/banip`, `/unban`, `/mute`, `/gag`, `/banlist` and `/whois` run from chat with the speaker's own permissions, flags and audit trail. Name a player as `#12`, a name or part of one, a username, an account id, `ip:203.0.113.9` (everybody at that address) or `@me`. |
+| Connections per address | `sv_max_connections_per_ip`, off by default (0). Loopback is never limited. |
+| Game switching | Announce, wait for everyone to download the new content, swap, respawn. A failed change restores the previous game. |
+| Modules | Subclass `DotModule`, register commands and event hooks, and `module_unload` undoes them. Events have cancellable pre-hooks. |
 
-**RCON that existing tools work with.** The classic RCON wire protocol, so operators keep their clients and panels. Constant-time password comparison, per-address lockout, an optional allow-list, and a WebSocket variant so a browser admin panel can talk to it.
+### Games and maps
 
-**Server queries are a separate asset now.** [dot-server-query](https://github.com/modcommunity/dot-server-query) answers them — the whole of A2S for the twenty years of trackers, chat bots and uptime monitors that speak nothing else, and the dot query protocol beside it: JSON sections you ask for by name, a revision that makes polling nearly free, a place for your game to publish its own state, and a WebSocket variant so a browser-based server list can reach it, which A2S can never do. Both are challenged against the source address, so neither can be used to attack somebody else. Install it and add a `DotQueryHost`; leave it out and this server simply answers nothing on the query port. Nothing here names it.
+A game's `DotGameDescriptor` can name `dependencies` (packs the server and every client mount), `server_dependencies` (server only, never sent to a client) and `maps` (pinned `<owner>/<map>@<version>` keys, fetched when the server changes to one). Read them back with `current_server_dependencies()` and `current_maps()` on `DotGameManager`.
 
-**Permissions that fit real communities.** String flags rather than fixed roles, because nobody agrees what a "moderator" is. Numeric immunity so admins cannot kick each other in a loop. Admins from a JSON file, from dot-auth's site groups, or from your own source, all merged.
+A game calls `DotGameManager.set_current_map("surf_mesa")` when its map changes. `reported_map()` is what server queries report as the map, falling back to the game's display name. It clears when the game unloads.
 
-**Moderation with a paper trail.** Bans by account and by address, with durations (`30m`, `2h`, `7d`), mutes and gags, and an append-only JSONL audit log flushed per entry so a crash cannot lose the action somebody is asking about.
+## Optional addons
 
-**Moderation from inside the game.** `/ban`, `/kick`, `/banip`, `/unban`, `/mute`, `/gag`, `/banlist` and `/whois` all run from chat with the speaker's own permissions, with the same commands, the same flags and the same audit trail as the console and RCON, because a moderator who has to alt-tab to a terminal moderates less. Name a player however you have them: `#12`, their name, part of their name, their username, their account id, `ip:203.0.113.9` for everybody at an address, or `@me`.
+None are imported. dot-server works without any of them.
 
-**A limit on how many clients one address may hold.** `sv_max_connections_per_ip`, off by default. Neither a ban nor a connect rate limiter covers this: connections that arrive slowly, from nobody banned, still let one machine take every slot on a small server. Loopback is never limited, so it cannot lock you out of your own server.
+| Addon | With it | Without it |
+| --- | --- | --- |
+| [dot-auth](https://github.com/modcommunity/dot-auth) | Real player identity, so bans mean something and site groups grant permissions. | Everyone is a guest. |
+| [dot-cloud](https://github.com/modcommunity/dot-cloud) | Downloadable game content. | Games ship inside the build. |
+| [dot-moderation](https://github.com/modcommunity/dot-moderation) | Bans, mutes and gags kept in a store shared between servers, enforced at connect. | `DotBanManager`'s own list is the ban list. |
+| [dot-server-query](https://github.com/modcommunity/dot-server-query) | Answers server-list queries (A2S and the dot query protocol). Add a `DotQueryHost`. | The server answers nothing on the query port. |
 
-**Games that swap under live players.** Announce, wait for everyone to download the new content, swap, re-spawn. A failed change restores the previous game rather than leaving the server empty. A game's `DotGameDescriptor` can name `dependencies` (packs the server and every client mount with it), `server_dependencies` (mounted on the server only, never sent to a client) and `maps` (its delivered maps as pinned `<owner>/<map>@<version>` keys, fetched when the server changes to one rather than at load); read them back with `current_server_dependencies()` and `current_maps()` on `DotGameManager`.
+## Testing
 
-**The game says which map it is on.** A game calls `DotGameManager.set_current_map("surf_mesa")` whenever its map changes, and `reported_map()` is what A2S, the dot query protocol and the backbone report list as the map: the game's own map when it named one, else the game's display name. It is cleared when the game unloads, and reporting one drops the query cache so a listing does not show the previous map.
+Import the project once, then run `examples/dedicated_server.tscn` headless with Godot. Add `-- --serve` to run it as a real server instead.
 
-**Server plugins.** Subclass `DotModule`, register commands and event hooks through its helpers, and `module_unload` cleanly undoes all of it. Events have cancellable pre-hooks, so a plugin can actually stop a map change or filter a message.
+## Status and licence
 
-## Optional, discovered at runtime
+Part of the TMC **dot-\*** family of Godot addons, alongside [dot-core](https://github.com/modcommunity/dot-core), [dot-auth](https://github.com/modcommunity/dot-auth) and [dot-cloud](https://github.com/modcommunity/dot-cloud). Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/modcommunity/dot-server/issues) when you hit one.
 
-Neither is imported; dot-server works without both.
-
-- **[dot-auth](https://github.com/modcommunity/dot-auth)** → real player identity, so bans mean something and site groups can grant server permissions. Without it, everyone is a guest.
-- **[dot-cloud](https://github.com/modcommunity/dot-cloud)** → downloadable game content. Without it, games ship inside the build.
-- **[dot-moderation](https://github.com/modcommunity/dot-moderation)** → bans, mutes and gags as durable records in a store shared between your servers. Registered as `dot_ban_source`, its bans are enforced here at connect. Without it, `DotBanManager`'s own list is the ban list.
-
-## Try it
-
-```bash
-godot --headless --path . res://examples/dedicated_server.tscn
-```
-
-The `dedicated_server` suite covers console parsing, every cvar flag, permission and immunity enforcement, config execution, the command buffer, ban durations and expiry, event cancellation, module load/unload (and an uncompilable module refused as a result rather than a crash), the guest path used when dot-auth is absent, the per-address connection limit, every way of naming a player, a HUD notice sanitised by the same rules as chat (and as dot-chat's filter), and a real dot-moderation ban list refusing a connection through the registry seam. The query protocols have their own suite in dot-server-query. Add `-- --serve` to run it as an actual server instead.
-
-## Licence
-
-MIT. See [LICENSE](LICENSE).
+MIT licence, see [LICENSE](LICENSE). The only closed part of the TMC platform is the web back end; you can use your own instead of TMC's.
