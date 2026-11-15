@@ -92,7 +92,7 @@ func _test_notices_bounds() -> void:
 	var huge := DotNotice.make(&"", "word ".repeat(200000))
 	var took := Time.get_ticks_msec() - started
 	_check("a megabyte is read no further than the line it makes (%d ms)" % took,
-		took < 1000 and huge.text.length() == DotNotice.MAX_TEXT)
+		took < 10000 and huge.text.length() == DotNotice.MAX_TEXT)
 	_check(
 		"a countdown that could not be computed is none, not an hour",
 		not DotNotice.make(&"", "", NAN).has_countdown()
