@@ -79,4 +79,4 @@ Import the project once, then run `examples/dedicated_server.tscn` headless with
 
 Part of the TMC **dot-\*** family of Godot addons, alongside [dot-core](https://github.com/gamespice-platform/core), [dot-auth](https://github.com/gamespice-platform/auth) and [dot-cloud](https://github.com/gamespice-platform/cloud). Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/gamespice-platform/server/issues) when you hit one.
 
-MIT licence, see [LICENSE](LICENSE). The only closed part of the TMC platform is the web back end; you can use your own instead of TMC's.
+MIT licence, see [LICENSE](LICENSE). The only closed part of the [Gamespice](https://gamespice.net) platform is the web back end; you can use your own instead of Gamespice's.
