@@ -215,8 +215,9 @@ func reset() -> void:
 	force_set(default_value)
 
 
-## Applies bounds, clamping rather than refusing: `sv_maxplayers 9999` gives the maximum
-## with a note, not an error.
+## Applies bounds by refusing, never clamping: `sv_maxplayers 99999` is an error that
+## names the allowed range, and the cvar keeps its value. A silent clamp hid typos and
+## made the cvar say something other than what the operator asked for.
 func _coerce(value: String) -> DotResult:
 	if not (has_min or has_max):
 		return DotResult.success(value)
@@ -228,26 +229,30 @@ func _coerce(value: String) -> DotResult:
 		)
 
 	var f := value.to_float()
-	var clamped := f
-
-	if has_min:
-		clamped = maxf(clamped, min_value)
-	if has_max:
-		clamped = minf(clamped, max_value)
-
-	if not is_equal_approx(clamped, f):
-		DotLog.info(
-			"convar",
-			"value clamped to the allowed range",
-			{"cvar": name, "asked": f, "used": clamped}
-		)
+	if (has_min and f < min_value) or (has_max and f > max_value):
+		return DotResult.fail(DotError.CODE_INVALID, "%s is %s; it takes %s." % [name, value, range_text()])
 
 	# Preserve integer formatting so `sv_maxplayers` reads 32 rather than 32.0 in
 	# cvarlist and writeconfig output.
-	if is_equal_approx(clamped, roundf(clamped)) and not value.contains("."):
-		return DotResult.success(str(int(clamped)))
+	if is_equal_approx(f, roundf(f)) and not value.contains("."):
+		return DotResult.success(str(int(f)))
 
-	return DotResult.success(str(clamped))
+	return DotResult.success(str(f))
+
+
+## The allowed range in words: "0 to 4095", "10 or more", "at most 8", or "any number".
+func range_text() -> String:
+	if has_min and has_max:
+		return "%s to %s" % [_num(min_value), _num(max_value)]
+	if has_min:
+		return "%s or more" % _num(min_value)
+	if has_max:
+		return "at most %s" % _num(max_value)
+	return "any number"
+
+
+static func _num(v: float) -> String:
+	return str(int(v)) if is_equal_approx(v, roundf(v)) else str(v)
 
 
 

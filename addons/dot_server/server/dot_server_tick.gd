@@ -200,7 +200,7 @@ func _register_limit_cvars() -> void:
 	_cv_maxplayers = console.cvar(
 		"sv_maxplayers",
 		str(config.max_players),
-		"Player slots; 0 is unlimited. Above 4095 is clamped: ENet's peer ids are 12 bits.",
+		"Player slots; 0 is unlimited. At most 4095 (refused above): ENet's peer ids are 12 bits.",
 		DotConVar.FLAG_ARCHIVE
 	).with_range(0, 4095)
 
@@ -212,7 +212,7 @@ func _register_limit_cvars() -> void:
 		str(config.tickrate),
 		"Server ticks per second. Set while running, it applies at the next map change.",
 		DotConVar.FLAG_ARCHIVE | DotConVar.FLAG_NOTIFY
-	).with_range(10, 240)
+	).with_min(10)
 	_cv_tickrate.changed.connect(
 		func(_old: String, value: String) -> void:
 			var rate := value.to_int()
@@ -239,14 +239,14 @@ func _register_limit_cvars() -> void:
 		str(config.client_timeout_sec),
 		"Seconds of silence before a client is dropped.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(5, 600)
+	).with_min(5)
 
 	_cv_background_grace = console.cvar(
 		"sv_background_grace",
 		str(config.background_grace_max_sec),
 		"Seconds of silence allowed a client that says its tab is hidden. 0 refuses.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(0, 1800)
+	).with_min(0)
 
 	console.cvar(
 		"sv_scoreboard_page_bytes", str(SCOREBOARD_PAGE_BYTES),
@@ -257,7 +257,7 @@ func _register_limit_cvars() -> void:
 		"sv_scoreboard_max_bytes", str(SCOREBOARD_MAX_BYTES),
 		"Bytes of the single-message board sent to clients that cannot reassemble pages.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(1024, 1000000)
+	).with_min(1024)
 
 
 ## Reads cvars back into the config after server.cfg has run.

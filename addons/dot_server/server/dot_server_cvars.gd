@@ -92,9 +92,9 @@ static func register_query(server: DotServer) -> void:
 	server.console.cvar(
 		"sv_reserved_slots",
 		str(server.config.reserved_slots),
-		"Slots kept for players with the reservation flag.",
+		"Slots kept for players with the reservation flag; default 0, any count.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(0, 64)
+	).with_min(0)
 
 	# Live: a limit that needs a restart arrives after the server has already been filled.
 	server.console.cvar(
@@ -102,7 +102,7 @@ static func register_query(server: DotServer) -> void:
 		str(server.config.max_connections_per_ip),
 		"Simultaneous connections allowed from one address. 0 for no limit.",
 		DotConVar.FLAG_ARCHIVE
-	).with_range(0, 64).changed.connect(
+	).with_min(0).changed.connect(
 		func(_old: String, value: String) -> void:
 			server.config.max_connections_per_ip = value.to_int()
 			if server.address_guard != null:

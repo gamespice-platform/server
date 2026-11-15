@@ -10,12 +10,12 @@ extends RefCounted
 ##
 ## [b]Grammar.[/b] Comma-separated tiers, first match wins. A tier is [code][players]<=N:RATE[/code]
 ## (the [code]players[/code] word is optional) or [code]else:RATE[/code] / [code]RATE[/code] alone as the catch-all.
-## Rates are clamped to [constant MIN_RATE]..[constant MAX_RATE]. An empty string is "off".
+## A rate below [constant MIN_RATE] is refused (the table is "off" and [member error] says so); there is
+## no upper bound. An empty string is "off".
 ## A string that does not parse is "off" too ([member error] says why), never a half-read table.
 
-## The slowest and fastest rate a table may name.
+## The slowest rate a table may name.
 const MIN_RATE := 15
-const MAX_RATE := 128
 
 ## [code][max_players, rate][/code] pairs, rising in player count.
 var tiers: Array = []
@@ -40,7 +40,9 @@ static func parse(spec: String) -> DotTickTiers:
 		var rate_text := part.substr(colon + 1).strip_edges() if colon >= 0 else part
 		if not rate_text.is_valid_int():
 			return _fail(table, "tier '%s' has no whole-number rate" % raw.strip_edges())
-		var rate := clampi(rate_text.to_int(), MIN_RATE, MAX_RATE)
+		var rate := rate_text.to_int()
+		if rate < MIN_RATE:
+			return _fail(table, "tier '%s' names %d Hz; a rate is %d or more" % [raw.strip_edges(), rate, MIN_RATE])
 
 		if head == "else" or head == "*":
 			if table.fallback != 0:

@@ -176,7 +176,7 @@ func _scoreboard_pages_reorder(me: DotClientSession, made: Array[DotClientSessio
 	var huge_worst := 0
 	for p in server.scoreboard_pages(me, 12):
 		huge_worst = maxi(huge_worst, var_to_bytes(p).size())
-	_check("a page size over the datagram is clamped (worst %d)" % huge_worst, huge_worst + 64 <= 1392)
+	_check("a page size over the datagram is refused (worst %d)" % huge_worst, huge_worst + 64 <= 1392)
 
 	server.console.execute("sv_scoreboard_page_bytes 600")
 	var small := server.scoreboard_pages(me, 7)

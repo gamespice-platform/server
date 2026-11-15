@@ -12,10 +12,17 @@ func _test_cvar_flags() -> void:
 	_run("sv_maxplayers 24")
 	_check("cvar writes", console.get_int("sv_maxplayers") == 24)
 
-	# Clamping rather than refusing: an operator typing a huge number should get the
-	# maximum with a note, not an error.
-	_run("sv_maxplayers 99999")
-	_check("out-of-range clamped to ENet's 4095 peers", console.get_int("sv_maxplayers") == 4095)
+	# Refused, never clamped: the reply names the range and the value stays.
+	var range_reply := _run("sv_maxplayers 99999")
+	_check("out-of-range is refused, value kept", console.get_int("sv_maxplayers") == 24)
+	_check("and the refusal names the range", range_reply.contains("0 to 4095"))
+	var unbounded := console.find_cvar("sv_tickrate")
+	_check("a minimum-only cvar names its floor",
+		unbounded != null and not unbounded.set_value("5").ok
+		and unbounded.range_text() == "10 or more")
+	var slow := DotTickTiers.parse("<=8:5,else:66")
+	_check("a tier rate under 15 Hz is refused, not clamped", slow.is_off() and slow.error.contains("15 or more"))
+	_check("and a tier rate has no ceiling", DotTickTiers.parse("<=8:200,else:66").rate_for(4, 33) == 200)
 	_run("sv_maxplayers 0")
 	_check("sv_maxplayers 0 is accepted (unlimited)", console.get_int("sv_maxplayers") == 0)
 	_check("and leaves every slot public", server.config.public_slots() > 100000)

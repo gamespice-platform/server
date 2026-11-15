@@ -14,7 +14,7 @@
 | `FLAG_ARCHIVE` | What `writeconfig` persists. |
 | `FLAG_NEEDS_PERMISSION` | Requires the `cvar` flag (or `cheats` for cheat cvars). |
 
-Out-of-range values are **clamped with a log line**, not refused: `sv_maxplayers 9999` gets the maximum.
+Out-of-range values are **refused with the reason**, never clamped: `sv_maxplayers 99999` replies `sv_maxplayers is 99999; it takes 0 to 4095.` and the cvar keeps its value. `DotConVar.range_text()` gives the range in words. Bounds are only for real limits (ENet's 4095 peers, the datagram); a cvar with no real ceiling takes `with_min` alone. `sv_tickrate_tiers` refuses a rate under 15 Hz the same way and has no ceiling.
 
 **Every path into the server goes through `DotConsole.execute` with a `DotCmdContext`** saying who is calling (local terminal, RCON, chat, config file, module), so one permission check covers all of them. Commands opt out of RCON (`rcon_allowed`) and state a `chat_policy` (`DEFAULT`, `ALLOWED`, `REFUSED`).
 
