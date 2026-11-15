@@ -249,6 +249,11 @@ func _register_limit_cvars() -> void:
 	).with_min(0)
 
 	console.cvar(
+		"sv_max_name_length", "32",
+		"Longest display name a client may sign on with, in characters. 0 = no limit. A longer name is refused (the client keeps its default name, and the server logs why).",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
 		"sv_scoreboard_page_bytes", str(SCOREBOARD_PAGE_BYTES),
 		"Bytes of one scoreboard page; keep under the datagram size (1392).",
 		DotConVar.FLAG_ARCHIVE

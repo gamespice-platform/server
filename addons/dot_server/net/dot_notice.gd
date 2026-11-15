@@ -12,9 +12,11 @@ const MAX_TEXT := 160
 ## Longest [member cue] and [member topic]. Ids, not sentences.
 const MAX_ID := 64
 
-## Longest countdown a notice can carry. An hour is already longer than anything a HUD line
-## is for, and a value past it is far more likely to be milliseconds sent as seconds.
-const MAX_SECONDS := 3600.0
+## Longest countdown a notice can carry, in seconds; 0 = no limit. The default is an hour: it
+## is already longer than anything a HUD line is for, and a value past it is far more likely
+## to be milliseconds sent as seconds. A countdown past it is refused (no countdown, logged),
+## not cut down to it. A game that wants longer sets this at startup.
+static var max_seconds: float = 3600.0
 
 ## Largest [member data], encoded. Past this it is dropped whole, not cut: half a tree needs
 ## checking for every missing branch.
@@ -204,9 +206,12 @@ static func _is_plain(value: Variant, depth: int) -> bool:
 			return false
 
 
-## NaN and infinity become "no countdown" rather than a clamped extreme. A countdown the
+## NaN, infinity and a value past [member max_seconds] become "no countdown" rather than a clamped extreme. A countdown the
 ## server could not compute is not a countdown of an hour.
 static func _bounded_seconds(value: float) -> float:
 	if is_nan(value) or is_inf(value) or value < 0.0:
 		return -1.0
-	return minf(value, MAX_SECONDS)
+	if max_seconds > 0.0 and value > max_seconds:
+		push_warning("DotNotice: countdown of %s s refused, it is past max_seconds (%s); the notice has no countdown." % [value, max_seconds])
+		return -1.0
+	return value

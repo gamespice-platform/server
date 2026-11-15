@@ -177,8 +177,15 @@ func _accept_hello(session: DotClientSession, peer_id: int, payload: Dictionary)
 		return false
 
 	var requested_name := str(payload.get("name", "")).strip_edges()
-	if requested_name != "":
-		session.display_name = requested_name.substr(0, 32)
+	var max_name := console.get_int("sv_max_name_length", 32)
+	if requested_name != "" and max_name > 0 and requested_name.length() > max_name:
+		DotLog.info(CHANNEL, "client name refused: past sv_max_name_length, it keeps its default name", {
+			"userid": session.userid,
+			"length": requested_name.length(),
+			"limit": max_name,
+		})
+	elif requested_name != "":
+		session.display_name = requested_name
 
 	# Before the password and authentication: no sign-in round trip for a refused platform.
 	session.platform = str(payload.get("platform", "")).strip_edges().to_lower()

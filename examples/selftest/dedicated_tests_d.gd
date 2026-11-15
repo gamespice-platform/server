@@ -98,9 +98,13 @@ func _test_notices_bounds() -> void:
 		not DotNotice.make(&"", "", NAN).has_countdown()
 	)
 	_check(
-		"and one past the ceiling is clamped to it",
-		is_equal_approx(DotNotice.make(&"", "", 1.0e9).seconds, DotNotice.MAX_SECONDS)
+		"and one past the limit is refused, not clamped",
+		not DotNotice.make(&"", "", 1.0e9).has_countdown()
 	)
+	var saved_max := DotNotice.max_seconds
+	DotNotice.max_seconds = 0.0
+	_check("0 lifts the limit", is_equal_approx(DotNotice.make(&"", "", 1.0e9).seconds, 1.0e9))
+	DotNotice.max_seconds = saved_max
 
 	_test_notices_decode()
 
