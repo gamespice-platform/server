@@ -3,7 +3,7 @@ A console-driven dedicated server for Godot 4. It is the piece a server owner ru
 ## Install
 
 1. Get [Godot 4.7](https://godotengine.org/download).
-2. Either use [dot-bootstrap](https://github.com/modcommunity/dot-bootstrap), which clones every project and links the addons, or copy `addons/dot_core/` and `addons/dot_server/` into your project and enable both in *Project > Project Settings > Plugins*.
+2. Either use [dot-bootstrap](https://github.com/gamespice-platform/bootstrap), which clones every project and links the addons, or copy `addons/dot_core/` and `addons/dot_server/` into your project and enable both in *Project > Project Settings > Plugins*.
 
 ## Run a server
 
@@ -23,7 +23,7 @@ Or headless, the usual way to run a dedicated server:
     --sv-port 27015 --sv-hostname "My Server" +sv_maxplayers 24 +changelevel dm_box
 ```
 
-`--sv-*` sets configuration and `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [dot-serve](https://github.com/modcommunity/dot-serve).
+`--sv-*` sets configuration and `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [dot-serve](https://github.com/gamespice-platform/serve).
 
 Threaded work (snapshots, NPCs) uses `sv_worker_threads` workers: -1 (default) is the core count less one, at most `sv_worker_threads_auto_max` (default 8, 0 = no cap); 0 keeps everything on the main thread.
 
@@ -66,10 +66,10 @@ None are imported. dot-server works without any of them.
 
 | Addon | With it | Without it |
 | --- | --- | --- |
-| [dot-auth](https://github.com/modcommunity/dot-auth) | Real player identity, so bans mean something and site groups grant permissions. | Everyone is a guest. |
-| [dot-cloud](https://github.com/modcommunity/dot-cloud) | Downloadable game content. | Games ship inside the build. |
-| [dot-moderation](https://github.com/modcommunity/dot-moderation) | Bans, mutes and gags kept in a store shared between servers, enforced at connect. | `DotBanManager`'s own list is the ban list. |
-| [dot-server-query](https://github.com/modcommunity/dot-server-query) | Answers server-list queries (A2S and the dot query protocol). Add a `DotQueryHost`. | The server answers nothing on the query port. |
+| [dot-auth](https://github.com/gamespice-platform/auth) | Real player identity, so bans mean something and site groups grant permissions. | Everyone is a guest. |
+| [dot-cloud](https://github.com/gamespice-platform/cloud) | Downloadable game content. | Games ship inside the build. |
+| [dot-moderation](https://github.com/gamespice-platform/moderation) | Bans, mutes and gags kept in a store shared between servers, enforced at connect. | `DotBanManager`'s own list is the ban list. |
+| [dot-server-query](https://github.com/gamespice-platform/server-query) | Answers server-list queries (A2S and the dot query protocol). Add a `DotQueryHost`. | The server answers nothing on the query port. |
 
 ## Testing
 
@@ -77,6 +77,6 @@ Import the project once, then run `examples/dedicated_server.tscn` headless with
 
 ## Status and licence
 
-Part of the TMC **dot-\*** family of Godot addons, alongside [dot-core](https://github.com/modcommunity/dot-core), [dot-auth](https://github.com/modcommunity/dot-auth) and [dot-cloud](https://github.com/modcommunity/dot-cloud). Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/modcommunity/dot-server/issues) when you hit one.
+Part of the TMC **dot-\*** family of Godot addons, alongside [dot-core](https://github.com/gamespice-platform/core), [dot-auth](https://github.com/gamespice-platform/auth) and [dot-cloud](https://github.com/gamespice-platform/cloud). Written with Claude Code and maintained by `gamemann`. Every addon has headless tests, but little of this has been played by real users yet, so expect rough edges and please [open an issue](https://github.com/gamespice-platform/server/issues) when you hit one.
 
 MIT licence, see [LICENSE](LICENSE). The only closed part of the TMC platform is the web back end; you can use your own instead of TMC's.
