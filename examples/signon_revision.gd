@@ -99,7 +99,7 @@ func _boot() -> bool:
 	server_side.add_child(_server)
 
 	# What a host announces about its addons, so a client can fetch newer ones as packs.
-	_server.addon_set = [{"dir": "dot_ui", "repo": "dot-ui", "id": "modcommunity/dot-ui", "version": "9.9.9"}]
+	_server.addon_set = [{"dir": "dot_ui", "repo": "dot-ui", "id": "gamespice-platform/ui", "version": "9.9.9"}]
 
 	var booted := await _server.boot()
 

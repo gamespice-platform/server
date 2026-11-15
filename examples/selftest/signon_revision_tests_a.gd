@@ -158,7 +158,7 @@ func _test_a_real_join_carries_it() -> bool:
 	)
 	_check(
 		_link.server_addons.size() == 1
-			and str((_link.server_addons[0] as Dictionary).get("id", "")) == "modcommunity/dot-ui"
+			and str((_link.server_addons[0] as Dictionary).get("id", "")) == "gamespice-platform/ui"
 			and str((_link.server_addons[0] as Dictionary).get("version", "")) == "9.9.9",
 		"and the addon versions the server runs rode the challenge",
 		str(_link.server_addons)
