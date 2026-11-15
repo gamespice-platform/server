@@ -7,6 +7,9 @@ extends "res://addons/dot_server/server/dot_server_runtime.gd"
 ## A game or module adds a kind here, never an [code]@rpc[/code]: a seventh RPC moves the signon
 ## revision and locks out every older client.
 var envelope: DotEnvelope = _make_envelope()
+## [method _warn_scoreboard_cut] rate limit, per cvar: last warning (msec) and cuts since.
+var _sb_cut_warned_ms: Dictionary = {}
+var _sb_cut_skipped: Dictionary = {}
 
 
 ## Built by [DotServer], which owns the handlers.
@@ -132,7 +135,8 @@ func _send_scoreboard_pages(session: DotClientSession) -> void:
 func scoreboard_pages(for_session: DotClientSession, seq: int) -> Array[Dictionary]:
 	var budget := clampi(console.get_int("sv_scoreboard_page_bytes", SCOREBOARD_PAGE_BYTES), 256, SCOREBOARD_PAGE_MAX)
 	var count := playing_sessions().size()
-	if count > SCOREBOARD_MAX_ROWS:
+	var max_rows := scoreboard_max_rows()
+	if max_rows > 0 and count > max_rows:
 		return _build_scoreboard_pages(for_session, seq, budget)
 	var key := [seq, budget, count]
 	if _sb_cache_key != key:
@@ -235,8 +239,12 @@ func scoreboard_snapshot(for_session: DotClientSession = null, trim: bool = true
 	var own_index := -1
 	var own_min := {}
 	# Past the cap the recipient still gets their own row: cap-1 others, then them.
-	var skip_others := playing_sessions().size() > SCOREBOARD_MAX_ROWS
-	var others_left := SCOREBOARD_MAX_ROWS - 1
+	var max_rows := scoreboard_max_rows()
+	var playing := playing_sessions().size()
+	var skip_others := max_rows > 0 and playing > max_rows
+	var others_left := max_rows - 1
+	if skip_others:
+		_warn_scoreboard_cut("sv_scoreboard_max_rows", {"players": playing, "max_rows": max_rows})
 	for session in playing_sessions():
 		var is_own: bool = for_session != null and session == for_session
 		if skip_others and not is_own:
@@ -310,8 +318,8 @@ func _fit_scoreboard(rows: Array, own_index: int, own_min: Dictionary) -> Array:
 		var n := var_to_bytes(row).size()
 		sizes.append(n)
 		total += n
-	var max_bytes := maxi(1024, console.get_int("sv_scoreboard_max_bytes", SCOREBOARD_MAX_BYTES))
-	if total <= max_bytes:
+	var max_bytes := console.get_int("sv_scoreboard_max_bytes", SCOREBOARD_MAX_BYTES)
+	if max_bytes <= 0 or total <= max_bytes:
 		return rows
 	if own_index >= 0 and sizes[own_index] > max_bytes and not own_min.is_empty():
 		rows = rows.duplicate()
@@ -333,11 +341,30 @@ func _fit_scoreboard(rows: Array, own_index: int, own_min: Dictionary) -> Array:
 	for i in rows.size():
 		if keep.has(i):
 			out.append(rows[i])
-	DotLog.debug(CHANNEL, "scoreboard trimmed to its byte budget", {
-		"rows": rows.size(), "sent": out.size(), "bytes": total,
+	_warn_scoreboard_cut("sv_scoreboard_max_bytes", {
+		"rows": rows.size(), "sent": out.size(), "bytes": total, "max_bytes": max_bytes,
 		"own_kept": own_index >= 0 and keep.has(own_index),
 	})
 	return out
+
+
+## [code]sv_scoreboard_max_rows[/code]; 0 = unlimited.
+func scoreboard_max_rows() -> int:
+	return console.get_int("sv_scoreboard_max_rows", SCOREBOARD_MAX_ROWS) if console != null else SCOREBOARD_MAX_ROWS
+
+
+## A board that left players out says so, at most every 10 s per cvar (it is built twice a second).
+func _warn_scoreboard_cut(cvar_name: String, detail: Dictionary) -> void:
+	var now_ms := Time.get_ticks_msec()
+	var last: int = _sb_cut_warned_ms.get(cvar_name, -1)
+	var skipped: int = _sb_cut_skipped.get(cvar_name, 0)
+	if last >= 0 and now_ms - last < 10000:
+		_sb_cut_skipped[cvar_name] = skipped + 1
+		return
+	_sb_cut_warned_ms[cvar_name] = now_ms
+	_sb_cut_skipped[cvar_name] = 0
+	detail["cut_since_last_warning"] = skipped
+	DotLog.warn(CHANNEL, "scoreboard left players out; raise %s (0 = unlimited)" % cvar_name, detail)
 
 
 ## A client announcing that its page went into, or came back from, the background. Reliable,

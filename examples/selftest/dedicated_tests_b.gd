@@ -115,6 +115,20 @@ func _test_events() -> void:
 	_check("get_float coerces an int", is_equal_approx(typed.get_float("f"), 1.0))
 	_check("get_bool coerces 'yes'", typed.get_bool("b"))
 	_check("missing key returns default", typed.get_int("absent", 7) == 7)
+
+	# Past max_events_per_frame the rest are dropped and counted; 0 = unlimited.
+	var flood := DotEventBus.new()
+	flood.max_events_per_frame = 16
+	var ran := [0]
+	flood.hook_post("loop", func(_e: DotEvent) -> void: ran[0] += 1)
+	for i in 20:
+		flood.fire("loop", {})
+	_check("past max_events_per_frame events are dropped and counted", ran[0] == 16 and flood.dropped_events == 4)
+	flood.max_events_per_frame = 0
+	for i in 20:
+		flood.fire("loop", {})
+	_check("max_events_per_frame 0 runs every one", ran[0] == 36 and flood.dropped_events == 4)
+	flood.free()
 	_done()
 
 ## The identity used when dot-auth is absent; only a test reaches it with dot-auth installed.

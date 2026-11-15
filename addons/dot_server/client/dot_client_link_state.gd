@@ -176,11 +176,16 @@ var last_notice: DotNotice = null
 ## server older than the [constant DotEnvelope.CVARS] kind: a reader keeps its own default.
 var replicated_cvars: Dictionary = {}
 
-## Most replicated cvars a server may name, and the longest name and value kept. Bounds a
-## table somebody else sent.
+## Defaults for the three limits below.
 const MAX_REPLICATED_CVARS := 512
 const MAX_CVAR_NAME_BYTES := 64
 const MAX_CVAR_VALUE_BYTES := 1024
+
+## Most replicated cvars a server may name, and the longest name and value kept: bounds on a
+## table somebody else sent. 0 = unlimited; what goes past one is skipped with a warning.
+var max_replicated_cvars: int = MAX_REPLICATED_CVARS
+var max_cvar_name_bytes: int = MAX_CVAR_NAME_BYTES
+var max_cvar_value_bytes: int = MAX_CVAR_VALUE_BYTES
 
 var _game_root: Node = null
 var _scene_instance: Node = null

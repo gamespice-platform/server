@@ -167,22 +167,31 @@ func _on_cvars(_peer_id: int, payload: Dictionary) -> void:
 	var next := {} if full else replicated_cvars.duplicate()
 	var changed := PackedStringArray()
 
+	var skipped := PackedStringArray()
 	for key in values:
-		if next.size() >= MAX_REPLICATED_CVARS and not next.has(String(key)):
-			break
 		if not (key is String or key is StringName):
 			continue
 		var cvar_name := String(key)
-		if cvar_name == "" or cvar_name.to_utf8_buffer().size() > MAX_CVAR_NAME_BYTES:
+		if max_replicated_cvars > 0 and next.size() >= max_replicated_cvars and not next.has(cvar_name):
+			skipped.append("%s (max_replicated_cvars %d)" % [cvar_name.left(64), max_replicated_cvars])
+			continue
+		if cvar_name == "":
+			continue
+		if max_cvar_name_bytes > 0 and cvar_name.to_utf8_buffer().size() > max_cvar_name_bytes:
+			skipped.append("%s... (max_cvar_name_bytes %d)" % [cvar_name.left(32), max_cvar_name_bytes])
 			continue
 		var value := str(values[key])
-		if value.to_utf8_buffer().size() > MAX_CVAR_VALUE_BYTES:
+		if max_cvar_value_bytes > 0 and value.to_utf8_buffer().size() > max_cvar_value_bytes:
+			skipped.append("%s (max_cvar_value_bytes %d)" % [cvar_name, max_cvar_value_bytes])
 			continue
 		if not replicated_cvars.has(cvar_name) or String(replicated_cvars[cvar_name]) != value:
 			changed.append(cvar_name)
 		next[cvar_name] = value
 
 	replicated_cvars = next
+	if not skipped.is_empty():
+		DotLog.warn(CHANNEL, "replicated cvars skipped past a limit (0 = unlimited)",
+			{"skipped": skipped.size(), "first": Array(skipped.slice(0, 8))})
 
 	for cvar_name in changed:
 		replicated_cvar_changed.emit(cvar_name, String(next[cvar_name]))

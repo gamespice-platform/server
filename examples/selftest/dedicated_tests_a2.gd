@@ -16,6 +16,13 @@ func _test_scoreboard_own_row() -> void:
 	var ids: Array = snap.players.map(func(r: Dictionary) -> int: return int(r.id))
 	_check("past the row cap the board stays within it (the byte budget trims further)", snap.players.size() <= DotServer.SCOREBOARD_MAX_ROWS)
 	_check("the recipient last in session order still has their row", ids.has(last.userid))
+	server.console.set_cvar("sv_scoreboard_max_rows", "0")
+	server.console.set_cvar("sv_scoreboard_max_bytes", "0")
+	_check("sv_scoreboard_max_rows 0 and max_bytes 0 send every row", (server.scoreboard_snapshot(last).players as Array).size() == made.size())
+	server.console.set_cvar("sv_scoreboard_max_rows", "10")
+	_check("sv_scoreboard_max_rows 10 sends ten, the recipient's among them", (server.scoreboard_snapshot(last).players as Array).size() == 10)
+	server.console.set_cvar("sv_scoreboard_max_rows", str(DotServer.SCOREBOARD_MAX_ROWS))
+	server.console.set_cvar("sv_scoreboard_max_bytes", str(DotServer.SCOREBOARD_MAX_BYTES))
 
 	for s in made:
 		server.release_session(s.peer_id)

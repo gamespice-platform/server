@@ -116,7 +116,8 @@ var rcon: DotRconServer = null
 var stdin_console: DotStdinConsole = null
 var games: DotGameManager = null
 
-## Most player rows one scoreboard carries. Bounds a payload sent twice a second.
+## Default for [code]sv_scoreboard_max_rows[/code]: most player rows one scoreboard carries
+## (0 = unlimited). Bounds a payload sent twice a second.
 const SCOREBOARD_MAX_ROWS := 1024
 
 ## Seconds between scoreboards sent to a client holding its board open.

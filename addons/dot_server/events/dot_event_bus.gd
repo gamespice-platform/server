@@ -15,8 +15,12 @@ signal event_fired(event: DotEvent)
 ## Log every fired event at TRACE. Very noisy; for debugging a hook order problem.
 @export var trace_events: bool = false
 
-## Events fired per frame before a warning: an event loop would otherwise take the server down unnamed.
-@export_range(16, 100000, 16) var max_events_per_frame: int = 4096
+## Events fired per frame before the rest are dropped (hooks not run) with an error: an event
+## loop would otherwise take the server down unnamed. Default 4096, 0 = unlimited.
+@export_range(0, 100000, 16, "or_greater") var max_events_per_frame: int = 4096
+
+## Events dropped past [member max_events_per_frame], since start.
+var dropped_events: int = 0
 
 ## name -> Array[Callable]
 var _pre_hooks: Dictionary = {}
@@ -26,7 +30,9 @@ var _post_hooks: Dictionary = {}
 var _declared: Dictionary = {}
 
 var _fired_this_frame: int = 0
-var _warned_about_flood: bool = false
+## Flood error rate limit: last error (msec) and drops since it.
+var _flood_warned_ms: int = -1
+var _flood_unreported: int = 0
 var _total_fired: int = 0
 
 
@@ -136,14 +142,19 @@ func fire(name: String, data: Dictionary = {}) -> DotEvent:
 	_fired_this_frame += 1
 	_total_fired += 1
 
-	if _fired_this_frame > max_events_per_frame:
-		if not _warned_about_flood:
-			_warned_about_flood = true
+	if max_events_per_frame > 0 and _fired_this_frame > max_events_per_frame:
+		dropped_events += 1
+		_flood_unreported += 1
+		var now_ms := Time.get_ticks_msec()
+		if _flood_warned_ms < 0 or now_ms - _flood_warned_ms >= 10000:
+			_flood_warned_ms = now_ms
 			DotLog.error(
 				CHANNEL,
-				"event flood — a hook is probably firing the event it handles",
-				{"event": name, "this_frame": _fired_this_frame}
+				"event flood: events dropped past max_events_per_frame (a hook firing the event it handles?)",
+				{"event": name, "this_frame": _fired_this_frame, "max_events_per_frame": max_events_per_frame,
+					"dropped_since_last_error": _flood_unreported, "dropped_total": dropped_events}
 			)
+			_flood_unreported = 0
 		return event
 
 	if trace_events:

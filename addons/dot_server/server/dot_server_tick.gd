@@ -260,9 +260,14 @@ func _register_limit_cvars() -> void:
 	).with_range(256, SCOREBOARD_PAGE_MAX)
 	console.cvar(
 		"sv_scoreboard_max_bytes", str(SCOREBOARD_MAX_BYTES),
-		"Bytes of the single-message board sent to clients that cannot reassemble pages.",
+		"Bytes of the single-message board sent to clients that cannot reassemble pages; 0 = unlimited.",
 		DotConVar.FLAG_ARCHIVE
-	).with_min(1024)
+	).with_min(0)
+	console.cvar(
+		"sv_scoreboard_max_rows", str(SCOREBOARD_MAX_ROWS),
+		"Most player rows one scoreboard carries (the viewer's own row always goes); 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
 
 
 ## Reads cvars back into the config after server.cfg has run.
