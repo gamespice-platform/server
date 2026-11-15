@@ -244,17 +244,19 @@ func _test_rcon_allow_list_live() -> void:
 
 	# Both tables shrink once the window has passed: a refilled bucket is dropped by time.
 	var scan := DotRconServer.new()
-	scan._refusal_log = DotRateLimiter.new(100.0, 1.0)
+	# One token per 0.5 s: the second refusal of an address must land inside that, however slowly the
+	# first WARN was written (at 100/s a 10 ms log write refilled the bucket and the count was never kept).
+	scan._refusal_log = DotRateLimiter.new(2.0, 1.0)
 	scan._refusal_log.idle_eviction_sec = 0.02
 	scan._refusal_log.sweep_interval_ms = 0
 	for n in 3:
 		scan._log_refusal("198.51.100.%d" % n, "RCON connection refused: address not allowed")
 		scan._log_refusal("198.51.100.%d" % n, "RCON connection refused: address not allowed")
 	var before := scan._refusal_log.tracked_count() + scan._refusals_quiet.size()
-	await get_tree().create_timer(0.1).timeout
+	await get_tree().create_timer(0.8).timeout
 	scan._log_refusal("203.0.113.77", "RCON connection refused: address not allowed")
 	scan._log_refusal("203.0.113.77", "RCON connection refused: address not allowed")
-	_check("after the window only the live address is tracked (%d entries before)" % before,
+	_check("after the window only the live address is tracked (%d entries before, %d tracked and %d quiet after)" % [before, scan._refusal_log.tracked_count(), scan._refusals_quiet.size()],
 		before == 6 and scan._refusal_log.tracked_count() == 1 and scan._refusals_quiet.size() == 1)
 	scan.free()
 
