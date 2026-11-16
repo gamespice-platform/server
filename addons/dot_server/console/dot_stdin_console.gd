@@ -166,7 +166,7 @@ func _start_tap() -> bool:
 	if OS.get_name() not in ["Linux", "FreeBSD", "NetBSD", "OpenBSD", "macOS"]:
 		_tap_error = "no shell on this platform"
 		return false
-	if not FileAccess.file_exists("/bin/sh") or OS.get_environment("DOT_STDIN_NO_HELPER") != "":
+	if not FileAccess.file_exists("/bin/sh") or DotConfig.gs_env("DOT_STDIN_NO_HELPER") != "":
 		_tap_error = "/bin/sh unavailable"
 		return false
 
