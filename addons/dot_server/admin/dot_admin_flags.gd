@@ -108,8 +108,36 @@ const DESCRIPTIONS := {
 ## Immunity of a player with no admin entry.
 const NO_IMMUNITY := 0
 
-## Ceiling. The local console and [constant ROOT] hold this.
+## Default for [member max_immunity].
 const MAX_IMMUNITY := 100
+
+## Ceiling an admin entry's immunity may be set to; 0 = unlimited. Cvar [code]sv_max_immunity[/code].
+## The local console and [constant ROOT] hold [method root_immunity].
+static var max_immunity: int = MAX_IMMUNITY
+
+
+## What the local console, RCON and root hold: [member max_immunity], or the largest integer when
+## that is unlimited.
+static func root_immunity() -> int:
+	return max_immunity if max_immunity > 0 else 0x7fffffffffffffff
+
+
+## Sets [member max_immunity] (0 = unlimited). A negative value is refused with an error.
+static func set_max_immunity(value: int) -> bool:
+	if value < 0:
+		DotLog.error("admin", "sv_max_immunity refused: negative", {"value": value})
+		return false
+	max_immunity = value
+	return true
+
+
+## Whether [param immunity] is a level an entry may hold. Logs an error naming the setting when not.
+static func immunity_allowed(immunity: int) -> bool:
+	if immunity >= 0 and (max_immunity == 0 or immunity <= max_immunity):
+		return true
+	DotLog.error("admin", "immunity refused: outside 0 to sv_max_immunity", {
+		"immunity": immunity, "sv_max_immunity": max_immunity})
+	return false
 
 
 ## Whether [param held] satisfies a requirement for [param needed]. [constant ROOT] satisfies

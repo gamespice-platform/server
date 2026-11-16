@@ -61,7 +61,7 @@ static func console(command_name: String, arguments: PackedStringArray) -> DotCm
 	# has the process, and pretending otherwise only makes the server harder to
 	# administer without making it safer.
 	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.MAX_IMMUNITY
+	ctx.immunity = DotAdminFlags.root_immunity()
 	return ctx
 
 

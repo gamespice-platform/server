@@ -237,7 +237,7 @@ func _run(line: String) -> void:
 	# ROOT, as a startup `.cfg` gets it: this IS the terminal. It must be granted explicitly,
 	# because `_run_command` checks `ctx.has_permission` and does not consult `ctx.is_trusted()`.
 	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.MAX_IMMUNITY
+	ctx.immunity = DotAdminFlags.root_immunity()
 	ctx.address = "stdin"
 
 	# So a command that answers -- `status`, `games` -- prints to the terminal the

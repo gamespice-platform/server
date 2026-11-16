@@ -5,12 +5,47 @@ extends RefCounted
 ## message sent to the client APPLICATION, not the loaded game. A dictionary on the wire.
 ## Example: [code]DotNotice.make(&"vote_warning", "A vote starts in", 10.0, &"vote")[/code]
 
-## Longest [member text] a client is asked to draw. A HUD line, not a message of the day:
+## Default for [member max_text]. Longest [member text] a client is asked to draw. A HUD line, not a message of the day:
 ## past this it is wrapping over the game, and a server that means to say more has chat.
 const MAX_TEXT := 160
 
-## Longest [member cue] and [member topic]. Ids, not sentences.
+## Default for [member max_id]. Longest [member cue] and [member topic]. Ids, not sentences.
 const MAX_ID := 64
+
+## Longest [member text], in characters; 0 = unlimited. Cvar [code]sv_notice_max_text[/code]. Longer
+## text is cut and an error naming the setting is logged (once per setting).
+static var max_text: int = MAX_TEXT
+
+## Longest [member cue] and [member topic]; 0 = unlimited. Cvar [code]sv_notice_max_id[/code].
+static var max_id: int = MAX_ID
+
+## Largest encoded [member data]; 0 = unlimited. Cvar [code]sv_notice_max_data_bytes[/code].
+static var max_data_bytes: int = MAX_DATA_BYTES
+
+static var _reported: Dictionary = {}
+
+
+## Sets the length limits (0 = unlimited). A negative value is refused with an error and nothing
+## changes. [member max_seconds] is set directly (0 = unlimited).
+static func set_limits(text_chars: int, id_chars: int, data_bytes: int) -> bool:
+	if text_chars < 0 or id_chars < 0 or data_bytes < 0:
+		DotLog.error("notice", "notice limits refused: negative", {
+			"sv_notice_max_text": text_chars, "sv_notice_max_id": id_chars,
+			"sv_notice_max_data_bytes": data_bytes})
+		return false
+	max_text = text_chars
+	max_id = id_chars
+	max_data_bytes = data_bytes
+	_reported.clear()
+	return true
+
+
+static func _report(setting: String, limit: int, got: int) -> void:
+	if _reported.has(setting):
+		return
+	_reported[setting] = true
+	DotLog.error("notice", "notice content over %s; cut or dropped (0 lifts the limit)" % setting, {
+		"setting": setting, "limit": limit, "got": got})
 
 ## Longest countdown a notice can carry, in seconds; 0 = no limit. The default is an hour: it
 ## is already longer than anything a HUD line is for, and a value past it is far more likely
@@ -156,30 +191,40 @@ func describe() -> Dictionary:
 
 
 ## A string out of [member data], cleaned as [member text] is, for a client about to draw it.
-static func sanitised_string(value: Variant, max_length: int = MAX_TEXT) -> String:
+static func sanitised_string(value: Variant, max_length: int = -1) -> String:
 	if not (value is String or value is StringName):
 		return ""
+	if max_length < 0:
+		max_length = max_text
 	return DotChatManager.sanitise(String(value), max_length)
 
 
 static func _bounded_id(value: String) -> StringName:
-	return StringName(value.strip_edges().substr(0, MAX_ID))
+	var s := value.strip_edges()
+	if max_id > 0 and s.length() > max_id:
+		_report("sv_notice_max_id", max_id, s.length())
+		s = s.substr(0, max_id)
+	return StringName(s)
 
 
 ## Cleaned by [method DotChatManager.sanitise]: it is drawn by the client that draws chat, so a
 ## newline or bidi override must not get through here that chat refuses.
 static func _bounded_text(value: String) -> String:
-	return DotChatManager.sanitise(value, MAX_TEXT)
+	if max_text > 0 and value.length() > max_text:
+		_report("sv_notice_max_text", max_text, value.length())
+	return DotChatManager.sanitise(value, max_text)
 
 
-## A dictionary of plain values within [constant MAX_DATA_BYTES], or an empty one. Only what JSON
+## A dictionary of plain values within [member max_data_bytes], or an empty one. Only what JSON
 ## could carry survives; an [Object] or [Callable] is not content.
 static func _bounded_data(value: Variant) -> Dictionary:
 	if not (value is Dictionary) or (value as Dictionary).is_empty():
 		return {}
 	if not _is_plain(value, 0):
 		return {}
-	if var_to_bytes(value).size() > MAX_DATA_BYTES:
+	var encoded := var_to_bytes(value).size()
+	if max_data_bytes > 0 and encoded > max_data_bytes:
+		_report("sv_notice_max_data_bytes", max_data_bytes, encoded)
 		return {}
 	return (value as Dictionary).duplicate(true)
 

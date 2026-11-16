@@ -273,6 +273,57 @@ func _register_limit_cvars() -> void:
 		"Largest round-trip time (ms) a client may report; a larger or negative report is refused; 0 = unlimited.",
 		DotConVar.FLAG_ARCHIVE
 	).with_min(0)
+	console.cvar(
+		"sv_envelope_max_kinds", str(DotEnvelope.MAX_KINDS),
+		"Most kinds one peer advert may carry; a longer advert is refused; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_envelope_max_kind_bytes", str(DotEnvelope.MAX_KIND_BYTES),
+		"Longest kind name (bytes) accepted off the wire; a longer one is skipped with an error; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_rcon_max_packet_bytes", str(DotRconServer.MAX_PACKET_BYTES),
+		"Largest RCON packet accepted (bytes); a larger one drops the client; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_rcon_max_response_bytes", str(DotRconServer.MAX_RESPONSE_BYTES),
+		"Largest RCON response body per packet (bytes); longer output is split at line boundaries; 0 = never split.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_notice_max_text", str(DotNotice.MAX_TEXT),
+		"Longest notice text (characters); longer is cut with an error; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_notice_max_id", str(DotNotice.MAX_ID),
+		"Longest notice cue or topic (characters); longer is cut with an error; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_notice_max_data_bytes", str(DotNotice.MAX_DATA_BYTES),
+		"Largest encoded notice data (bytes); larger is dropped with an error; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_notice_max_seconds", str(DotNotice.max_seconds),
+		"Longest notice countdown (seconds); a longer one is refused; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	console.cvar(
+		"sv_max_immunity", str(DotAdminFlags.MAX_IMMUNITY),
+		"Highest immunity an admin entry may hold; a higher or negative one is refused; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
+	for limit_name in [
+		"sv_envelope_max_kinds", "sv_envelope_max_kind_bytes", "sv_notice_max_text",
+		"sv_notice_max_id", "sv_notice_max_data_bytes", "sv_notice_max_seconds", "sv_max_immunity",
+	]:
+		console.find_cvar(limit_name).changed.connect(
+			func(_old: String, _new: String) -> void: apply_limit_cvars())
 
 
 ## Reads cvars back into the config after server.cfg has run.
@@ -309,6 +360,22 @@ func _apply_cvars_to_config() -> void:
 	config.threads_npc = console.get_bool("sv_threads_npc", config.threads_npc)
 	config.net_native = console.get_bool("net_native", config.net_native)
 	config.net_native_interest = console.get_bool("net_native_interest", config.net_native_interest)
+	apply_limit_cvars()
+
+
+## Pushes the limit cvars into the static settings the net, notice and admin classes read
+## ([member DotEnvelope.max_kinds], [member DotNotice.max_text], [member DotAdminFlags.max_immunity] and
+## the rest). Runs after server.cfg and again from the console whenever one of them changes.
+func apply_limit_cvars() -> void:
+	DotEnvelope.set_limits(
+		console.get_int("sv_envelope_max_kinds", DotEnvelope.MAX_KINDS),
+		console.get_int("sv_envelope_max_kind_bytes", DotEnvelope.MAX_KIND_BYTES))
+	DotNotice.set_limits(
+		console.get_int("sv_notice_max_text", DotNotice.MAX_TEXT),
+		console.get_int("sv_notice_max_id", DotNotice.MAX_ID),
+		console.get_int("sv_notice_max_data_bytes", DotNotice.MAX_DATA_BYTES))
+	DotNotice.max_seconds = console.get_float("sv_notice_max_seconds", DotNotice.max_seconds)
+	DotAdminFlags.set_max_immunity(console.get_int("sv_max_immunity", DotAdminFlags.MAX_IMMUNITY))
 
 
 func _register_commands() -> void:

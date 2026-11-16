@@ -414,10 +414,14 @@ func set_admin(
 	if uid.strip_edges() == "":
 		return DotResult.fail(DotError.CODE_INVALID, "No uid given.")
 
+	if not DotAdminFlags.immunity_allowed(immunity):
+		return DotResult.fail(
+			DotError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, DotAdminFlags.max_immunity])
+
 	_admins[uid] = {
 		"name": name,
 		"flags": Array(flags),
-		"immunity": clampi(immunity, 0, DotAdminFlags.MAX_IMMUNITY),
+		"immunity": immunity,
 		"groups": Array(groups),
 	}
 
@@ -445,9 +449,12 @@ func set_group(
 	flags: PackedStringArray,
 	immunity: int
 ) -> DotResult:
+	if not DotAdminFlags.immunity_allowed(immunity):
+		return DotResult.fail(
+			DotError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, DotAdminFlags.max_immunity])
 	_groups[name] = {
 		"flags": Array(flags),
-		"immunity": clampi(immunity, 0, DotAdminFlags.MAX_IMMUNITY),
+		"immunity": immunity,
 	}
 	return save_admins()
 

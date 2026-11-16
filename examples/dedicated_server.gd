@@ -116,6 +116,7 @@ func _run_selftest() -> void:
 	_test_worker_threads()
 	_test_game_ids()
 	_test_input_caps()
+	_test_hard_caps()
 	_test_targeting()
 	_test_scoreboard_own_row()
 	_test_scoreboard_pages()

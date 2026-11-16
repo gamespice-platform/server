@@ -15,11 +15,14 @@ const TYPE_AUTH_RESPONSE := 2
 const TYPE_EXECCOMMAND := 2
 const TYPE_AUTH := 3
 
-## The protocol's limit is 4096; anything larger is not a real command.
+## Default for cvar [code]sv_rcon_max_packet_bytes[/code]. The protocol's limit is 4096; anything
+## larger is not a real command. 0 = unlimited (a hostile client can then make the server buffer
+## without bound).
 const MAX_PACKET_BYTES := 4096
 
-## Largest response body in one packet; longer output is split at line boundaries, since
-## clients handle multi-packet responses inconsistently.
+## Default for cvar [code]sv_rcon_max_response_bytes[/code]. Largest response body in one packet;
+## longer output is split at line boundaries, since clients handle multi-packet responses
+## inconsistently. 0 = never split.
 const MAX_RESPONSE_BYTES := 3500
 
 signal authenticated(address: String)
@@ -278,13 +281,15 @@ func _poll_client(client: Dictionary) -> bool:
 	var buffer: PackedByteArray = client["buffer"]
 	buffer.append_array(tcp.get_data(available)[1])
 
-	if buffer.size() > MAX_PACKET_BYTES * 4:
+	var packet_limit := packet_limit_bytes()
+	if packet_limit > 0 and buffer.size() > packet_limit * 4:
 		# Well past any legitimate command. Either a broken client or an attempt to
 		# make the server buffer indefinitely.
 		DotLog.warn(
 			CHANNEL,
 			"dropping an RCON client that sent too much data",
-			{"from": client["address"], "bytes": buffer.size()}
+			{"from": client["address"], "bytes": buffer.size(),
+				"setting": "sv_rcon_max_packet_bytes", "limit": packet_limit * 4}
 		)
 		return false
 
@@ -302,10 +307,11 @@ func _consume_packets(
 	while buffer.size() >= 4:
 		var size := buffer.decode_s32(0)
 
-		if size < 10 or size > MAX_PACKET_BYTES:
+		var packet_limit := packet_limit_bytes()
+		if size < 10 or (packet_limit > 0 and size > packet_limit):
 			DotLog.warn(
 				CHANNEL,
-				"malformed RCON packet size",
+				"malformed RCON packet size (sv_rcon_max_packet_bytes %d)" % packet_limit,
 				{"from": client["address"], "size": size}
 			)
 			return PackedByteArray()
@@ -455,7 +461,7 @@ func _execute(
 	# password implies. Whoever has the password can already do anything the
 	# console can, so pretending to a finer granularity here would be theatre.
 	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.MAX_IMMUNITY
+	ctx.immunity = DotAdminFlags.root_immunity()
 	ctx.reply_sink = func(line: String) -> void: lines.append(line)
 
 	server.console.execute(trimmed, ctx)
@@ -471,8 +477,9 @@ func _send_response(
 	text: String
 ) -> void:
 	# Bytes, not characters: the limit is on the encoded packet, and a CJK character is up to
-	# four bytes, so 2400 characters can overrun MAX_PACKET_BYTES and be rejected by clients.
-	if text.to_utf8_buffer().size() <= MAX_RESPONSE_BYTES:
+	# four bytes, so 2400 characters can overrun sv_rcon_max_packet_bytes and be rejected by clients.
+	var limit := response_limit_bytes()
+	if limit <= 0 or text.to_utf8_buffer().size() <= limit:
 		_send_packet(client, packet_id, TYPE_RESPONSE, text)
 		return
 
@@ -482,12 +489,12 @@ func _send_response(
 	for line in text.split("\n"):
 		# A single line can be longer than one packet on its own, in which case
 		# there is no line boundary to split at and it is cut by bytes instead.
-		for piece in _split_to_byte_limit(line + "\n"):
+		for piece in _split_to_byte_limit(line + "\n", limit):
 			var piece_bytes := piece.to_utf8_buffer().size()
 			# Only flush a chunk that has something in it. Flushing an empty one
 			# put a stray zero-length packet on the wire ahead of every over-long
 			# line.
-			if chunk_bytes > 0 and chunk_bytes + piece_bytes > MAX_RESPONSE_BYTES:
+			if chunk_bytes > 0 and chunk_bytes + piece_bytes > limit:
 				_send_packet(client, packet_id, TYPE_RESPONSE, chunk)
 				chunk = ""
 				chunk_bytes = 0
@@ -498,12 +505,26 @@ func _send_response(
 		_send_packet(client, packet_id, TYPE_RESPONSE, chunk)
 
 
-## Cuts [param text] into pieces of at most [constant MAX_RESPONSE_BYTES] encoded bytes, never
-## splitting a character. Only reached by a line with no newline to break at.
-static func _split_to_byte_limit(text: String) -> PackedStringArray:
+## Largest packet accepted, in bytes ([code]sv_rcon_max_packet_bytes[/code]); 0 = unlimited.
+func packet_limit_bytes() -> int:
+	if server == null or server.console == null:
+		return MAX_PACKET_BYTES
+	return server.console.get_int("sv_rcon_max_packet_bytes", MAX_PACKET_BYTES)
+
+
+## Largest response body per packet ([code]sv_rcon_max_response_bytes[/code]); 0 = never split.
+func response_limit_bytes() -> int:
+	if server == null or server.console == null:
+		return MAX_RESPONSE_BYTES
+	return server.console.get_int("sv_rcon_max_response_bytes", MAX_RESPONSE_BYTES)
+
+
+## Cuts [param text] into pieces of at most [param limit] encoded bytes, never splitting a
+## character. Only reached by a line with no newline to break at. [param limit] 0 = no cut.
+static func _split_to_byte_limit(text: String, limit: int = MAX_RESPONSE_BYTES) -> PackedStringArray:
 	var out := PackedStringArray()
 
-	if text.to_utf8_buffer().size() <= MAX_RESPONSE_BYTES:
+	if limit <= 0 or text.to_utf8_buffer().size() <= limit:
 		out.append(text)
 		return out
 
@@ -513,7 +534,7 @@ static func _split_to_byte_limit(text: String) -> PackedStringArray:
 	for i in text.length():
 		var character := text[i]
 		var character_bytes := character.to_utf8_buffer().size()
-		if piece_bytes > 0 and piece_bytes + character_bytes > MAX_RESPONSE_BYTES:
+		if piece_bytes > 0 and piece_bytes + character_bytes > limit:
 			out.append(piece)
 			piece = ""
 			piece_bytes = 0

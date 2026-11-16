@@ -219,6 +219,93 @@ func _test_input_caps() -> void:
 	_done()
 
 
+func _test_hard_caps() -> void:
+	print("")
+	_section("[hard caps are settings: envelope, rcon, notice, immunity]")
+	var c := server.console
+
+	# Defaults keep the old values.
+	_check("default sv_envelope_max_kinds 512", c.get_int("sv_envelope_max_kinds", -1) == 512 and DotEnvelope.max_kinds == 512)
+	_check("default sv_envelope_max_kind_bytes 64", c.get_int("sv_envelope_max_kind_bytes", -1) == 64 and DotEnvelope.max_kind_bytes == 64)
+	_check("default rcon packet 4096, response 3500", c.get_int("sv_rcon_max_packet_bytes", -1) == 4096 and c.get_int("sv_rcon_max_response_bytes", -1) == 3500)
+	_check("default notice text 160, id 64, data 8192", DotNotice.max_text == 160 and DotNotice.max_id == 64 and DotNotice.max_data_bytes == 8192)
+	_check("default sv_max_immunity 100", c.get_int("sv_max_immunity", -1) == 100 and DotAdminFlags.max_immunity == 100)
+
+	# Envelope.
+	var names := []
+	for i in 512:
+		names.append("k%d" % i)
+	var env := DotEnvelope.new()
+	_check("512 kinds is inside the limit", env.adopt(9200, {"kinds": names, "required": []}, true).ok)
+	names.append("one_more")
+	_check("513 kinds is refused", not env.adopt(9201, {"kinds": names, "required": []}, true).ok)
+	c.execute("sv_envelope_max_kinds 0")
+	_check("0 lifts the kind count limit", env.adopt(9202, {"kinds": names, "required": []}, true).ok)
+	c.execute("sv_envelope_max_kinds 600")
+	_check("a raised kind limit takes effect", DotEnvelope.max_kinds == 600)
+	c.execute("sv_envelope_max_kinds -1")
+	_check("a negative kind limit is refused, the old one stays", c.get_int("sv_envelope_max_kinds", -1) == 600 and DotEnvelope.max_kinds == 600)
+	_check("set_limits refuses a negative", not DotEnvelope.set_limits(-1, 64) and DotEnvelope.max_kinds == 600)
+	var long_kind := "x".repeat(65)
+	_check("a 64-byte kind name is kept", DotEnvelope._names(["x".repeat(64)]).size() == 1)
+	_check("a 65-byte kind name is skipped", DotEnvelope._names([long_kind]).is_empty())
+	c.execute("sv_envelope_max_kind_bytes 0")
+	_check("0 lifts the kind name limit", DotEnvelope._names([long_kind]).size() == 1)
+	c.execute("sv_envelope_max_kinds 512")
+	c.execute("sv_envelope_max_kind_bytes 64")
+
+	# RCON.
+	var rcon := DotRconServer.new()
+	rcon.server = server
+	_check("rcon limits read the cvars", rcon.packet_limit_bytes() == 4096 and rcon.response_limit_bytes() == 3500)
+	c.execute("sv_rcon_max_response_bytes 10")
+	_check("a lowered response limit is read", rcon.response_limit_bytes() == 10)
+	_check("a long line is cut at the limit", DotRconServer._split_to_byte_limit("x".repeat(25), 10).size() == 3)
+	_check("0 response limit never cuts", DotRconServer._split_to_byte_limit("x".repeat(9000), 0).size() == 1)
+	c.execute("sv_rcon_max_packet_bytes 0")
+	_check("0 lifts the packet limit", rcon.packet_limit_bytes() == 0)
+	c.execute("sv_rcon_max_packet_bytes -5")
+	_check("a negative packet limit is refused", rcon.packet_limit_bytes() == 0)
+	c.execute("sv_rcon_max_packet_bytes 4096")
+	c.execute("sv_rcon_max_response_bytes 3500")
+	rcon.free()
+
+	# Notice.
+	_check("text of exactly the limit is kept", DotNotice.make(&"", "y".repeat(160)).text.length() == 160)
+	_check("text over the limit is cut", DotNotice.make(&"", "y".repeat(161)).text.length() == 160)
+	c.execute("sv_notice_max_text 0")
+	_check("0 lifts the notice text limit", DotNotice.make(&"", "y".repeat(500)).text.length() == 500)
+	c.execute("sv_notice_max_text -1")
+	_check("a negative notice limit is refused", DotNotice.max_text == 0)
+	c.execute("sv_notice_max_id 4")
+	_check("a shorter cue limit cuts the cue", String(DotNotice.make(&"abcdefgh", "t").cue) == "abcd")
+	c.execute("sv_notice_max_id 0")
+	_check("0 lifts the cue limit", String(DotNotice.make(&"abcdefgh", "t").cue) == "abcdefgh")
+	var big := {"big": "x".repeat(DotNotice.MAX_DATA_BYTES)}
+	_check("data over the limit is dropped", DotNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
+	c.execute("sv_notice_max_data_bytes 0")
+	_check("0 lifts the data limit", not DotNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
+	_check("set_limits refuses a negative", not DotNotice.set_limits(1, 1, -1) and DotNotice.max_data_bytes == 0)
+	c.execute("sv_notice_max_text 160")
+	c.execute("sv_notice_max_id 64")
+	c.execute("sv_notice_max_data_bytes 8192")
+
+	# Immunity.
+	var admins := server.admins
+	_check("immunity 100 is inside the limit", admins.set_admin("caps:a", DotAdminFlags.parse("kick"), 100).ok)
+	_check("immunity 101 is refused, not clamped", not admins.set_admin("caps:b", DotAdminFlags.parse("kick"), 101).ok)
+	_check("a negative immunity is refused", not admins.set_group("caps_g", DotAdminFlags.parse("kick"), -1).ok)
+	c.execute("sv_max_immunity 0")
+	_check("0 lifts the immunity limit", admins.set_admin("caps:c", DotAdminFlags.parse("kick"), 5000).ok)
+	_check("root then outranks any immunity", DotAdminFlags.root_immunity() > 5000)
+	c.execute("sv_max_immunity -1")
+	_check("a negative immunity limit is refused", c.get_int("sv_max_immunity", -1) == 0)
+	c.execute("sv_max_immunity 100")
+	admins.remove_admin("caps:a")
+	admins.remove_admin("caps:c")
+	_done()
+
+
 func _test_targeting() -> void:
 	print("")
 	_section("[targeting a player]")

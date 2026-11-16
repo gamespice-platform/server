@@ -42,7 +42,7 @@ func exec_config(
 	# A config file on disk is as trusted as the terminal — whoever wrote it
 	# already had filesystem access to the server.
 	config_ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	config_ctx.immunity = DotAdminFlags.MAX_IMMUNITY
+	config_ctx.immunity = DotAdminFlags.root_immunity()
 	config_ctx.address = path
 	if ctx != null:
 		config_ctx.reply_sink = ctx.reply_sink

@@ -59,11 +59,32 @@ const CORE_OPTIONAL: Array[StringName] = [
 	SCOREBOARD, SCOREBOARD_WANT, CVARS,
 ]
 
-## Longest kind name accepted off the wire. A kind is a label, not a payload.
+## Default for [member max_kind_bytes]: longest kind name accepted off the wire. A kind is a label,
+## not a payload.
 const MAX_KIND_BYTES := 64
 
-## Most kinds a peer may advertise. Bounds a table somebody else sent us.
+## Default for [member max_kinds]: most kinds a peer may advertise. Bounds a table somebody else
+## sent us.
 const MAX_KINDS := 512
+
+## Longest kind name accepted, in bytes; 0 = unlimited. Cvar [code]sv_envelope_max_kind_bytes[/code]
+## on a server. A longer name is skipped with an error naming this setting, not cut.
+static var max_kind_bytes: int = MAX_KIND_BYTES
+
+## Most kinds one advert may carry; 0 = unlimited. Cvar [code]sv_envelope_max_kinds[/code]. A longer
+## advert is refused whole, with an error naming this setting.
+static var max_kinds: int = MAX_KINDS
+
+
+## Sets both limits (0 = unlimited). A negative value is refused with an error and nothing changes.
+static func set_limits(kinds: int, kind_bytes: int) -> bool:
+	if kinds < 0 or kind_bytes < 0:
+		DotLog.error(CHANNEL, "envelope limits refused: negative", {
+			"max_kinds": kinds, "max_kind_bytes": kind_bytes})
+		return false
+	max_kinds = kinds
+	max_kind_bytes = kind_bytes
+	return true
 
 ## name -> {"handler": Callable, "required": bool}
 var _kinds: Dictionary = {}
@@ -166,11 +187,14 @@ func adopt(peer_id: int, raw: Variant, is_server: bool) -> DotResult:
 	var theirs := _names(raw.get("kinds", []))
 	var their_required := _names(raw.get("required", []))
 
-	if theirs.size() > MAX_KINDS or their_required.size() > MAX_KINDS:
+	if max_kinds > 0 and (theirs.size() > max_kinds or their_required.size() > max_kinds):
+		DotLog.error(CHANNEL, "advert refused: more kinds than max_kinds allows", {
+			"peer": peer_id, "kinds": maxi(theirs.size(), their_required.size()),
+			"setting": "sv_envelope_max_kinds", "max_kinds": max_kinds})
 		return DotResult.fail(
 			DotError.CODE_INVALID,
 			"The peer advertised too many kinds.",
-			"%d, limit %d" % [theirs.size(), MAX_KINDS]
+			"%d, limit %d (sv_envelope_max_kinds)" % [theirs.size(), max_kinds]
 		)
 
 	var known := {}
@@ -215,8 +239,14 @@ static func _names(raw: Variant) -> PackedStringArray:
 	for v in list:
 		if v is String or v is StringName:
 			var s := String(v)
-			if s != "" and s.to_utf8_buffer().size() <= MAX_KIND_BYTES:
-				out.append(s)
+			if s == "":
+				continue
+			if max_kind_bytes > 0 and s.to_utf8_buffer().size() > max_kind_bytes:
+				DotLog.error(CHANNEL, "kind name skipped: longer than max_kind_bytes", {
+					"setting": "sv_envelope_max_kind_bytes", "max_kind_bytes": max_kind_bytes,
+					"name": s.left(32)})
+				continue
+			out.append(s)
 	return out
 
 
