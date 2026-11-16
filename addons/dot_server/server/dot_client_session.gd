@@ -81,6 +81,8 @@ var last_seen_ms: int = 0
 
 ## Round-trip time in milliseconds, -1 when unknown.
 var ping_ms: int = -1
+## True once a refused ping report was logged for this client (one error, not one per report).
+var ping_refusal_logged: bool = false
 
 ## Whether this client is holding its scoreboard open, and so is sent the roster. See
 ## [method DotServer.scoreboard_snapshot].

@@ -120,6 +120,10 @@ var games: DotGameManager = null
 ## (0 = unlimited). Bounds a payload sent twice a second.
 const SCOREBOARD_MAX_ROWS := 1024
 
+## Default for [code]sv_max_ping_report[/code]: largest round-trip time (ms) a client may report
+## (0 = unlimited). A report outside 0 to this is refused, not clamped.
+const MAX_PING_REPORT := 60000
+
 ## Seconds between scoreboards sent to a client holding its board open.
 var scoreboard_interval_sec: float = 0.5
 

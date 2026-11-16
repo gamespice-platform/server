@@ -628,4 +628,12 @@ func _on_ping(peer_id: int, payload: Dictionary) -> void:
 	if session == null:
 		return
 	session.touch()
-	session.ping_ms = clampi(int(DotEnvelope.number(payload, "ms", 0)), 0, 60_000)
+	var reported := int(DotEnvelope.number(payload, "ms", 0))
+	var max_ping := console.get_int("sv_max_ping_report", MAX_PING_REPORT)
+	if reported < 0 or (max_ping > 0 and reported > max_ping):
+		if not session.ping_refusal_logged:
+			session.ping_refusal_logged = true
+			DotLog.error(CHANNEL, "ping report refused: outside 0 to sv_max_ping_report", {
+				"peer": peer_id, "ms": reported, "sv_max_ping_report": max_ping})
+		return
+	session.ping_ms = reported

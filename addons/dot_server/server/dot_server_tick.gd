@@ -268,6 +268,11 @@ func _register_limit_cvars() -> void:
 		"Most player rows one scoreboard carries (the viewer's own row always goes); 0 = unlimited.",
 		DotConVar.FLAG_ARCHIVE
 	).with_min(0)
+	console.cvar(
+		"sv_max_ping_report", str(MAX_PING_REPORT),
+		"Largest round-trip time (ms) a client may report; a larger or negative report is refused; 0 = unlimited.",
+		DotConVar.FLAG_ARCHIVE
+	).with_min(0)
 
 
 ## Reads cvars back into the config after server.cfg has run.

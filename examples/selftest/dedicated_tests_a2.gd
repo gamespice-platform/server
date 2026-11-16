@@ -192,6 +192,33 @@ func _scoreboard_pages_reorder(me: DotClientSession, made: Array[DotClientSessio
 
 
 
+func _test_input_caps() -> void:
+	print("")
+	_section("[input ceilings are settings: sv_max_ping_report]")
+
+	_check("default keeps the old ceiling (60000 ms)", server.console.get_int("sv_max_ping_report", -1) == 60000)
+
+	var p := _adopt(9100, "198.51.100.9:1", "Pinger")
+	p.state = DotClientSession.State.SPAWNED
+	server._on_ping(9100, {"ms": 5000})
+	_check("a report inside the limit is kept", p.ping_ms == 5000)
+	server._on_ping(9100, {"ms": 70000})
+	_check("a report over the limit is refused, not clamped (%d)" % p.ping_ms, p.ping_ms == 5000)
+	server._on_ping(9100, {"ms": -3})
+	_check("a negative report is refused", p.ping_ms == 5000)
+	server.console.execute("sv_max_ping_report 0")
+	server._on_ping(9100, {"ms": 70000})
+	_check("0 lifts the ping limit", p.ping_ms == 70000)
+	server.console.execute("sv_max_ping_report 100")
+	server._on_ping(9100, {"ms": 101})
+	_check("a lowered limit refuses above it", p.ping_ms == 70000)
+	server.console.execute("sv_max_ping_report -1")
+	_check("a negative cvar value is refused and the old one stays", server.console.get_int("sv_max_ping_report", -1) == 100)
+	server.console.execute("sv_max_ping_report 60000")
+	server.release_session(p.peer_id)
+	_done()
+
+
 func _test_targeting() -> void:
 	print("")
 	_section("[targeting a player]")
