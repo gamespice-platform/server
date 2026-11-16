@@ -231,44 +231,8 @@ func _test_hard_caps() -> void:
 	_check("default notice text 160, id 64, data 8192", DotNotice.max_text == 160 and DotNotice.max_id == 64 and DotNotice.max_data_bytes == 8192)
 	_check("default sv_max_immunity 100", c.get_int("sv_max_immunity", -1) == 100 and DotAdminFlags.max_immunity == 100)
 
-	# Envelope.
-	var names := []
-	for i in 512:
-		names.append("k%d" % i)
-	var env := DotEnvelope.new()
-	_check("512 kinds is inside the limit", env.adopt(9200, {"kinds": names, "required": []}, true).ok)
-	names.append("one_more")
-	_check("513 kinds is refused", not env.adopt(9201, {"kinds": names, "required": []}, true).ok)
-	c.execute("sv_envelope_max_kinds 0")
-	_check("0 lifts the kind count limit", env.adopt(9202, {"kinds": names, "required": []}, true).ok)
-	c.execute("sv_envelope_max_kinds 600")
-	_check("a raised kind limit takes effect", DotEnvelope.max_kinds == 600)
-	c.execute("sv_envelope_max_kinds -1")
-	_check("a negative kind limit is refused, the old one stays", c.get_int("sv_envelope_max_kinds", -1) == 600 and DotEnvelope.max_kinds == 600)
-	_check("set_limits refuses a negative", not DotEnvelope.set_limits(-1, 64) and DotEnvelope.max_kinds == 600)
-	var long_kind := "x".repeat(65)
-	_check("a 64-byte kind name is kept", DotEnvelope._names(["x".repeat(64)]).size() == 1)
-	_check("a 65-byte kind name is skipped", DotEnvelope._names([long_kind]).is_empty())
-	c.execute("sv_envelope_max_kind_bytes 0")
-	_check("0 lifts the kind name limit", DotEnvelope._names([long_kind]).size() == 1)
-	c.execute("sv_envelope_max_kinds 512")
-	c.execute("sv_envelope_max_kind_bytes 64")
-
-	# RCON.
-	var rcon := DotRconServer.new()
-	rcon.server = server
-	_check("rcon limits read the cvars", rcon.packet_limit_bytes() == 4096 and rcon.response_limit_bytes() == 3500)
-	c.execute("sv_rcon_max_response_bytes 10")
-	_check("a lowered response limit is read", rcon.response_limit_bytes() == 10)
-	_check("a long line is cut at the limit", DotRconServer._split_to_byte_limit("x".repeat(25), 10).size() == 3)
-	_check("0 response limit never cuts", DotRconServer._split_to_byte_limit("x".repeat(9000), 0).size() == 1)
-	c.execute("sv_rcon_max_packet_bytes 0")
-	_check("0 lifts the packet limit", rcon.packet_limit_bytes() == 0)
-	c.execute("sv_rcon_max_packet_bytes -5")
-	_check("a negative packet limit is refused", rcon.packet_limit_bytes() == 0)
-	c.execute("sv_rcon_max_packet_bytes 4096")
-	c.execute("sv_rcon_max_response_bytes 3500")
-	rcon.free()
+	_check_envelope_caps(c)
+	_check_rcon_caps(c)
 
 	# Notice.
 	_check("text of exactly the limit is kept", DotNotice.make(&"", "y".repeat(160)).text.length() == 160)
@@ -304,6 +268,49 @@ func _test_hard_caps() -> void:
 	admins.remove_admin("caps:a")
 	admins.remove_admin("caps:c")
 	_done()
+
+
+func _check_envelope_caps(c: DotConsole) -> void:
+	# Envelope.
+	var names := []
+	for i in 512:
+		names.append("k%d" % i)
+	var env := DotEnvelope.new()
+	_check("512 kinds is inside the limit", env.adopt(9200, {"kinds": names, "required": []}, true).ok)
+	names.append("one_more")
+	_check("513 kinds is refused", not env.adopt(9201, {"kinds": names, "required": []}, true).ok)
+	c.execute("sv_envelope_max_kinds 0")
+	_check("0 lifts the kind count limit", env.adopt(9202, {"kinds": names, "required": []}, true).ok)
+	c.execute("sv_envelope_max_kinds 600")
+	_check("a raised kind limit takes effect", DotEnvelope.max_kinds == 600)
+	c.execute("sv_envelope_max_kinds -1")
+	_check("a negative kind limit is refused, the old one stays", c.get_int("sv_envelope_max_kinds", -1) == 600 and DotEnvelope.max_kinds == 600)
+	_check("set_limits refuses a negative", not DotEnvelope.set_limits(-1, 64) and DotEnvelope.max_kinds == 600)
+	var long_kind := "x".repeat(65)
+	_check("a 64-byte kind name is kept", DotEnvelope._names(["x".repeat(64)]).size() == 1)
+	_check("a 65-byte kind name is skipped", DotEnvelope._names([long_kind]).is_empty())
+	c.execute("sv_envelope_max_kind_bytes 0")
+	_check("0 lifts the kind name limit", DotEnvelope._names([long_kind]).size() == 1)
+	c.execute("sv_envelope_max_kinds 512")
+	c.execute("sv_envelope_max_kind_bytes 64")
+
+
+func _check_rcon_caps(c: DotConsole) -> void:
+	# RCON.
+	var rcon := DotRconServer.new()
+	rcon.server = server
+	_check("rcon limits read the cvars", rcon.packet_limit_bytes() == 4096 and rcon.response_limit_bytes() == 3500)
+	c.execute("sv_rcon_max_response_bytes 10")
+	_check("a lowered response limit is read", rcon.response_limit_bytes() == 10)
+	_check("a long line is cut at the limit", DotRconServer._split_to_byte_limit("x".repeat(25), 10).size() == 3)
+	_check("0 response limit never cuts", DotRconServer._split_to_byte_limit("x".repeat(9000), 0).size() == 1)
+	c.execute("sv_rcon_max_packet_bytes 0")
+	_check("0 lifts the packet limit", rcon.packet_limit_bytes() == 0)
+	c.execute("sv_rcon_max_packet_bytes -5")
+	_check("a negative packet limit is refused", rcon.packet_limit_bytes() == 0)
+	c.execute("sv_rcon_max_packet_bytes 4096")
+	c.execute("sv_rcon_max_response_bytes 3500")
+	rcon.free()
 
 
 func _test_targeting() -> void:

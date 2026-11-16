@@ -248,6 +248,10 @@ func _register_limit_cvars() -> void:
 		DotConVar.FLAG_ARCHIVE
 	).with_min(0)
 
+	_register_wire_limit_cvars()
+
+
+func _register_wire_limit_cvars() -> void:
 	console.cvar(
 		"sv_max_name_length", "32",
 		"Longest display name a client may sign on with, in characters. 0 = no limit. A longer name is refused (the client keeps its default name, and the server logs why).",
