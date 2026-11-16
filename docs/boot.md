@@ -17,7 +17,7 @@ config resource -> JSON file -> env -> argv       (DotServerConfig layers)
 
 - **`server.cfg` (`DotServerConfig.startup_config`) runs before the listener** because that is the only window in which a `FLAG_STARTUP_ONLY` cvar is settable. `autoexec.cfg` runs after and has them refused, so a startup-only cvar in the wrong file fails quietly.
 - **The command line runs twice**: `execute_command_line(true)` before the listener lets through only statements naming a registered cvar; the full pass afterwards runs everything else, because `+changelevel` or `+say` needs the server up. Before this split, every startup-only cvar was unsettable from argv.
-- `DotConfig`'s own layers (`--sv-tickrate=128`, `DOT_SERVER_TICKRATE=128`) are a separate path, applied to the config object before any cvar exists.
+- `DotConfig`'s own layers (`--sv-tickrate=128`, `GS_SERVER_TICKRATE=128`) are a separate path, applied to the config object before any cvar exists.
 - `+command` arguments run last so a unit file can override a config file without editing it.
 - **Created subsystems have already run `_ready()` when `DotServer` sets their `config`**, so loads are triggered explicitly (`admins.load_admins()`), never left to `_ready` ordering. The audit log was once missed this way and no administrative action was recorded in any default configuration.
 
