@@ -69,7 +69,7 @@ None are imported. dot-server works without any of them.
 | [dot-auth](https://github.com/gamespice-platform/auth) | Real player identity, so bans mean something and site groups grant permissions. | Everyone is a guest. |
 | [dot-cloud](https://github.com/gamespice-platform/cloud) | Downloadable game content. | Games ship inside the build. |
 | [dot-moderation](https://github.com/gamespice-platform/moderation) | Bans, mutes and gags kept in a store shared between servers, enforced at connect. | `DotBanManager`'s own list is the ban list. |
-| [dot-server-query](https://github.com/gamespice-platform/server-query) | Answers server-list queries (A2S and the dot query protocol). Add a `DotQueryHost`. | The server answers nothing on the query port. |
+| [dot-server-query](https://github.com/gamespice-platform/server-query) | Answers server-list queries (A2S and the GS query protocol). Add a `DotQueryHost`. | The server answers nothing on the query port. |
 
 ## Testing
 
