@@ -85,7 +85,7 @@ func find_game(game_id: String) -> DotGameDescriptor:
 			return descriptor
 
 	# A renamed game answers to its old ids (`metadata.former_ids`), so an operator's
-	# `changelevel playground` or rotation entry keeps working after the rename.
+	# `changelevel <former id>` or rotation entry keeps working after the rename.
 	for descriptor in games:
 		if descriptor != null:
 			for old in descriptor.metadata.get("former_ids", []):

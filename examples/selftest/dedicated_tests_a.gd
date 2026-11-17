@@ -371,12 +371,18 @@ func _test_game_ids() -> void:
 		and not (d.call("Gamemann/Arena") as DotGameDescriptor).validate().ok)
 
 	var manager := DotGameManager.new()
-	for id in ["alice/arena", "bob/arena", "gamemann/game-g2gfast", "lobby"]:
+	# Airdrift was published under an older id; a rotation or `changelevel` that still names it
+	# must reach the same game as the current one.
+	var airdrift: DotGameDescriptor = d.call("gamemann/game-airdrift")
+	airdrift.metadata["former_ids"] = ["gamemann/game-g2gfast", "g2gfast"]
+	for id in ["alice/arena", "bob/arena", "lobby"]:
 		manager.add_game(d.call(id))
+	manager.add_game(airdrift)
 
-	_check("a short name that is unique finds its game",
-		manager.find_game("game-g2gfast") != null
-		and manager.find_game("game-g2gfast").game_id == "gamemann/game-g2gfast")
+	_check("a short name that is unique finds its game, and so does its former id",
+		manager.find_game("game-airdrift") == airdrift
+		and manager.find_game("game-g2gfast") == airdrift
+		and manager.find_game("gamemann/game-g2gfast") == airdrift)
 	var ambiguous := manager.resolve_game("arena")
 	_check("a short name two owners share finds nothing, and says whose",
 		manager.find_game("arena") == null and not ambiguous.ok

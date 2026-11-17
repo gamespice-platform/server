@@ -310,7 +310,7 @@ func _add_boot_games() -> void:
 func _load_lobby_awake() -> bool:
 	# A game loads AWAKE: an empty server hibernates (at boot, now), and a game reads its tick
 	# rate from the engine as it starts, so a load at the hibernate rate started the delivered
-	# playground's netcode at 5 Hz and it refused. Hibernated first, then the load watched.
+	# PLAYLOT's netcode at 5 Hz and it refused. Hibernated first, then the load watched.
 	_server.config.hibernate_when_empty = true
 	_server._maybe_hibernate()
 	var asleep_before := _server.is_hibernating()
