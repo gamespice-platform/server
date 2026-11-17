@@ -37,7 +37,7 @@ func _handshake_fields(session: DotClientSession) -> Dictionary:
 				# The RPC surface, so a client that cannot finish this join can say why instead of timing out.
 				# Godot refuses an RPC when the two ends declare different `@rpc` methods. It rides on the
 				# challenge because that still arrives after the checksum has failed. See [DotSignon].
-		"signon": DotSignon.revision([DotServer]),
+		"signon": DotSignon.revision([load("uid://bmmt0ykk31iv0")]),  # DotServer, loaded: this file is one of its bases
 		# [b]Everything this server can say and hear, and which of it a client must know.[/b]
 		# The client answers with its own; the server compares them when the answer arrives
 		# and refuses a pair that cannot play, with a sentence. See [DotEnvelope].

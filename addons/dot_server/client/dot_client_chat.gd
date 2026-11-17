@@ -9,7 +9,7 @@ extends Node
 # server, and what arrives is handed to DotClientLink.chat_received for the game to show.
 
 ## The link this reports to. Set by [DotClientLink] when it creates this node.
-var link: DotClientLink = null
+var link: Node = null  # a DotClientLink, held as Node so this file and the link do not keep each other's parsers alive
 
 
 ## Sends a chat message to the server. False when it was not sent -- not connected, or a

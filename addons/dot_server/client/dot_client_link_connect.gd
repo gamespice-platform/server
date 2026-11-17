@@ -223,7 +223,7 @@ func _on_signon_timeout() -> void:
 	DotLog.error(CHANNEL, "the server never sent a challenge", {
 		"host": server_hostname,
 		"seconds": signon_timeout_sec,
-		"client_signon": DotSignon.revision([DotClientLink]),
+		"client_signon": DotSignon.revision([load("uid://bbnmrseos3avj")]),  # DotClientLink, loaded: this file is one of its bases
 	})
 
 	var err := DotError.make(
@@ -231,7 +231,7 @@ func _on_signon_timeout() -> void:
 		"This server accepted the connection and then said nothing.",
 		"it is probably built against a different version of the game -- this client's "
 		+ "signon revision is %s; try an older build, or ask the operator which one "
-		% DotSignon.revision([DotClientLink])
+		% DotSignon.revision([load("uid://bbnmrseos3avj")])
 		+ "this server was built with"
 	)
 

@@ -92,7 +92,7 @@ func _sync_clients(descriptor: DotGameDescriptor) -> DotResult:
 	_sync_deadline = int(Time.get_unix_time_from_system()) + int(sync_timeout_sec)
 
 	# Built by the server: it is the same payload the join path sends, and a copy here drifted.
-	var info := server.content_sync_info(
+	var info: Dictionary = server.content_sync_info(
 		descriptor.manifest_url,
 		Array(descriptor.content_groups),
 		descriptor.content_key(),
@@ -304,7 +304,7 @@ func _apply_descriptor_cvars(descriptor: DotGameDescriptor, unknown_is_wrong: bo
 
 			continue
 
-		var result := server.console.set_cvar(cvar_name, value)
+		var result: DotResult = server.console.set_cvar(cvar_name, value)
 
 		if result.ok:
 			applied += 1

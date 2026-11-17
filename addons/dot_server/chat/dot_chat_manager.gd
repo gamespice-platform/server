@@ -41,16 +41,16 @@ signal message_blocked(session: DotClientSession, reason: String)
 ## Prefix on admin chat.
 @export var admin_prefix: String = "[ADMIN]"
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var _limiter: DotRateLimiter = null
 
 
-func setup(p_server: DotServer) -> void:
+func setup(p_server: Node) -> void:
 	server = p_server
 	DotRegistry.register(SERVICE, self)
 
-	var per_minute := server.config.chat_rate_per_minute
+	var per_minute: int = server.config.chat_rate_per_minute
 	# Burst equal to a quarter of the per-minute budget: enough for a player typing
 	# three quick lines, not enough to paste a wall of text.
 	_limiter = DotRateLimiter.new(
@@ -78,7 +78,7 @@ func handle_message(
 			DotError.CODE_STATE, "You are not in the game yet."
 		)
 
-	var text := sanitise(raw, server.config.chat_max_length)
+	var text: String = sanitise(raw, server.config.chat_max_length)
 
 	if text == "":
 		return DotResult.fail(DotError.CODE_INVALID, "Empty message.")
@@ -105,7 +105,7 @@ func handle_message(
 		return DotResult.fail(DotError.CODE_FORBIDDEN, "You are muted.")
 
 	if server.events != null:
-		var event := server.events.fire("player_chat", {
+		var event: DotEvent = server.events.fire("player_chat", {
 			"userid": session.userid,
 			"name": session.display_name,
 			"text": text,
@@ -168,7 +168,7 @@ func _handle_command(
 	var command_name := tokens[0].to_lower()
 
 	if server.events != null:
-		var event := server.events.fire("player_command", {
+		var event: DotEvent = server.events.fire("player_command", {
 			"userid": session.userid,
 			"name": session.display_name,
 			"command": command_name,
@@ -180,7 +180,7 @@ func _handle_command(
 				DotError.CODE_FORBIDDEN, "Command blocked."
 			)
 
-	var cmd := server.console.find_command(command_name)
+	var cmd: DotConCommand = server.console.find_command(command_name)
 
 	if cmd == null:
 		# Not a command: ignored silently, since an error would confirm which commands

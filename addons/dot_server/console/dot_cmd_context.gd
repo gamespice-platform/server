@@ -34,7 +34,7 @@ var args: PackedStringArray = PackedStringArray()
 var identity: Object = null
 
 ## The calling client's session, when a client ran this.
-var session: DotClientSession = null
+var session: RefCounted = null  # a DotClientSession, held untyped so this file and dot_client_session.gd do not keep each other's parsers alive
 
 ## Permission flags the caller holds. Checked by the console before dispatch.
 var permissions: PackedStringArray = PackedStringArray()

@@ -3,12 +3,12 @@ extends "res://addons/dot_server/console/dot_builtin_commands_moderation.gd"
 ## Game, chat, vote and admin commands of [DotBuiltinCommands].
 
 
-static func _register_games(server: DotServer, console: DotConsole) -> void:
+static func _register_games(server: Node, console: DotConsole) -> void:
 	console.command(
 		"changelevel",
 		func(ctx: DotCmdContext) -> void:
 			ctx.reply("Changing to %s…" % ctx.arg(0))
-			var res := await server.games.change_game(
+			var res: DotResult = await server.games.change_game(
 				ctx.arg(0), ctx.caller_label()
 			)
 			if not res.ok:
@@ -30,7 +30,7 @@ static func _register_games(server: DotServer, console: DotConsole) -> void:
 			alias,
 			func(ctx: DotCmdContext) -> void:
 				ctx.reply("Changing to %s…" % ctx.arg(0))
-				var res := await server.games.change_game(
+				var res: DotResult = await server.games.change_game(
 					ctx.arg(0), ctx.caller_label()
 				)
 				if not res.ok:
@@ -47,7 +47,7 @@ static func _register_games(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"nextgame",
 		func(ctx: DotCmdContext) -> void:
-			var res := await server.games.next_game(ctx.caller_label())
+			var res: DotResult = await server.games.next_game(ctx.caller_label())
 			if not res.ok:
 				ctx.reply_error(res),
 		"Advance the game rotation.",
@@ -76,7 +76,7 @@ static func _register_games(server: DotServer, console: DotConsole) -> void:
 	)
 
 
-static func _register_chat(server: DotServer, console: DotConsole) -> void:
+static func _register_chat(server: Node, console: DotConsole) -> void:
 	console.command(
 		"say",
 		func(ctx: DotCmdContext) -> void:
@@ -95,7 +95,7 @@ static func _register_chat(server: DotServer, console: DotConsole) -> void:
 			var text := ctx.rest(0)
 			if text == "":
 				return
-			var from := ctx.session.display_name if ctx.session != null else "Console"
+			var from: String = ctx.session.display_name if ctx.session != null else "Console"
 			server.chat.broadcast_admin(from, text),
 		"Send a message to admins only.",
 		DotAdminFlags.CHAT
@@ -104,7 +104,7 @@ static func _register_chat(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"psay",
 		func(ctx: DotCmdContext) -> void:
-			var resolved := server.resolve_target(ctx, ctx.arg(0))
+			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
@@ -118,11 +118,11 @@ static func _register_chat(server: DotServer, console: DotConsole) -> void:
 	).with_usage("<player> <text>").with_args(2).with_chat()
 
 
-static func _register_votes(server: DotServer, console: DotConsole) -> void:
+static func _register_votes(server: Node, console: DotConsole) -> void:
 	console.command(
 		"votemap",
 		func(ctx: DotCmdContext) -> void:
-			var resolved := server.games.resolve_game(ctx.arg(0))
+			var resolved: DotResult = server.games.resolve_game(ctx.arg(0))
 
 			if not resolved.ok:
 				ctx.reply("%s %s" % [resolved.error.message, resolved.error.detail])
@@ -130,7 +130,7 @@ static func _register_votes(server: DotServer, console: DotConsole) -> void:
 
 			var game_id := (resolved.value as DotGameDescriptor).game_id
 
-			var res := server.votes.start(
+			var res: DotResult = server.votes.start(
 				"changelevel",
 				"Change to %s?" % game_id,
 				ctx.session,
@@ -154,7 +154,7 @@ static func _register_votes(server: DotServer, console: DotConsole) -> void:
 			if ctx.session == null:
 				ctx.reply("Only players can vote.")
 				return
-			var res := server.votes.cast_vote(ctx.session, true)
+			var res: DotResult = server.votes.cast_vote(ctx.session, true)
 			ctx.reply(str(res.value_or(res.error.message if res.error else ""))),
 		"Vote yes."
 	).with_chat()
@@ -165,7 +165,7 @@ static func _register_votes(server: DotServer, console: DotConsole) -> void:
 			if ctx.session == null:
 				ctx.reply("Only players can vote.")
 				return
-			var res := server.votes.cast_vote(ctx.session, false)
+			var res: DotResult = server.votes.cast_vote(ctx.session, false)
 			ctx.reply(str(res.value_or(res.error.message if res.error else ""))),
 		"Vote no."
 	).with_chat()
@@ -180,7 +180,7 @@ static func _register_votes(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"vote_cancel",
 		func(ctx: DotCmdContext) -> void:
-			var res := server.votes.cancel("cancelled by %s" % ctx.caller_label())
+			var res: DotResult = server.votes.cancel("cancelled by %s" % ctx.caller_label())
 			if not res.ok:
 				ctx.reply_error(res)
 				return
@@ -190,7 +190,7 @@ static func _register_votes(server: DotServer, console: DotConsole) -> void:
 	)
 
 
-static func _register_admin(server: DotServer, console: DotConsole) -> void:
+static func _register_admin(server: Node, console: DotConsole) -> void:
 	console.command(
 		"admins",
 		func(ctx: DotCmdContext) -> void:
@@ -209,7 +209,7 @@ static func _register_admin(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"admin_reload",
 		func(ctx: DotCmdContext) -> void:
-			var res := server.admins.load_admins()
+			var res: DotResult = server.admins.load_admins()
 			if not res.ok:
 				ctx.reply_error(res)
 				return
@@ -225,7 +225,7 @@ static func _register_admin(server: DotServer, console: DotConsole) -> void:
 	_register_admin_add(server, console)
 
 
-static func _register_admin_add(server: DotServer, console: DotConsole) -> void:
+static func _register_admin_add(server: Node, console: DotConsole) -> void:
 	console.command(
 		"admin_add",
 		func(ctx: DotCmdContext) -> void:
@@ -252,7 +252,7 @@ static func _register_admin_add(server: DotServer, console: DotConsole) -> void:
 						break
 
 				if not recognised:
-					var known := ", ".join(server.admins.group_names())
+					var known: String = ", ".join(server.admins.group_names())
 					ctx.reply(
 						"'%s' is neither a group nor a known flag." % token
 					)
@@ -262,7 +262,7 @@ static func _register_admin_add(server: DotServer, console: DotConsole) -> void:
 
 			var immunity := ctx.arg_int(2, 0)
 
-			var res := server.admins.set_admin(
+			var res: DotResult = server.admins.set_admin(
 				ctx.arg(0), flags, immunity, groups, ctx.arg(3)
 			)
 			if not res.ok:
@@ -293,11 +293,11 @@ static func _register_admin_add(server: DotServer, console: DotConsole) -> void:
 	_register_admin_remove(server, console)
 
 
-static func _register_admin_remove(server: DotServer, console: DotConsole) -> void:
+static func _register_admin_remove(server: Node, console: DotConsole) -> void:
 	console.command(
 		"admin_remove",
 		func(ctx: DotCmdContext) -> void:
-			var res := server.admins.remove_admin(ctx.arg(0))
+			var res: DotResult = server.admins.remove_admin(ctx.arg(0))
 			if not res.ok:
 				ctx.reply_error(res)
 				return

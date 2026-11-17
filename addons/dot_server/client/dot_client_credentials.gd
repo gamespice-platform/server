@@ -4,10 +4,10 @@ extends RefCounted
 
 const CHANNEL := "client"
 
-var link: DotClientLink
+var link: Node  # a DotClientLink, held as Node so this file and the link do not keep each other's parsers alive
 
 
-func _init(owner: DotClientLink) -> void:
+func _init(owner: Node) -> void:
 	link = owner
 
 
@@ -46,7 +46,7 @@ func attach_credential(payload: Dictionary, strategy: String) -> bool:
 func _attach_ticket(payload: Dictionary, auth: Object) -> bool:
 	var ticket: Variant = null
 	if auth.has_method("request_ticket_for_address"):
-		var dialled := link._last_address.strip_edges()
+		var dialled: String = link._last_address.strip_edges()
 		if dialled == "":
 			return false
 		if link._ticket_nonce != "" and auth.get_method_argument_count("request_ticket_for_address") >= 3:
@@ -75,7 +75,7 @@ func _attach_ticket(payload: Dictionary, auth: Object) -> bool:
 
 
 func _attach_introspect(payload: Dictionary, auth: Object) -> bool:
-	var audience := link.server_join_audience
+	var audience: String = link.server_join_audience
 
 	# First-party: a join token. A server that lies about its audience gains nothing
 	# — the backbone spends the token only for the credential that audience names.

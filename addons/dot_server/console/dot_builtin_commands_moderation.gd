@@ -3,11 +3,11 @@ extends "res://addons/dot_server/console/dot_builtin_commands_info.gd"
 ## Moderation commands of [DotBuiltinCommands]: kick, ban, mute, gag.
 
 
-static func _register_moderation(server: DotServer, console: DotConsole) -> void:
+static func _register_moderation(server: Node, console: DotConsole) -> void:
 	console.command(
 		"ban",
 		func(ctx: DotCmdContext) -> void:
-			var resolved := server.resolve_target(ctx, ctx.arg(0))
+			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
@@ -28,7 +28,7 @@ static func _register_moderation(server: DotServer, console: DotConsole) -> void
 
 			var name := session.display_name
 
-			var banned := await server.bans.ban_session(
+			var banned: DotResult = await server.bans.ban_session(
 				session, reason, duration, ctx.caller_label()
 			)
 			if not banned.ok:
@@ -40,7 +40,7 @@ static func _register_moderation(server: DotServer, console: DotConsole) -> void
 			# A guest has no account to ban, so ban_session falls back to their
 			# address — which is a ban on everybody else there too, and leaving them
 			# connected is the same "it did not work" the moderator sees on banip.
-			var also := server.enforce_bans("Banned: %s" % reason)
+			var also: int = server.enforce_bans("Banned: %s" % reason)
 
 			ctx.reply("Banned %s (%s): %s%s" % [
 				name,
@@ -61,7 +61,7 @@ static func _register_moderation(server: DotServer, console: DotConsole) -> void
 	_register_moderation_banid(server, console)
 
 
-static func _register_moderation_banid(server: DotServer, console: DotConsole) -> void:
+static func _register_moderation_banid(server: Node, console: DotConsole) -> void:
 	console.command(
 		"banid",
 		func(ctx: DotCmdContext) -> void:
@@ -70,14 +70,14 @@ static func _register_moderation_banid(server: DotServer, console: DotConsole) -
 				ctx.reply("Could not read the duration '%s'." % ctx.arg(1))
 				return
 
-			var res := await server.bans.ban_uid(
+			var res: DotResult = await server.bans.ban_uid(
 				ctx.arg(0), ctx.rest(2), duration, ctx.caller_label()
 			)
 			if not res.ok:
 				ctx.reply_error(res)
 				return
 
-			var removed := server.enforce_bans()
+			var removed: int = server.enforce_bans()
 
 			ctx.reply("Banned account %s (%s).%s" % [
 				ctx.arg(0),
@@ -108,7 +108,7 @@ static func _register_moderation_banid(server: DotServer, console: DotConsole) -
 			if reason == "":
 				reason = "Banned by an admin"
 
-			var res := await server.bans.ban_address(
+			var res: DotResult = await server.bans.ban_address(
 				host, reason, duration, ctx.caller_label()
 			)
 			if not res.ok:
@@ -118,7 +118,7 @@ static func _register_moderation_banid(server: DotServer, console: DotConsole) -
 			# Everybody at the address, not just whoever was named: an address ban that
 			# leaves the banned player in the game until they choose to leave looks
 			# exactly like a ban that did not work.
-			var removed := server.enforce_bans("Banned: %s" % reason)
+			var removed: int = server.enforce_bans("Banned: %s" % reason)
 
 			ctx.reply("Banned address %s (%s). %d removed." % [
 				host, DotBanManager.format_duration(duration), removed
@@ -132,11 +132,11 @@ static func _register_moderation_banid(server: DotServer, console: DotConsole) -
 	_register_moderation_unban(server, console)
 
 
-static func _register_moderation_unban(server: DotServer, console: DotConsole) -> void:
+static func _register_moderation_unban(server: Node, console: DotConsole) -> void:
 	console.command(
 		"unban",
 		func(ctx: DotCmdContext) -> void:
-			var res := await server.bans.unban(ctx.arg(0), ctx.caller_label())
+			var res: DotResult = await server.bans.unban(ctx.arg(0), ctx.caller_label())
 			if not res.ok:
 				ctx.reply_error(res)
 				return
@@ -149,7 +149,7 @@ static func _register_moderation_unban(server: DotServer, console: DotConsole) -
 		"banlist",
 		func(ctx: DotCmdContext) -> void:
 			if ctx.argc() > 0:
-				var matches := server.bans.search(ctx.arg(0))
+				var matches: Array[Dictionary] = server.bans.search(ctx.arg(0))
 				var lines := PackedStringArray()
 				for ban in matches:
 					lines.append("%-32s %s" % [
@@ -176,7 +176,7 @@ static func _register_moderation_unban(server: DotServer, console: DotConsole) -
 	_register_moderation_silence(server, console)
 
 
-static func _register_moderation_silence(server: DotServer, console: DotConsole) -> void:
+static func _register_moderation_silence(server: Node, console: DotConsole) -> void:
 	console.command(
 		"gag",
 		func(ctx: DotCmdContext) -> void:
@@ -190,7 +190,7 @@ static func _register_moderation_silence(server: DotServer, console: DotConsole)
 	console.command(
 		"unmute",
 		func(ctx: DotCmdContext) -> void:
-			var resolved := server.resolve_target(ctx, ctx.arg(0))
+			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
@@ -234,7 +234,7 @@ static func _register_moderation_silence(server: DotServer, console: DotConsole)
 ## Refuses when somebody at that address outranks the caller: an address ban removes everybody behind it,
 ## so checking only the named player lets a junior admin remove a senior one via their housemate.
 static func _resolve_address(
-	server: DotServer,
+	server: Node,
 	ctx: DotCmdContext,
 	target: String
 ) -> DotResult:
@@ -248,7 +248,7 @@ static func _resolve_address(
 	if query.to_lower().begins_with("ip:"):
 		host = query.substr(3)
 	else:
-		var matches := server.find_sessions(query, ctx.session)
+		var matches: Array[DotClientSession] = server.find_sessions(query, ctx.session)
 
 		if matches.is_empty():
 			# Nobody by that name, so it is an address — including one nobody is
@@ -306,12 +306,12 @@ static func _reply_capped(
 
 
 static func _silence(
-	server: DotServer,
+	server: Node,
 	ctx: DotCmdContext,
 	voice: bool,
 	text: bool
 ) -> void:
-	var resolved := server.resolve_target(ctx, ctx.arg(0))
+	var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
 	if not resolved.ok:
 		ctx.reply_error(resolved)
 		return

@@ -54,7 +54,7 @@ enum Phase {
 ## Swap as soon as everyone is ready rather than waiting out the timeout.
 @export var swap_when_all_ready: bool = true
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var phase: Phase = Phase.IDLE
 

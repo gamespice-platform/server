@@ -7,7 +7,7 @@ extends "res://addons/dot_server/client/dot_client_link_connect.gd"
 ## Refuses a server whose RPC set or protocol differs: Godot would silently drop every
 ## message after the first, which the player sees as a spinner and "Timed out".
 func _revision_compatible(challenge: Dictionary) -> bool:
-	var ours := DotSignon.revision([DotClientLink])
+	var ours := DotSignon.revision([load("uid://bbnmrseos3avj")])  # DotClientLink, loaded: this file is one of its bases
 	var theirs := str(challenge.get("signon", ""))
 
 	# Kept before the refusal so a shell can tell the page which build the server wants.

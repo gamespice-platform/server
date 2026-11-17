@@ -7,7 +7,7 @@ extends "res://addons/dot_server/game/dot_game_manager_switch.gd"
 ## dot-cloud is found through [DotRegistry]. Godot cannot unmount a pack, so unload frees the scene (docs/game-switching.md).
 
 
-func setup(p_server: DotServer) -> void:
+func setup(p_server: Node) -> void:
 	server = p_server
 	DotRegistry.register(SERVICE, self)
 
@@ -59,7 +59,7 @@ func change_game(game_id: String, by: String = "console") -> DotResult:
 		return validated
 
 	if server.events != null:
-		var event := server.events.fire("game_changing", {
+		var event: DotEvent = server.events.fire("game_changing", {
 			"from": current_content_key(),
 			"to": descriptor.content_key(),
 			"by": by,

@@ -3,7 +3,7 @@ extends RefCounted
 ## Help, status and player commands of [DotBuiltinCommands].
 
 
-static func _register_help(server: DotServer, console: DotConsole) -> void:
+static func _register_help(server: Node, console: DotConsole) -> void:
 	console.command(
 		"help",
 		func(ctx: DotCmdContext) -> void:
@@ -64,7 +64,7 @@ static func _register_help(server: DotServer, console: DotConsole) -> void:
 	_register_help_listing(server, console)
 
 
-static func _register_help_listing(server: DotServer, console: DotConsole) -> void:
+static func _register_help_listing(server: Node, console: DotConsole) -> void:
 	console.command(
 		"cvarlist",
 		func(ctx: DotCmdContext) -> void:
@@ -111,7 +111,7 @@ static func _register_help_listing(server: DotServer, console: DotConsole) -> vo
 	).with_usage("[name] [commands]")
 
 
-static func _register_status(server: DotServer, console: DotConsole) -> void:
+static func _register_status(server: Node, console: DotConsole) -> void:
 	console.command(
 		"status",
 		func(ctx: DotCmdContext) -> void:
@@ -124,7 +124,7 @@ static func _register_status(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"signon",
 		func(ctx: DotCmdContext) -> void:
-			var d := DotSignon.describe([DotServer])
+			var d := DotSignon.describe([load("uid://bmmt0ykk31iv0")])  # DotServer, loaded so the two parsers do not hold each other
 			ctx.reply("revision   %s" % str(d.get("revision", "")))
 			ctx.reply("protocol   %d" % int(d.get("protocol", 0)))
 			ctx.reply("methods    %d" % int(d.get("rpc_methods", 0)))
@@ -134,7 +134,7 @@ static func _register_status(server: DotServer, console: DotConsole) -> void:
 				ctx.reply("           %s" % str(name))
 			# And the kinds, which are what actually changes between builds now: which
 			# this server knows, which a client must know, and what it has dropped.
-			var env := server.envelope.describe()
+			var env: Dictionary = server.envelope.describe()
 			ctx.reply("kinds      %d (%d required), %d not sent, %d dropped" % [
 				int(env["kinds"]), int(env["required"]),
 				int(env["skipped_sends"]), int(env["dropped_arrivals"]),
@@ -145,7 +145,7 @@ static func _register_status(server: DotServer, console: DotConsole) -> void:
 	_register_status_services(server, console)
 
 
-static func _register_status_services(server: DotServer, console: DotConsole) -> void:
+static func _register_status_services(server: Node, console: DotConsole) -> void:
 	console.command(
 		"stats",
 		func(ctx: DotCmdContext) -> void:
@@ -188,11 +188,11 @@ static func _register_status_services(server: DotServer, console: DotConsole) ->
 	)
 
 
-static func _register_players(server: DotServer, console: DotConsole) -> void:
+static func _register_players(server: Node, console: DotConsole) -> void:
 	console.command(
 		"users",
 		func(ctx: DotCmdContext) -> void:
-			var sessions := server.sessions()
+			var sessions: Array[DotClientSession] = server.sessions()
 			if sessions.is_empty():
 				ctx.reply("Nobody is connected.")
 				return
@@ -212,7 +212,7 @@ static func _register_players(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"kick",
 		func(ctx: DotCmdContext) -> void:
-			var resolved := server.resolve_target(ctx, ctx.arg(0))
+			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
@@ -242,11 +242,11 @@ static func _register_players(server: DotServer, console: DotConsole) -> void:
 	_register_players_kick(server, console)
 
 
-static func _register_players_kick(server: DotServer, console: DotConsole) -> void:
+static func _register_players_kick(server: Node, console: DotConsole) -> void:
 	console.command(
 		"kickid",
 		func(ctx: DotCmdContext) -> void:
-			var session := server.session_by_userid(ctx.arg_int(0, -1))
+			var session: DotClientSession = server.session_by_userid(ctx.arg_int(0, -1))
 			if session == null:
 				ctx.reply("No player with userid %s." % ctx.arg(0))
 				return
@@ -277,7 +277,7 @@ static func _register_players_kick(server: DotServer, console: DotConsole) -> vo
 	console.command(
 		"whois",
 		func(ctx: DotCmdContext) -> void:
-			var matches := server.find_sessions(ctx.arg(0), ctx.session)
+			var matches: Array[DotClientSession] = server.find_sessions(ctx.arg(0), ctx.session)
 
 			if matches.is_empty():
 				ctx.reply("No player matching '%s'." % ctx.arg(0))
@@ -310,7 +310,7 @@ static func _register_players_kick(server: DotServer, console: DotConsole) -> vo
 
 
 ## Completer that lists connected player names.
-static func _player_completer(server: DotServer) -> Callable:
+static func _player_completer(server: Node) -> Callable:
 	return func(partial: String, index: int) -> PackedStringArray:
 		if index != 0:
 			return PackedStringArray()

@@ -33,7 +33,7 @@ signal vote_ended(vote: Dictionary, passed: bool)
 ## A vote among two people is not a vote.
 @export_range(1, 64, 1) var min_players: int = 3
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 ## The open vote, or empty.
 var _vote: Dictionary = {}
@@ -48,7 +48,7 @@ var _last_vote_ended_at: int = 0
 var _timer: Timer = null
 
 
-func setup(p_server: DotServer) -> void:
+func setup(p_server: Node) -> void:
 	server = p_server
 	DotRegistry.register(SERVICE, self)
 
@@ -83,7 +83,7 @@ func start(
 			str(_vote.get("question", ""))
 		)
 
-	var playing := server.player_count()
+	var playing: int = server.player_count()
 
 	if playing < min_players:
 		return DotResult.fail(

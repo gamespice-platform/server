@@ -12,7 +12,7 @@ extends "res://addons/dot_server/console/dot_builtin_commands_games.gd"
 # Query commands are registered by dot-server-query when it attaches (see DotServer.attach_query_host).
 
 
-static func register_all(server: DotServer, console: DotConsole) -> void:
+static func register_all(server: Node, console: DotConsole) -> void:
 	_register_help(server, console)
 	_register_status(server, console)
 	_register_players(server, console)
@@ -26,7 +26,7 @@ static func register_all(server: DotServer, console: DotConsole) -> void:
 	_register_lifecycle(server, console)
 
 
-static func _register_modules(server: DotServer, console: DotConsole) -> void:
+static func _register_modules(server: Node, console: DotConsole) -> void:
 	console.command(
 		"modules",
 		func(ctx: DotCmdContext) -> void:
@@ -41,7 +41,7 @@ static func _register_modules(server: DotServer, console: DotConsole) -> void:
 			if not res.ok:
 				ctx.reply_error(res)
 				return
-			ctx.reply("Loaded %s." % (res.value as DotModule)._module_name()),
+			ctx.reply("Loaded %s." % res.value._module_name()),  # a DotModule, left untyped (the module script names DotServer)
 		"Load a module from a script path.",
 		DotAdminFlags.MODULES
 	).with_usage("<path>").with_args(1, 1)
@@ -49,7 +49,7 @@ static func _register_modules(server: DotServer, console: DotConsole) -> void:
 	console.command(
 		"module_unload",
 		func(ctx: DotCmdContext) -> void:
-			var res := server.modules.unload_module(ctx.arg(0))
+			var res: DotResult = server.modules.unload_module(ctx.arg(0))
 			if not res.ok:
 				ctx.reply_error(res)
 				return
@@ -78,7 +78,7 @@ static func _register_modules(server: DotServer, console: DotConsole) -> void:
 	)
 
 
-static func _register_config(server: DotServer, console: DotConsole) -> void:
+static func _register_config(server: Node, console: DotConsole) -> void:
 	console.command(
 		"exec",
 		func(ctx: DotCmdContext) -> void:
@@ -113,7 +113,7 @@ static func _register_config(server: DotServer, console: DotConsole) -> void:
 	_register_config_log(server, console)
 
 
-static func _register_config_log(server: DotServer, console: DotConsole) -> void:
+static func _register_config_log(server: Node, console: DotConsole) -> void:
 	console.command(
 		"reset",
 		func(ctx: DotCmdContext) -> void:
@@ -161,7 +161,7 @@ static func _register_config_log(server: DotServer, console: DotConsole) -> void
 	).with_usage("[channel] <level>")
 
 
-static func _register_lifecycle(server: DotServer, console: DotConsole) -> void:
+static func _register_lifecycle(server: Node, console: DotConsole) -> void:
 	console.command(
 		"quit",
 		func(ctx: DotCmdContext) -> void:

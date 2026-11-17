@@ -29,7 +29,7 @@ signal authenticated(address: String)
 signal auth_failed(address: String, attempts: int)
 signal command_received(address: String, command: String)
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var _tcp: TCPServer = null
 var _ws: TCPServer = null
@@ -55,7 +55,7 @@ var _limiter: DotRateLimiter = null
 var _next_client_id: int = 1
 
 
-func setup(p_server: DotServer) -> void:
+func setup(p_server: Node) -> void:
 	server = p_server
 	DotRegistry.register(SERVICE, self)
 
@@ -91,10 +91,10 @@ func _start() -> DotResult:
 			"This platform cannot listen for connections."
 		)
 
-	var port := server.config.effective_rcon_port()
+	var port: int = server.config.effective_rcon_port()
 
 	_tcp = TCPServer.new()
-	var err := _tcp.listen(port, server.config.bind_address)
+	var err: Error = _tcp.listen(port, server.config.bind_address)
 	if err != OK:
 		return DotResult.failure(
 			DotError.from_engine(err, "listening for RCON on port %d" % port)
@@ -111,9 +111,9 @@ func _start() -> DotResult:
 	)
 
 	if server.config.rcon_websocket:
-		var ws_port := server.config.effective_rcon_websocket_port()
+		var ws_port: int = server.config.effective_rcon_websocket_port()
 		_ws = TCPServer.new()
-		var ws_err := _ws.listen(ws_port, server.config.bind_address)
+		var ws_err: Error = _ws.listen(ws_port, server.config.bind_address)
 		if ws_err != OK:
 			DotLog.warn(
 				CHANNEL,
@@ -374,7 +374,7 @@ func _handle_auth(
 		_send_packet(client, -1, TYPE_AUTH_RESPONSE, "")
 		return
 
-	var expected := server.config.rcon_password
+	var expected: String = server.config.rcon_password
 
 	# Constant time: comparing with == leaks how many leading characters matched,
 	# which turns guessing a password into guessing it one character at a time.

@@ -4,7 +4,7 @@ extends RefCounted
 
 
 ## Live; the game wiring reads the config each snapshot or tick, so writing it is all applying is.
-static func register_threads(server: DotServer) -> void:
+static func register_threads(server: Node) -> void:
 	server.console.cvar(
 		"sv_worker_threads", str(server.config.worker_threads),
 		"Worker threads each threaded subsystem may use. -1 automatic (cores less one, at most sv_worker_threads_auto_max; set it when several servers share a machine), 0 runs everything on the main thread.",
@@ -56,7 +56,7 @@ static func register_threads(server: DotServer) -> void:
 
 
 ## The query protocols, reserved slots and the per-address limit.
-static func register_query(server: DotServer) -> void:
+static func register_query(server: Node) -> void:
 	# Registered before server.cfg runs so a server.cfg file can set them; at runtime they stop
 	# the listener answering rather than closing its socket.
 	server.console.cvar(

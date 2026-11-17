@@ -30,7 +30,7 @@ const TAP_POLL_SEC := 0.1
 ## feeding commands down a pipe, and close the pipe to stop the server.
 @export var read_pipes: bool = false
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var _thread: Thread = null
 var _stop := false
@@ -44,7 +44,7 @@ var _tap_clock := 0.0
 
 
 ## Starts reading, or explains why it will not.
-func setup(p_server: DotServer) -> DotResult:
+func setup(p_server: Node) -> DotResult:
 	server = p_server
 
 	if server == null or server.console == null:
@@ -140,7 +140,7 @@ func _process(delta: float) -> void:
 
 	# [b]No next read once the server is down.[/b] `quit` ran on the line just collected;
 	# a read started now would block until exit and leave a thread the engine warns about.
-	if _stop or (server != null and server.state == DotServer.State.STOPPED):
+	if _stop or (server != null and server.state == server.State.STOPPED):
 		set_process(false)
 		return
 

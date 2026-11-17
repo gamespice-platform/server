@@ -8,7 +8,7 @@ extends Node
 const CHANNEL := "modules"
 const SERVICE := &"dot_module_host"
 
-signal module_loaded(module: DotModule)
+signal module_loaded(module: Node)  # a DotModule, typed Node so the host (reached from dot_server.gd) does not hold the module parser, which names DotServer
 signal module_unloaded(module_name: String)
 
 ## Directories scanned by [method load_all], in order.
@@ -22,7 +22,7 @@ signal module_unloaded(module_name: String)
 ## Modules that must not be loaded, by name: disable a broken module without deleting its file and config.
 @export var blocklist: PackedStringArray = PackedStringArray()
 
-var server: DotServer = null
+var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 ## name -> DotModule
 var _modules: Dictionary = {}
@@ -32,7 +32,7 @@ var _paths: Dictionary = {}
 
 
 ## Wires the host to its server. Called by [DotServer].
-func setup(p_server: DotServer) -> void:
+func setup(p_server: Node) -> void:
 	server = p_server
 	DotRegistry.register(SERVICE, self)
 
@@ -114,7 +114,7 @@ func _instantiate_module(path: String) -> DotResult:
 
 	var instance: Variant = (script as GDScript).new()
 
-	if not (instance is DotModule):
+	if not _is_module(instance):
 		# A Node never added to the tree leaks until the process ends.
 		if instance is Node:
 			(instance as Node).queue_free()
@@ -133,8 +133,8 @@ func load_module(path: String) -> DotResult:
 	if not made.ok:
 		return made
 
-	var module := made.value as DotModule
-	var module_name := module._module_name()
+	var module: Node = made.value  # a DotModule (see _is_module)
+	var module_name: String = module._module_name()
 
 	if blocklist.has(module_name):
 		module.queue_free()
@@ -200,7 +200,7 @@ func unload_module(module_name: String) -> DotResult:
 			DotError.CODE_INVALID, "No module named '%s'." % module_name
 		)
 
-	var module: DotModule = _modules[module_name]
+	var module: Node = _modules[module_name]
 
 	# Teardown runs first, while registrations still exist. `_module_unload` must be SYNCHRONOUS:
 	# `unload_all` runs from `_exit_tree`, with no frame left to resume a coroutine. A coroutine that
@@ -263,7 +263,7 @@ func reload_module(module_name: String) -> DotResult:
 
 
 
-func get_module(module_name: String) -> DotModule:
+func get_module(module_name: String) -> Node:  # a DotModule
 	return _modules.get(module_name)
 
 
@@ -283,7 +283,7 @@ func count() -> int:
 
 func _on_game_changed(content_key: String) -> void:
 	for module_name in _modules:
-		(_modules[module_name] as DotModule)._module_game_changed(content_key)
+		_modules[module_name]._module_game_changed(content_key)
 
 
 func describe_lines() -> PackedStringArray:
@@ -294,7 +294,7 @@ func describe_lines() -> PackedStringArray:
 		return out
 
 	for module_name in loaded_names():
-		var module: DotModule = _modules[module_name]
+		var module: Node = _modules[module_name]
 		out.append("%-20s %-10s %s" % [
 			module_name,
 			module._module_version(),
@@ -302,3 +302,18 @@ func describe_lines() -> PackedStringArray:
 		])
 
 	return out
+
+
+# True when [param instance] is a [DotModule]. The module script is loaded here (once per module load) and its
+# instances are held as Node, so this host, which dot_server.gd names, does not keep the DotModule parser (which
+# names DotServer) alive in a cycle.
+static func _is_module(instance: Variant) -> bool:
+	if not (instance is Object):
+		return false
+	var want: Script = load("uid://dgwlrdlk67gwp")
+	var s: Script = (instance as Object).get_script()
+	while s != null:
+		if s == want:
+			return true
+		s = s.get_base_script()
+	return false
