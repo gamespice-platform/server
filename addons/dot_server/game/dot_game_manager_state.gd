@@ -77,8 +77,8 @@ var _server_children_before_game: Array[Node] = []
 
 
 ## The game an id names: exactly, or by its NAME half when that is unambiguous.
-## A published id is `<owner>/<name>`, so `changelevel arena` works while one installed game is
-## called `arena`; [method resolve_game] says which two there are once a second owner arrives.
+## A published id is `<owner>/<name>`, so `changelevel fc` works while one installed game is
+## called `fc`; [method resolve_game] says which two there are once a second owner arrives.
 func find_game(game_id: String) -> DotGameDescriptor:
 	for descriptor in games:
 		if descriptor != null and descriptor.game_id == game_id:
@@ -145,7 +145,7 @@ func add_game(descriptor: DotGameDescriptor) -> DotResult:
 			DotError.CODE_INVALID, "A game descriptor needs a game_id."
 		)
 
-	# Exact, not find_game: a built-in `arena` beside a published `alice/arena` is two
+	# Exact, not find_game: a built-in `fc` beside a published `alice/fc` is two
 	# games, and the short-name alias must not make one look like a duplicate.
 	if game_ids().has(descriptor.game_id):
 		return DotResult.fail(

@@ -84,7 +84,7 @@ func validate() -> DotResult:
 		)
 
 	# A game built into a server is one name (`lobby`); a published one is its
-	# publisher's and is `<owner>/<name>` (`gamemann/game-arena`), so forks and
+	# publisher's and is `<owner>/<name>` (`zees-games/game-fatal-contact`), so forks and
 	# same-named games from two people are two ids. Each half is a slug.
 	var halves := game_id.split("/")
 	if halves.size() > 2:

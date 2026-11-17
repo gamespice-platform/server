@@ -120,10 +120,10 @@ func _test_connect() -> bool:
 func _test_switch_to_delivered() -> void:
 	_section("changelevel to a game the client has to download")
 
-	var result := _server.console.execute("changelevel arena")
+	var result := _server.console.execute("changelevel fc")
 	_check(result.ok, "the command is accepted", str(result.error))
 
-	var arrived := await _until(func() -> bool: return _at_game("arena"), 30.0)
+	var arrived := await _until(func() -> bool: return _at_game("fc"), 30.0)
 
 	if not _check(
 		arrived,
@@ -170,10 +170,10 @@ func _test_switch_to_delivered() -> void:
 	await _test_delivered_client_told()
 
 func _test_delivered_client_told() -> void:
-	var told := await _until(func() -> bool: return _games_seen.has("arena"))
+	var told := await _until(func() -> bool: return _games_seen.has("fc"))
 	_check(told, "the client was told about the change")
 	_check(
-		told and _games_seen[_games_seen.size() - 1] == "arena",
+		told and _games_seen[_games_seen.size() - 1] == "fc",
 		"and told it last, not before the swap (%s)" % [_games_seen]
 	)
 	# One _load_game for the join and one for the change; a third means the client loaded the OLD game mid-sync.
@@ -238,9 +238,9 @@ func _test_delivered_client_mounted() -> void:
 		"and offers the map without mounting it (%s)" % [_server.games.current_maps()]
 	)
 	# A per-map download group (API 19): a client joining now is sent it beside the game's own groups.
-	_server.games.set_current_map("arena_a", PackedStringArray(["map-arena_a"]))
+	_server.games.set_current_map("fc_a", PackedStringArray(["map-fc_a"]))
 	_check(
-		_server.games.current_content_groups().has("map-arena_a") and _server.games.current_map() == "arena_a",
+		_server.games.current_content_groups().has("map-fc_a") and _server.games.current_map() == "fc_a",
 		"a reported map's groups go to a joining client (%s)" % [_server.games.current_content_groups()]
 	)
 	# One subscription, not one per change: a fresh lambda is a fresh [Callable], so an `is_connected`
@@ -278,7 +278,7 @@ func _test_switch_back() -> void:
 	var told := await _until(_told_lobby_again)
 	_check(told, "and was told (%s)" % [_games_seen])
 	_check(
-		not _server.games.current_content_groups().has("map-arena_a"),
+		not _server.games.current_content_groups().has("map-fc_a"),
 		"the last game's map groups went with it (%s)" % [_server.games.current_content_groups()]
 	)
 
@@ -366,10 +366,10 @@ func _test_switch_to_delivered_again() -> void:
 			load_seen["playing"] = Engine.get_process_frames()
 	_link.phase_changed.connect(on_phase)
 
-	var result := _server.console.execute("changelevel arena")
+	var result := _server.console.execute("changelevel fc")
 	_check(result.ok, "the command is accepted", str(result.error))
 
-	var arrived := await _until(func() -> bool: return _at_game("arena"), 30.0)
+	var arrived := await _until(func() -> bool: return _at_game("fc"), 30.0)
 	_check(arrived, "the server reaches it again")
 
 	await _until(_client_playing)

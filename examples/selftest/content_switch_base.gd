@@ -9,7 +9,7 @@ const CACHE_SERVER := DATA + "/cache_server"
 const CACHE_CLIENT := DATA + "/cache_client"
 
 ## The delivered game's identity. Version is in the mount path, by dot-cloud's rule.
-const PACK_ID := "delivered_arena"
+const PACK_ID := "delivered_fc"
 const PACK_VERSION := "1.0.0"
 const PACK_SCENE := "world.tscn"
 # A dependency is always an owner/name pack, the shape the site publishes.
@@ -60,7 +60,7 @@ var _progress_calls := [0]
 
 var _manifest_url := ""
 
-## The stand-in game nodes added under the server and the client link while arena runs.
+## The stand-in game nodes added under the server and the client link while fc runs.
 var _game_nodes: Array = []
 
 
@@ -142,7 +142,7 @@ func _publish_content() -> bool:
 	var publisher := DotCloudPublisher.new()
 	publisher.content_id = PACK_ID
 	publisher.version = PACK_VERSION
-	publisher.display_name = "Delivered Arena"
+	publisher.display_name = "Delivered FC"
 	publisher.entry_scene = PACK_SCENE
 	publisher.signing_key_pem = str(pair["private"])
 	publisher.signing_key_id = "test"
@@ -264,8 +264,8 @@ func _add_boot_games() -> void:
 	builtin.scene = "res://examples/fixtures/lobby_world.tscn"
 
 	var delivered := DotGameDescriptor.new()
-	delivered.game_id = "arena"
-	delivered.display_name = "Delivered Arena"
+	delivered.game_id = "fc"
+	delivered.display_name = "Delivered FC"
 	delivered.content_id = PACK_ID
 	delivered.version = PACK_VERSION
 	delivered.manifest_url = _manifest_url

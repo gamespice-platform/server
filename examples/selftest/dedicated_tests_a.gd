@@ -364,18 +364,18 @@ func _test_game_ids() -> void:
 		g.scene = "res://x.tscn"
 		return g
 
-	_check("an owner/name id validates", (d.call("gamemann/game-arena") as DotGameDescriptor).validate().ok)
+	_check("an owner/name id validates", (d.call("zees-games/game-fatal-contact") as DotGameDescriptor).validate().ok)
 	_check("so does a built-in's bare name", (d.call("lobby") as DotGameDescriptor).validate().ok)
 	_check("two slashes or capitals do not",
 		not (d.call("a/b/c") as DotGameDescriptor).validate().ok
-		and not (d.call("Gamemann/Arena") as DotGameDescriptor).validate().ok)
+		and not (d.call("Zees-Games/FC") as DotGameDescriptor).validate().ok)
 
 	var manager := DotGameManager.new()
 	# Airdrift was published under an older id; a rotation or `changelevel` that still names it
 	# must reach the same game as the current one.
 	var airdrift: DotGameDescriptor = d.call("gamemann/game-airdrift")
 	airdrift.metadata["former_ids"] = ["gamemann/game-g2gfast", "g2gfast"]
-	for id in ["alice/arena", "bob/arena", "lobby"]:
+	for id in ["alice/fc", "bob/fc", "lobby"]:
 		manager.add_game(d.call(id))
 	manager.add_game(airdrift)
 
@@ -383,16 +383,16 @@ func _test_game_ids() -> void:
 		manager.find_game("game-airdrift") == airdrift
 		and manager.find_game("game-g2gfast") == airdrift
 		and manager.find_game("gamemann/game-g2gfast") == airdrift)
-	var ambiguous := manager.resolve_game("arena")
+	var ambiguous := manager.resolve_game("fc")
 	_check("a short name two owners share finds nothing, and says whose",
-		manager.find_game("arena") == null and not ambiguous.ok
-		and ambiguous.error.detail.contains("alice/arena") and ambiguous.error.detail.contains("bob/arena"))
+		manager.find_game("fc") == null and not ambiguous.ok
+		and ambiguous.error.detail.contains("alice/fc") and ambiguous.error.detail.contains("bob/fc"))
 	_check("the full id always finds exactly that fork",
-		manager.find_game("bob/arena") != null and manager.find_game("bob/arena").game_id == "bob/arena")
+		manager.find_game("bob/fc") != null and manager.find_game("bob/fc").game_id == "bob/fc")
 	_check("a built-in with the same short name is not a duplicate of a fork",
-		manager.add_game(d.call("arena")).ok)
+		manager.add_game(d.call("fc")).ok)
 	_check("and once it exists the bare name means the built-in",
-		manager.find_game("arena") != null and manager.find_game("arena").game_id == "arena")
+		manager.find_game("fc") != null and manager.find_game("fc").game_id == "fc")
 	var renamed: DotGameDescriptor = d.call("gamemann/game-newname")
 	renamed.metadata["former_ids"] = ["gamemann/game-oldname", "oldname"]
 	manager.add_game(renamed)

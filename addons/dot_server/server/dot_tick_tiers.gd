@@ -5,7 +5,7 @@ extends RefCounted
 ## [code]players<=32:66,<=64:33,else:22[/code]
 ##
 ## [b]Why.[/b] A server's cost is per player per tick, so the rate a server can hold falls as it fills
-## (measured on the arena: ~16-20 players at 66 Hz, ~16-28 at 33 Hz, ~32-48 at 22 Hz on one core).
+## (measured on Fatal Contact: ~16-20 players at 66 Hz, ~16-28 at 33 Hz, ~32-48 at 22 Hz on one core).
 ## An operator who wants 128 slots picks the rate by the slot count instead of by hand.
 ##
 ## [b]Grammar.[/b] Comma-separated tiers, first match wins. A tier is [code][players]<=N:RATE[/code]
