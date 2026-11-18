@@ -1,4 +1,4 @@
-extends "res://examples/selftest/dedicated_tests_d.gd"
+extends "res://examples/selftest/dedicated_notices_rcon.gd"
 
 ## Boots a dedicated server and exercises the console, admin and moderation paths, headless with no clients.
 ## Covers cvar flags, permissions, config execution, the command buffer, bans, votes, modules and the audit trail.

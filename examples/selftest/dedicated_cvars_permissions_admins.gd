@@ -1,4 +1,4 @@
-extends "res://examples/selftest/dedicated_tests_b.gd"
+extends "res://examples/selftest/dedicated_chat_modules_audit.gd"
 
 ## Cvar, permission, ban and admin sections of dedicated_server.gd.
 

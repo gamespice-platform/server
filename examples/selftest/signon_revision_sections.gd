@@ -1,6 +1,6 @@
 extends "res://examples/selftest/signon_revision_base.gd"
 
-## signon_revision selftest sections, part a.
+## signon_revision selftest sections: agreement, derivation, mismatch refusals, tickets and the warm feeds.
 
 const Credentials := preload("res://addons/dot_server/client/dot_client_credentials.gd")
 

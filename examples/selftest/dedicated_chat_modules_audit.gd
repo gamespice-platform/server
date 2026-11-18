@@ -1,6 +1,6 @@
-extends "res://examples/selftest/dedicated_tests_a2.gd"
+extends "res://examples/selftest/dedicated_scoreboard_targeting.gd"
 
-## dedicated_server selftest sections, part b.
+## dedicated_server selftest sections: chat, events, identity, bot quota, modules, audit and chat commands.
 
 ## `DotChatManager.sanitise` against the definition it replaced, as written before it was
 ## made linear: filter, collapse, strip, cut. Empty when every case agrees.

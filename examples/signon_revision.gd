@@ -1,4 +1,4 @@
-extends "res://examples/selftest/signon_revision_tests_a.gd"
+extends "res://examples/selftest/signon_revision_sections.gd"
 
 ## Whether this client and this server can finish a join. Godot refuses an RPC unless both ends declare the same @rpc set,
 ## and the failure reads "timed out during join", never "version" (docs/design-notes.md). Covers the RPC names, [DotSignon],

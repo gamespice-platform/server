@@ -1,6 +1,6 @@
 extends "res://examples/selftest/dedicated_base.gd"
 
-## dedicated_server selftest sections, part a.
+## dedicated_server selftest sections: console, config files, bans, hibernation and platforms.
 
 func _test_console() -> void:
 	_section("[console]")

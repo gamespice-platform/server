@@ -1,4 +1,4 @@
-extends "res://examples/selftest/dedicated_tests_c.gd"
+extends "res://examples/selftest/dedicated_cvars_permissions_admins.gd"
 
 ## Notice and RCON sections of dedicated_server.gd.
 

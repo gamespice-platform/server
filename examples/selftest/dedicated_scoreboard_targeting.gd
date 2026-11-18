@@ -1,6 +1,6 @@
-extends "res://examples/selftest/dedicated_tests_a.gd"
+extends "res://examples/selftest/dedicated_console_config_platforms.gd"
 
-## dedicated_server selftest sections, part a2 (the scoreboard and targeting).
+## dedicated_server selftest sections (the scoreboard and targeting).
 
 func _test_scoreboard_own_row() -> void:
 	print("")
