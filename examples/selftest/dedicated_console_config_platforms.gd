@@ -371,7 +371,7 @@ func _test_game_ids() -> void:
 		and not (d.call("Zees-Games/FC") as DotGameDescriptor).validate().ok)
 
 	var manager := DotGameManager.new()
-	# Airdrift was published under an older id; a rotation or `changelevel` that still names it
+	# legacy id: Airdrift was published under an older id; a rotation or `changelevel` that still names it
 	# must reach the same game as the current one.
 	var airdrift: DotGameDescriptor = d.call("gamemann/game-airdrift")
 	airdrift.metadata["former_ids"] = ["gamemann/game-g2gfast", "g2gfast"]
