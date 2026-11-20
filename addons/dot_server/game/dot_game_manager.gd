@@ -4,7 +4,7 @@ extends "res://addons/dot_server/game/dot_game_manager_switch.gd"
 
 ## Loads and switches the running game while clients stay connected.
 ## A changelevel is announce, clients download and mount, swap, re-spawn; a client that cannot get the content is dropped.
-## dot-cloud is found through [DotRegistry]. Godot cannot unmount a pack, so unload frees the scene (docs/game-switching.md).
+## GameSpice Cloud is found through [DotRegistry]. Godot cannot unmount a pack, so unload frees the scene (docs/game-switching.md).
 
 
 func setup(p_server: Node) -> void:

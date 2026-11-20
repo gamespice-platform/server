@@ -8,7 +8,7 @@ extends DotConfig
 ## Name shown in server listings and `status`.
 @export var hostname: String = "A dot server"
 
-## Identifier this server is known by; the audience for dot-auth connect tickets, so it must match the issuer's [member DotAuthConfig.server_id].
+## Identifier this server is known by; the audience for GameSpice Auth connect tickets, so it must match the issuer's [member DotAuthConfig.server_id].
 @export var server_id: String = ""
 
 ## Free-form tags for listings.
@@ -94,7 +94,7 @@ extends DotConfig
 
 ## Reduce tick processing when nobody is connected (cvar `sv_hibernate_when_empty`, live).
 ## [b]On[/b]: ticks at [member hibernate_tickrate] and [signal DotServer.hibernation_changed] clocks wait for a joiner.
-## [b]Off[/b]: clocks run, and with nobody to vote dot-vote draws the next map at random.
+## [b]Off[/b]: clocks run, and with nobody to vote GameSpice Vote draws the next map at random.
 @export var hibernate_when_empty: bool = true
 
 ## Ticks per second while hibernating.
@@ -111,18 +111,18 @@ extends DotConfig
 ## and the pool is shared with the engine; raise it on a big box that runs one server.
 @export_range(0, 64, 1, "or_greater") var worker_threads_auto_max: int = 8
 
-## Build each player's snapshot on the workers (cvar [code]sv_threads_net[/code]). On by default: dot-net's snapshot_bench
+## Build each player's snapshot on the workers (cvar [code]sv_threads_net[/code]). On by default: GameSpice Net's snapshot_bench
 ## (native core, 213 NPCs) measured byte-identical payloads and a build 2 to 4 times cheaper at 64 and 100 players.
 ## Nothing runs on workers where [method DotParallel.available] is false (the web) or [member worker_threads] is 0.
-## The game's wiring copies [method net_snapshot_workers] into [code]DotNetConfig.snapshot_workers[/code]; dot-net does not depend on this addon.
+## The game's wiring copies [method net_snapshot_workers] into [code]DotNetConfig.snapshot_workers[/code]; GameSpice Net does not depend on this addon.
 @export var threads_net: bool = true
 
 ## Run NPC decisions and path searches on the workers (cvar [code]sv_threads_npc[/code], live), for brains that
 ## say they can. Off by default; read through [method npc_workers].
 @export var threads_npc: bool = false
 
-## Build snapshots in dot-net's native core (cvar [code]net_native[/code], live). On by default (GDScript costs about 9 times as much at 100 players);
-## the game's wiring ORs it into [code]DotNetConfig.native[/code], and dot-net falls back to GDScript and logs why where the library cannot load.
+## Build snapshots in GameSpice Net's native core (cvar [code]net_native[/code], live). On by default (GDScript costs about 9 times as much at 100 players);
+## the game's wiring ORs it into [code]DotNetConfig.native[/code], and GameSpice Net falls back to GDScript and logs why where the library cannot load.
 @export var net_native: bool = true
 
 ## Also run the interest phase in the native core (cvar [code]net_native_interest[/code]; needs [member net_native]). On by default.
@@ -167,7 +167,7 @@ extends DotConfig
 @export_group("Query")
 
 ## Answer the dot query protocol. Safe on by default: every UDP query gets an address-bound challenge before any payload,
-## and it is rate limited per address. Read by dot-server-query's DQP listener, a separate addon.
+## and it is rate limited per address. Read by GameSpice Server Query's DQP listener, a separate addon.
 @export var query_enabled: bool = true
 
 ## Interface the query listeners bind, when not [member bind_address]. Empty: the game's interface.
@@ -188,7 +188,7 @@ extends DotConfig
 
 ## How much of the player list a query may see. [code]full[/code] adds userid, ping, bot and signon state to A2S's
 ## name, score and duration ([code]names[/code]); [code]count[/code] gives the number only; [code]none[/code] refuses the section.
-## Never an account uid; see dot-server-query.
+## Never an account uid; see GameSpice Server Query.
 @export_enum("full", "names", "count", "none")
 var query_player_detail: String = "full"
 
@@ -220,7 +220,7 @@ var query_player_detail: String = "full"
 @export_group("A2S")
 
 ## Answer the A2S query protocol as well. Off by default: a compatibility shim for old trackers, bots and uptime monitors,
-## worth having when being listed matters. See dot-server-query's A2S listener, a separate addon.
+## worth having when being listed matters. See GameSpice Server Query's A2S listener, a separate addon.
 @export var a2s_enabled: bool = false
 
 ## UDP port for A2S. 0 uses [member port], which is where every tracker looks.

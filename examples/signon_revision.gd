@@ -289,7 +289,7 @@ func _test_scoreboard_stale(got: Array[Dictionary], session: DotClientSession, r
 	_check(newest > 0 and int(_link.scoreboard.get("you", 0)) != -999 and got.size() == heard,
 		"a board older than the one held is dropped, not shown (seq %d after %d)" % [newest - 1, newest])
 
-	# The block list's two fields (dot-chat's `sm`): whose voice is whose, and a key that
+	# The block list's two fields (GameSpice Chat's `sm`): whose voice is whose, and a key that
 	# outlives the session but means nothing on another server.
 	var key := str(row.get("key", ""))
 	_check(int(row.get("peer", 0)) == session.peer_id, "each row carries the player's peer, for voice")

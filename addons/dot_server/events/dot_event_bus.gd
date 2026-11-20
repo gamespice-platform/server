@@ -51,7 +51,7 @@ func _process(_delta: float) -> void:
 	_fired_this_frame = 0
 
 
-## Events dot-server itself fires. Declared so `event_list` documents them.
+## Events GameSpice Server itself fires. Declared so `event_list` documents them.
 func _declare_builtin() -> void:
 	declare("server_start", "The server finished booting.")
 	declare("server_shutdown", "The server is shutting down.")

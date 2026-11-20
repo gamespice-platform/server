@@ -30,7 +30,7 @@ var command: String = ""
 var args: PackedStringArray = PackedStringArray()
 
 ## The identity of the caller, when there is one. Null for console and config.
-## Typed loosely because dot-server does not depend on dot-auth.
+## Typed loosely because GameSpice Server does not depend on GameSpice Auth.
 var identity: Object = null
 
 ## The calling client's session, when a client ran this.

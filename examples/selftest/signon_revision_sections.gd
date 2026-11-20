@@ -528,7 +528,7 @@ func _test_introspect_refuses_a_server_not_ours() -> void:
 	_drop_link(link)
 	_done()
 
-## [b]dot-auth's bind_join_address flag.[/b] Off (the default) the join token is asked for
+## [b]GameSpice Auth's bind_join_address flag.[/b] Off (the default) the join token is asked for
 ## by audience alone, exactly as before; on, by the host and port the client DIALLED.
 ## Armed by passing the announced hostname, or the flag ignored: the bound check fails.
 func _test_join_token_address_binding() -> void:

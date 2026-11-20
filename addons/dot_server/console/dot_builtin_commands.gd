@@ -9,7 +9,7 @@ extends "res://addons/dot_server/console/dot_builtin_commands_games.gd"
 # wants in a log (a kick, a ban, a map change) are logged by the server and the ban
 # manager these commands call, where every other path to them is logged as well.
 
-# Query commands are registered by dot-server-query when it attaches (see DotServer.attach_query_host).
+# Query commands are registered by GameSpice Server Query when it attaches (see DotServer.attach_query_host).
 
 
 static func register_all(server: Node, console: DotConsole) -> void:

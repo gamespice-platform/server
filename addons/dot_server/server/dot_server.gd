@@ -218,7 +218,7 @@ func _resolve_log_sink() -> void:
 		return
 
 	# A router is anything that can be asked what it is doing and told to flush — which
-	# is dot-log's, and could be somebody else's. Probed rather than named: naming it
+	# is GameSpice Log's, and could be somebody else's. Probed rather than named: naming it
 	# would make an optional addon a hard dependency of every server in the family.
 	log_is_router = (
 		log_node.has_method("describe_lines") and log_node.has_method("flush_all")
@@ -397,8 +397,8 @@ func _resolve(ref: DotNodeRef, what: String) -> Node:
 	return res.value
 
 
-## Attaches dot-auth's admin source when present, found through [DotRegistry] so dot-server
-## has no dependency on dot-auth.
+## Attaches GameSpice Auth's admin source when present, found through [DotRegistry] so GameSpice Server
+## has no dependency on GameSpice Auth.
 func _attach_auth_admin_source() -> void:
 	var auth := DotRegistry.get_service(&"dot_auth_server")
 	if auth == null:

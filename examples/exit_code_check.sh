@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # The process exit status survives teardown while the stdin reader is blocked in a read:
-# dot-cloud's auto-update quits with 75 and a supervisor restarts on exactly that.
+# GameSpice Cloud's auto-update quits with 75 and a supervisor restarts on exactly that.
 #
 #   examples/exit_code_check.sh     exit 0 when both runs end 75, 1 otherwise
 #

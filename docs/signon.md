@@ -11,7 +11,7 @@ CONNECTING -> AUTHENTICATING -> PROFILE -> DOWNLOADING -> LOADING -> SPAWNED
 ```
 
 - **Each stage has its own timeout** (`auth_timeout_sec`, `profile_timeout_sec`, `download_timeout_sec`, `load_timeout_sec`), because "reply to a challenge" and "download 400 MB" differ by three orders of magnitude. A client stuck in `AUTHENTICATING` has a credential problem; one stuck in `PROFILE` is waiting on a module; one stuck in `DOWNLOADING` has a slow connection. Collapsing them into "connecting" makes a server impossible to support.
-- **`PROFILE` is last in the enum, not where it runs.** A state is kept as its number outside this addon (dot-server-deploy's replay records `int(session.state)`), so the existing values never move; the signon order is `_can_transition`'s. `AUTHENTICATING -> DOWNLOADING/LOADING` stays legal for a host that drives the machine itself.
+- **`PROFILE` is last in the enum, not where it runs.** A state is kept as its number outside this addon (GameSpice Server Deploy's replay records `int(session.state)`), so the existing values never move; the signon order is `_can_transition`'s. `AUTHENTICATING -> DOWNLOADING/LOADING` stays legal for a host that drives the machine itself.
 - **`SPAWNED -> DOWNLOADING` is the game change**, and `LOADING -> DOWNLOADING` is legal too: a `changelevel` does not wait for a client that connected a second earlier ([game-switching.md](game-switching.md)).
 - `DotClientLink` enters `PLAYING` itself after it sends `game.loaded`, with nothing coming back, so a client in `PLAYING` is not proof the server spawned it. A test of a join waits for the server session in `SPAWNED`.
 
@@ -66,7 +66,7 @@ Three things carry the revision, each for a different person:
 
 **Adding a feature** is `server.envelope.register(&"mything", handler, required)` plus `server.send_kind(peer, &"mything", {...}, lane)`, and the same on `link.envelope` / `link.send_kind`. **Payloads change only by adding a field**; every handler reads through `DotEnvelope.number` / `text` / `flag`, which default a field an older peer did not send and ignore a type a newer one changed. A change that cannot be an addition is a new kind. `DotSignon.PROTOCOL` (2) is for the one change names cannot express: a kind that keeps its name and changes its meaning, refused in the same words as a revision mismatch.
 
-The envelope was the last coordinated protocol break: a client exported before it is sent kinds on RPCs it never declared and ends at its own signon watchdog. Since then, a new dot-server feature should not need a new client build.
+The envelope was the last coordinated protocol break: a client exported before it is sent kinds on RPCs it never declared and ends at its own signon watchdog. Since then, a new GameSpice Server feature should not need a new client build.
 
 ## A reason reaches the client whoever sends it
 
@@ -76,13 +76,13 @@ The envelope was the last coordinated protocol break: a client exported before i
 
 `DotServer.addon_set` is an Array of `{dir, repo, id, version}` (`dir` under `res://addons/`, `id` the content id the addon's tag is published under). The host fills it (dot-server-deploy reads its `addons.lock`); when non-empty the challenge carries it as `addons`, with the server's `content_base_urls`. `DotClientLink.server_addons` is the client's copy, set before `server_info` fires, and the link adopts the bases into the registered cloud client.
 
-- **The challenge**, because it is the first thing a client hears and arrives whatever else differs, and the point is to act before the join: a client with older addons fetches the newer ones as packs and restarts into them (dot-cloud's `DotCloudAddonSet`). Once a game is loaded the old addons have run and cannot be replaced in that process.
+- **The challenge**, because it is the first thing a client hears and arrives whatever else differs, and the point is to act before the join: a client with older addons fetches the newer ones as packs and restarts into them (GameSpice Cloud's `DotCloudAddonSet`). Once a game is loaded the old addons have run and cannot be replaced in that process.
 - **The bases ride with it** because a desktop client otherwise learns the content origin only from the first `content.sync`, after the challenge.
 - Both are fields, so no revision moves; an empty list sends neither.
 
 ## One seat per account
 
-`sv_single_seat` (default 1): when an account (not a guest) finishes authenticating while another active session holds the same `uid`, the older session is kicked with a reason, before the slot check, so it frees its slot. Newest wins because the usual second sign-in is a player whose old connection has not timed out yet. The site keeps no cross-server seat table; dot-auth's issuer does (`single_session`) for a publisher that wants one.
+`sv_single_seat` (default 1): when an account (not a guest) finishes authenticating while another active session holds the same `uid`, the older session is kicked with a reason, before the slot check, so it frees its slot. Newest wins because the usual second sign-in is a player whose old connection has not timed out yet. The site keeps no cross-server seat table; GameSpice Auth's issuer does (`single_session`) for a publisher that wants one.
 
 ## The round trip is known as the join completes
 
@@ -90,4 +90,4 @@ The envelope was the last coordinated protocol break: a client exported before i
 
 ## The metered peer and net_stat
 
-**The link's peer is metered**: `DotClientLink` wraps its multiplayer peer in dot-core's `DotMeteredPeer` (invisible to `SceneMultiplayer`), and `net_meter()` returns it. The `heartbeat.ack` carries `"sv": {fps, var_ms, tick}`, the server's own frame, as a new key in a Dictionary, so either end may be older. dot-menu's `DotMenuNetStat` (the `net_stat` overlay) reads `DotMeteredPeer.of(multiplayer.multiplayer_peer)` and never names dot-server.
+**The link's peer is metered**: `DotClientLink` wraps its multiplayer peer in GameSpice Core's `DotMeteredPeer` (invisible to `SceneMultiplayer`), and `net_meter()` returns it. The `heartbeat.ack` carries `"sv": {fps, var_ms, tick}`, the server's own frame, as a new key in a Dictionary, so either end may be older. GameSpice Menu's `DotMenuNetStat` (the `net_stat` overlay) reads `DotMeteredPeer.of(multiplayer.multiplayer_peer)` and never names GameSpice Server.

@@ -190,7 +190,7 @@ func current_map() -> String:
 
 ## Called by the running game whenever its map changes. "" clears it.
 ##
-## [param groups] (API 19) are the map's dot-cloud download groups, sent to a client joining from now on
+## [param groups] (API 19) are the map's GameSpice Cloud download groups, sent to a client joining from now on
 ## beside the game's own (see [method current_content_groups]). Drops the query cache too (duck-typed).
 func set_current_map(map_id: String, groups: PackedStringArray = PackedStringArray()) -> void:
 	if map_id == _current_map and groups == _current_map_groups:
@@ -249,7 +249,7 @@ func current_server_dependencies() -> PackedStringArray:
 
 
 ## The running game's delivered maps, as `<owner>/<map id>@<version>` keys, for the game
-## to turn into map definitions (dot-map's DotMapCatalogue.add_delivered). Empty for a
+## to turn into map definitions (GameSpice Map's DotMapCatalogue.add_delivered). Empty for a
 ## game whose descriptor names none.
 func current_maps() -> PackedStringArray:
 	return _current.maps if _current != null else PackedStringArray()

@@ -8,7 +8,7 @@ const SOURCE := DATA + "/src"
 const CACHE_SERVER := DATA + "/cache_server"
 const CACHE_CLIENT := DATA + "/cache_client"
 
-## The delivered game's identity. Version is in the mount path, by dot-cloud's rule.
+## The delivered game's identity. Version is in the mount path, by GameSpice Cloud's rule.
 const PACK_ID := "delivered_fc"
 const PACK_VERSION := "1.0.0"
 const PACK_SCENE := "world.tscn"

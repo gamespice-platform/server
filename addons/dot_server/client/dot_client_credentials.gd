@@ -118,7 +118,7 @@ func _attach_introspect(payload: Dictionary, auth: Object) -> bool:
 	return false
 
 
-## True when dot-auth is set to bind join tokens to the dialled address
+## True when GameSpice Auth is set to bind join tokens to the dialled address
 ## (DotAuthConfig.bind_join_address, default off) and its request_join_token takes one.
 func _binds_join_address(auth: Object) -> bool:
 	if auth.get_method_argument_count("request_join_token") < 3:

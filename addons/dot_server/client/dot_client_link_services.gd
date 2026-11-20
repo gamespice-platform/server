@@ -62,7 +62,7 @@ func want_scoreboard(open: bool) -> bool:
 	return send_kind(DotEnvelope.SCOREBOARD_WANT, {"open": open, "paged": true})
 
 
-## Asks for ONE board, leaving a held board held; a client's block list (dot-chat's `sm`) uses it to learn who is here.
+## Asks for ONE board, leaving a held board held; a client's block list (GameSpice Chat's `sm`) uses it to learn who is here.
 ## The held state goes along, so a server that predates `once` reads "no change" instead of a close. False when not sent.
 func request_scoreboard() -> bool:
 	if not _connected:

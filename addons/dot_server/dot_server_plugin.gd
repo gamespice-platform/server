@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-## Editor entry point for dot-server. Registers inspector types only.
+## Editor entry point for GameSpice Server. Registers inspector types only.
 ## No autoloads: a project may run a server and a client in one process, which a singleton would forbid.
 
 const _ICON := "res://addons/dot_server/icon_placeholder.svg"

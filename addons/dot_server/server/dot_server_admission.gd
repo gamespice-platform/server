@@ -3,7 +3,7 @@ extends "res://addons/dot_server/server/dot_server_teardown.gd"
 
 ## Address and identity admission, ban enforcement and the query host of [DotServer].
 
-## Plugs a query responder (dot-server-query's [code]DotQueryHost[/code], duck-typed) into this server.
+## Plugs a query responder (GameSpice Server Query's [code]DotQueryHost[/code], duck-typed) into this server.
 ## Opened once the server is running, or at once when it attaches later, as a runtime-loaded module does.
 ## See [member query_host].
 func attach_query_host(host: Object) -> DotResult:
@@ -150,7 +150,7 @@ func _on_source_revoked(punishment: Object, _by: String) -> void:
 		await bans.lift_guest_bans(uid)
 
 
-## An externally registered ban list ([code]dot_ban_source[/code], from dot-moderation), or null.
+## An externally registered ban list ([code]dot_ban_source[/code], from GameSpice Moderation), or null.
 ## Checked, not assumed: a registration that cannot answer the method is reported once, loudly,
 ## instead of silently skipped.
 func _ban_source() -> Object:

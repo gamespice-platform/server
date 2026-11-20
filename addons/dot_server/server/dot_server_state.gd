@@ -7,7 +7,7 @@ const Cvars := preload("dot_server_cvars.gd")
 const CHANNEL := "server"
 const SERVICE := &"dot_server"
 
-## Registry name of an optional external ban list; dot-moderation registers under it and answers
+## Registry name of an optional external ban list; GameSpice Moderation registers under it and answers
 ## [code]check_admission(uid, address) -> DotResult[/code]. Neither addon imports the other.
 const BAN_SOURCE := &"dot_ban_source"
 
@@ -39,7 +39,7 @@ signal state_changed(state: State)
 
 ## The server went into hibernation ([param hibernating] true) or came out of it.
 ## A game's clocks follow this rather than [signal state_changed], which says it among five other
-## states; dot-vote's and dot-map's [code]follow_hibernation[/code] connect to it by name.
+## states; GameSpice Vote's and GameSpice Map's [code]follow_hibernation[/code] connect to it by name.
 signal hibernation_changed(hibernating: bool)
 
 ## [code]sv_tickrate[/code] was set while the server is up. Nothing has changed yet: the
@@ -95,12 +95,12 @@ signal notice_sent(notice: DotNotice, recipients: int)
 @export var events_ref: DotNodeRef = null
 @export var modules_ref: DotNodeRef = null
 
-## Where the log goes, over and above stdout: a [DotLogSink], or a dot-log [code]DotLogRouter[/code]
-## (duck-typed; only dot-core may be a hard dependency). Null makes a [DotLogSink] from
+## Where the log goes, over and above stdout: a [DotLogSink], or a GameSpice Log [code]DotLogRouter[/code]
+## (duck-typed; only GameSpice Core may be a hard dependency). Null makes a [DotLogSink] from
 ## [member DotServerConfig.log_file_enabled].
 @export var log_sink_ref: DotNodeRef = null
 
-## Where the log is going, if anywhere: a [DotLogSink], a dot-log router, or null.
+## Where the log is going, if anywhere: a [DotLogSink], a GameSpice Log router, or null.
 var log_node: Node = null
 
 ## Whether [member log_node] is a router rather than a plain sink. Duck-typed.
@@ -145,7 +145,7 @@ var _scoreboard_accum: float = 0.0
 var votes: DotVoteManager = null
 var events: DotEventBus = null
 var modules: DotModuleHost = null
-## The query responder, when dot-server-query is plugged in. Duck-typed: naming its class here
+## The query responder, when GameSpice Server Query is plugged in. Duck-typed: naming its class here
 ## would make an optional addon mandatory, since a script naming a missing class fails to parse.
 ## Filled in by the host through [method attach_query_host]; null when nothing attaches.
 var query_host: Object = null

@@ -13,7 +13,7 @@ const CHANNEL_EVENT := DotTransport.Channel.EVENT
 
 ## Code points [method sanitise] removes outright: zero-width and formatting characters, the
 ## directional marks, overrides and isolates, and the byte-order mark. The same list as
-## dot-chat's [code]DotChatFilter.INVISIBLE[/code] — see [method is_refused] for why.
+## GameSpice Chat's [code]DotChatFilter.INVISIBLE[/code] — see [method is_refused] for why.
 const INVISIBLE: Array[int] = [
 	0x00AD, 0x061C, 0x180E,
 	0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
@@ -242,12 +242,12 @@ func _same_team(a: DotClientSession, b: DotClientSession) -> bool:
 
 
 ## Whether chat is also carried somewhere off this server. `() -> bool`, a callable because
-## dot-server cannot name dot-chat's relay. Unset means no.
+## GameSpice Server cannot name GameSpice Chat's relay. Unset means no.
 var relay_fn: Callable = Callable()
 
 ## Points [member relay_fn] at a relay and tells everybody what changed. Duck-typed (a
 ## method `is_carrying() -> bool`) because naming [code]DotChatRelay[/code] would not compile
-## without dot-chat. A null relay, or one without the method, means nothing carries chat.
+## without GameSpice Chat. A null relay, or one without the method, means nothing carries chat.
 func watch_relay(relay: Object) -> void:
 	if relay != null and relay.has_method("is_carrying"):
 		relay_fn = Callable(relay, "is_carrying")
@@ -427,8 +427,8 @@ static func sanitise(raw: String, max_length: int) -> String:
 
 
 ## Whether [method sanitise] drops [param code]: controls, DEL, and [constant INVISIBLE].
-## Keep equal to dot-chat's [code]DotChatFilter[/code]; a character one passes is a spoof
-## route. Copied because dot-server names no other addon.
+## Keep equal to GameSpice Chat's [code]DotChatFilter[/code]; a character one passes is a spoof
+## route. Copied because GameSpice Server names no other addon.
 static func is_refused(code: int) -> bool:
 	if code < 32 or code == 127 or (code >= 0x80 and code <= 0x9F):
 		return true

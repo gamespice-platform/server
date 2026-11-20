@@ -21,7 +21,7 @@ const ENVELOPE: Array[String] = [
 	"_dot_up", "_dot_up_event", "_dot_up_unreliable",
 ]
 
-## How much of the hash is shown. Twelve hex characters, matching dot-net's schema hash,
+## How much of the hash is shown. Twelve hex characters, matching GameSpice Net's schema hash,
 ## which is the other half of this handshake and is printed beside it.
 const REVISION_LENGTH := 12
 

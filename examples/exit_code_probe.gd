@@ -1,7 +1,7 @@
 extends Node
 
 ## Boots a server with a stdin console, shuts it down and quits with exit code 75, the
-## way dot-cloud's auto-update does. Run by examples/exit_code_check.sh under a real pipe
+## way GameSpice Cloud's auto-update does. Run by examples/exit_code_check.sh under a real pipe
 ## and a pty, which assert the process status is 75.
 
 

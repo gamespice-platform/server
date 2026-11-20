@@ -1,4 +1,4 @@
-# dot-server docs
+# GameSpice Server docs
 
 The reasoning behind [../CLAUDE.md](../CLAUDE.md)'s rules.
 

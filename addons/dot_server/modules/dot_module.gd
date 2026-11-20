@@ -114,7 +114,7 @@ func add_query_provider(provider: Object) -> DotResult:
 			"No query source: neither query protocol is enabled on this server."
 		)
 
-	# Duck-typed: the query source lives in dot-server-query, which this project
+	# Duck-typed: the query source lives in GameSpice Server Query, which this project
 	# may not have. See DotServer.query_host.
 	var added := server.query_source.call("add_provider", provider) as DotResult
 	if added.ok:

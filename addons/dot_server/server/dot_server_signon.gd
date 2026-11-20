@@ -317,7 +317,7 @@ func allowed_platforms() -> PackedStringArray:
 	return out
 
 
-## Runs dot-auth if it is present, or admits everyone as a guest. Null after rejecting the session.
+## Runs GameSpice Auth if it is present, or admits everyone as a guest. Null after rejecting the session.
 func _authenticate(
 	session: DotClientSession,
 	payload: Dictionary
@@ -325,7 +325,7 @@ func _authenticate(
 	var auth := DotRegistry.get_service(&"dot_auth_server")
 
 	if auth == null or not auth.has_method("authenticate"):
-		# No dot-auth installed. Everyone is a guest, which is the only honest
+		# No GameSpice Auth installed. Everyone is a guest, which is the only honest
 		# option — inventing an identity would make bans look like they work.
 		return _guest_identity(session, payload)
 
@@ -338,7 +338,7 @@ func _authenticate(
 		"name": session.display_name,
 	}
 
-	# Our own copy of the challenge nonce, never the client's; an older dot-auth takes two.
+	# Our own copy of the challenge nonce, never the client's; an older GameSpice Auth takes two.
 	var res: Variant
 	if auth.get_method_argument_count("authenticate") >= 3:
 		res = await auth.call("authenticate", credential, session.address, session.ticket_nonce)
@@ -361,7 +361,7 @@ func _authenticate(
 	return result.value
 
 
-## A minimal identity for servers running without dot-auth.
+## A minimal identity for servers running without GameSpice Auth.
 ## Duck-typed to what [DotClientSession] reads. See [DotGuestIdentity].
 func _guest_identity(
 	session: DotClientSession,

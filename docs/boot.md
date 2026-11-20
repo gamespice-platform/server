@@ -38,7 +38,7 @@ The family's tickrate chain is `sv_tickrate` → `Engine.physics_ticks_per_secon
 `sv_hibernate_when_empty` (`DotServerConfig.hibernate_when_empty`, default 1, live) puts a server with no sessions into `HIBERNATING` (`hibernate_tickrate` ticks, `hibernate_frame_rate` frames) **from boot** and whenever the last session leaves; the first client to spawn wakes it.
 
 - **`hibernation_changed(hibernating: bool)` is the hook**, a plain bool on purpose: dot-vote's `DotVoteDirector.follow_hibernation(server)` and dot-map's `DotMapSession.follow_hibernation(server)` connect to it by name, and dot-game's `DotGameModule` hands the server to every such clock. Asleep they stop counting; on waking they restart from their configured values. Without this, a fresh server's map clock ran out to an empty room.
-- Setting the cvar to 0 on an empty server wakes it. With it off, a time limit that runs out on nobody is dot-vote's `empty_choice`.
+- Setting the cvar to 0 on an empty server wakes it. With it off, a time limit that runs out on nobody is GameSpice Vote's `empty_choice`.
 - **"Up" is `RUNNING or HIBERNATING`**, which is what `online` in the query answer has always said. A host waiting for `RUNNING` after boot will see `HIBERNATING`.
 
 ## A game loads awake

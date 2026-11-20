@@ -259,7 +259,7 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 
 ## Adds the server's content addresses after the client's own (a LAN mirror still wins). Only
 ## somewhere to ask: the manifest must still carry a signature from a key the client holds.
-## Duck-typed, since dot-server does not depend on dot-cloud.
+## Duck-typed, since GameSpice Server does not depend on GameSpice Cloud.
 func _adopt_content_bases(cloud: Object, urls: Variant) -> void:
 	# PackedStringArray is not an Array: the packed arrays are their own Variant types, so an `is Array`
 	# guard rejected exactly the value the config holds and the RPC carries, and the client silently

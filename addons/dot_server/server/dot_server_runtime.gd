@@ -273,7 +273,7 @@ func describe() -> Dictionary:
 
 ## One line: the worker count and cores, what is pooled, and the physics engine, read-only
 ## from the project because nothing in the process can change it. The figures come from
-## dot-core's [DotParallel], whose labels the threaded subsystems name ("net.snapshot").
+## GameSpice Core's [DotParallel], whose labels the threaded subsystems name ("net.snapshot").
 func describe_threads() -> String:
 	var workers := config.resolved_workers() if config != null else 0
 	var resolved := DotParallel.resolve_workers(workers)
@@ -320,7 +320,7 @@ func to_stats_report() -> Dictionary:
 		"curUsers": player_count(),
 		"maxUsers": _cv_maxplayers.get_int(),
 		# The one place that can know: only a game knows which of its entities are
-		# bots, and it says so through a query provider (dot-server-query). Without
+		# bots, and it says so through a query provider (GameSpice Server Query). Without
 		# one this is still 0, which is at least honest about not knowing.
 		"bots": _bot_count(),
 		# null, never "": the backbone's IngestServerStatsInput takes `map` as a

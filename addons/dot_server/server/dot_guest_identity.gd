@@ -1,7 +1,7 @@
 class_name DotGuestIdentity
 extends RefCounted
 
-## A minimal identity for servers without dot-auth, with the duck-typed surface the server reads
+## A minimal identity for servers without GameSpice Auth, with the duck-typed surface the server reads
 ## ([code]uid[/code], [code]display_name[/code], [code]is_guest[/code], [method is_valid], [method label]).
 ## A real class, not a runtime-built script (fragile in exports). Guest ids are per device, so a guest ban means little.
 

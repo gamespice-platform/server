@@ -1,8 +1,8 @@
 extends RefCounted
-## dot-auth stand-ins for signon_revision: the halves dot-server asks of dot-auth, and what they saw.
+## GameSpice Auth stand-ins for signon_revision: the halves GameSpice Server asks of GameSpice Auth, and what they saw.
 
 
-## dot-auth's client half for tickets: records what it was asked by.
+## GameSpice Auth's client half for tickets: records what it was asked by.
 class _TicketStandIn extends RefCounted:
 	const TICKET := "ticket-for-the-test"
 	var addresses: Array[String] = []
@@ -19,7 +19,7 @@ class _TicketStandIn extends RefCounted:
 		return DotResult.success(TICKET)
 
 
-## dot-auth's server half, as far as dot-server asks: a strategy and a verdict.
+## GameSpice Auth's server half, as far as GameSpice Server asks: a strategy and a verdict.
 class _AuthStandIn extends RefCounted:
 	const AUDIENCE := "server:7"
 	var on_authenticate: Callable
@@ -54,7 +54,7 @@ class _Account extends RefCounted:
 	var is_guest := false
 
 
-## dot-auth's client half: an access token it must never send, and a join token
+## GameSpice Auth's client half: an access token it must never send, and a join token
 ## minted only for a first-party audience.
 class _TokenStandIn extends RefCounted:
 	const SECRET := "bearer-secret-for-the-test"

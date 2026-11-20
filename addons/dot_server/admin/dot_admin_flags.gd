@@ -40,7 +40,7 @@ const NOCLIP := "noclip"
 
 ## Act on a player's body without changing the rules (slay, slap, freeze, respawn, rename, burn).
 ## Not [constant CHEATS] on purpose: freezing a griefer is not giving somebody a rocket launcher.
-## dot-moderation's [code]DotModToolCommands[/code] checks it.
+## GameSpice Moderation's [code]DotModToolCommands[/code] checks it.
 const SLAY := "slay"
 
 ## Move players: bring, goto, send, return. Separate from [constant SLAY] because

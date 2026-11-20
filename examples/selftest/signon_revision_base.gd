@@ -89,7 +89,7 @@ func _missing_from(these: PackedStringArray, those: PackedStringArray) -> Packed
 			out.append(name)
 	return out
 
-## Stands in for the dot-cloud client's warm_content.
+## Stands in for the GameSpice Cloud client's warm_content.
 class FakeCloud extends Node:
 	var hang := false
 

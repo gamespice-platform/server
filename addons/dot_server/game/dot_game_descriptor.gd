@@ -4,7 +4,7 @@ extends Resource
 
 ## One game (or map, or mode) the server can run. A [Resource] so an operator can
 ## configure it in the inspector and a module can build one; it only names content and a
-## scene, since fetching content is dot-cloud's business.
+## scene, since fetching content is GameSpice Cloud's business.
 
 ## Stable identifier, used by `changelevel` and in config filenames.
 ##
@@ -155,7 +155,7 @@ func effective_content_id() -> String:
 	return content_id if content_id != "" else game_id
 
 
-## Key identifying this exact content, matching dot-cloud's: [code]id@version[/code], so a
+## Key identifying this exact content, matching GameSpice Cloud's: [code]id@version[/code], so a
 ## client's reported content can be checked against the server's.
 func content_key() -> String:
 	# Never empty for a delivered game: the key is what a client reports back and what
@@ -169,7 +169,7 @@ func content_key() -> String:
 	]
 
 
-## Absolute path of the scene the server loads. A relative path resolves under dot-cloud's
+## Absolute path of the scene the server loads. A relative path resolves under GameSpice Cloud's
 ## mount prefix, [code]res://dot_cloud/<content_id>/<version>/[/code].
 func resolve_scene_path() -> String:
 	return _resolve(scene)

@@ -1,6 +1,6 @@
 extends Node
 
-## The yml layout of dot-server's group and permission files: new path, flat shim, operator layer.
+## The yml layout of GameSpice Server's group and permission files: new path, flat shim, operator layer.
 ## Run: [code]godot --headless --path . res://examples/cfg_selftest.tscn[/code]
 
 const FOLDER := "dot_server"

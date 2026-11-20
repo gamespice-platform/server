@@ -292,7 +292,7 @@ func _reply_value(ctx: DotCmdContext, value: Variant) -> void:
 
 
 ## A source's own completion, in the shape [member DotConCommand.completer] is called in.
-## The source gets the whole line and answers whole lines (dot-console's panel replaces the input box);
+## The source gets the whole line and answers whole lines (GameSpice Console's panel replaces the input box);
 ## [method complete] reassembles the line from the pieces the completer contract hands over.
 func _source_completer(source: Object, name: String) -> Callable:
 	return func(partial: String, index: int) -> PackedStringArray:

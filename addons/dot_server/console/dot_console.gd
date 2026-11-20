@@ -17,7 +17,7 @@ func _exit_tree() -> void:
 	DotRegistry.unregister_instance(SERVICE, self)
 
 
-## Completions for what is in the input box, as whole command lines, because dot-console's panel
+## Completions for what is in the input box, as whole command lines, because GameSpice Console's panel
 ## replaces the input box with the candidate. Once there is a space the command's own completer
 ## answers; a bare word returns the name list.
 func complete(partial: String, limit: int = 24) -> PackedStringArray:
@@ -110,7 +110,7 @@ func _complete_arguments(partial: String, limit: int) -> PackedStringArray:
 		if text == "":
 			continue
 
-		# A source that already answered with a whole line -- dot-log's does -- is left
+		# A source that already answered with a whole line -- GameSpice Log's does -- is left
 		# alone. Prefixing it again would offer `log log tail`.
 		out.append(text if text.to_lower().begins_with(name + " ") else head + " " + text)
 

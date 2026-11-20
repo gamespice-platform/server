@@ -14,7 +14,7 @@ func _deliver_content(descriptor: DotGameDescriptor) -> DotResult:
 	return await _sync_clients(descriptor)
 
 
-## Downloads and mounts the new game's content on this server, through dot-cloud from [DotRegistry].
+## Downloads and mounts the new game's content on this server, through GameSpice Cloud from [DotRegistry].
 ## An absent cloud client is a refusal: a manifest_url says the content is delivered, and clients
 ## must not be asked for what the server cannot load.
 func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
@@ -43,8 +43,8 @@ func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
 	var groups := PackedStringArray()
 	for group in descriptor.content_groups:
 		groups.append(String(group))
-	# The server loads whichever map the rotation picks, so it fetches every group (dot-cloud API 22's
-	# "*"); a client fetches its map's group on demand. An older dot-cloud reads "*" as a name matching nothing.
+	# The server loads whichever map the rotation picks, so it fetches every group (GameSpice Cloud API 22's
+	# "*"); a client fetches its map's group on demand. An older GameSpice Cloud reads "*" as a name matching nothing.
 	groups.append("*")
 
 	# `ensure` is told the id and version too, so it refuses a manifest that does not answer to
@@ -392,7 +392,7 @@ func _unload_current() -> void:
 	_current_map = ""
 	_current_map_groups = PackedStringArray()
 
-	# Release the old content's cache references so dot-cloud may evict it. The
+	# Release the old content's cache references so GameSpice Cloud may evict it. The
 	# pack's file table stays mounted — the engine offers no way to remove it — but
 	# nothing points at those paths any more.
 	var cloud := DotRegistry.get_service(&"dot_cloud_client")

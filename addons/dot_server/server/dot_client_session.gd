@@ -10,7 +10,7 @@ enum State {
 	CONNECTING,
 	## Waiting for, or checking, a credential.
 	AUTHENTICATING,
-	## Fetching the current game's content via dot-cloud.
+	## Fetching the current game's content via GameSpice Cloud.
 	DOWNLOADING,
 	## Content present; loading the game scene.
 	LOADING,
@@ -38,8 +38,8 @@ var state: State = State.CONNECTING
 ## Set when [member state] is [constant State.REJECTED].
 var reject_reason: String = ""
 
-## Identity from dot-auth once authenticated, else null. Typed loosely: dot-server
-## does not depend on dot-auth.
+## Identity from GameSpice Auth once authenticated, else null. Typed loosely: GameSpice Server
+## does not depend on GameSpice Auth.
 var identity: Object = null
 
 ## Name shown in chat and `status`; never used for authorisation.

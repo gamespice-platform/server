@@ -278,7 +278,7 @@ func resolved_workers() -> int:
 	return n
 
 
-## The worker count for dot-net's snapshot build: 0 unless [member threads_net] is on, then
+## The worker count for GameSpice Net's snapshot build: 0 unless [member threads_net] is on, then
 ## [method resolved_workers]. Never more than DotParallel allows on this machine.
 func net_snapshot_workers() -> int:
 	return resolved_workers() if threads_net else 0

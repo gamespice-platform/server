@@ -37,7 +37,7 @@ signal chat_received(payload: Dictionary)
 
 ## The server put something on this player's HUD: a line, a countdown, a sound, or the end of one. See [DotNotice].
 ## The one message sent to the APPLICATION rather than the game on screen: a game's wire is replaced when the game changes,
-## this is dot-server's, so something that outlives a game (a next-game vote, a restart warning) reaches a player as more than chat.
+## this is GameSpice Server's, so something that outlives a game (a next-game vote, a restart warning) reaches a player as more than chat.
 signal notice_received(notice: DotNotice)
 
 ## The browser tab was hidden or shown. Never fires off-web.
@@ -58,7 +58,7 @@ signal game_changed(game_id: String, content_id: String, display_name: String)
 
 ## A replicated cvar's value arrived or changed (FLAG_REPLICATED cvars, see [member replicated_cvars]).
 ## Fires once per name whose value is new, not per message. Duck-typed followers
-## (dot-combat's [code]DotCombatManager.follow_cvars[/code]) connect here by name.
+## (GameSpice Combat's [code]DotCombatManager.follow_cvars[/code]) connect here by name.
 signal replicated_cvar_changed(cvar_name: String, value: String)
 
 @export_group("Identity")
@@ -66,11 +66,11 @@ signal replicated_cvar_changed(cvar_name: String, value: String)
 ## Name to request. Honoured for guests; an authenticated account uses its own.
 @export var player_name: String = "Player"
 
-## Where to find a [code]DotAuthClient[/code], when dot-auth is installed.
-## Resolved through [DotRegistry], so this addon has no dependency on dot-auth.
+## Where to find a [code]DotAuthClient[/code], when GameSpice Auth is installed.
+## Resolved through [DotRegistry], so this addon has no dependency on GameSpice Auth.
 @export var auth_service: StringName = &"dot_auth_client"
 
-## Where to find a [code]DotCloudClient[/code], when dot-cloud is installed.
+## Where to find a [code]DotCloudClient[/code], when GameSpice Cloud is installed.
 @export var cloud_service: StringName = &"dot_cloud_client"
 
 @export_group("Transport")

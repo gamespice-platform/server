@@ -49,22 +49,22 @@ The rule this puts on everything else: **nothing but a game adds children under 
 
 ## Coupling: nothing is imported
 
-dot-server works standalone. Optional addons are found through `DotRegistry` at runtime or reached duck-typed:
+GameSpice Server works standalone. Optional addons are found through `DotRegistry` at runtime or reached duck-typed:
 
 | Optional addon | How it is found | Without it |
 | --- | --- | --- |
-| dot-auth | `dot_auth_server` | Everyone is a guest with a per-device id; `DotGuestIdentity` gives the same duck-typed surface as `DotAuthIdentity` |
-| dot-cloud | `dot_cloud_client` | Games must ship inside the build; a server needing downloadable content refuses the client with a clear reason |
-| dot-auth admin source | duck-typed `lookup()` / `source_name()` | File-based admins only |
-| dot-moderation | `dot_ban_source` | `DotBanManager`'s list is the whole ban list |
-| dot-chat | `watch_relay` / `relay_fn` | Chat state reports no relay |
-| dot-server-query | `attach_query_host(host)` | The server answers nothing on the query port, a supported configuration |
+| GameSpice Auth | `dot_auth_server` | Everyone is a guest with a per-device id; `DotGuestIdentity` gives the same duck-typed surface as `DotAuthIdentity` |
+| GameSpice Cloud | `dot_cloud_client` | Games must ship inside the build; a server needing downloadable content refuses the client with a clear reason |
+| GameSpice Auth admin source | duck-typed `lookup()` / `source_name()` | File-based admins only |
+| GameSpice Moderation | `dot_ban_source` | `DotBanManager`'s list is the whole ban list |
+| GameSpice Chat | `watch_relay` / `relay_fn` | Chat state reports no relay |
+| GameSpice Server Query | `attach_query_host(host)` | The server answers nothing on the query port, a supported configuration |
 
 **Keep it this way.** A script that mentions a `class_name` the project does not have fails to parse and takes every script referencing it down with it, so naming an optional addon's class anywhere here makes that repository mandatory. A hard dependency in either direction makes both harder to adopt.
 
-## Server queries live in dot-server-query
+## Server queries live in GameSpice Server Query
 
-Both query protocols, their snapshot, the challenge, the provider API and the two console commands moved to [dot-server-query](../../dot-server-query). What is left here is one hook, `attach_query_host(host: Object) -> DotResult`: `DotQueryHost` calls it, and `DotServer` opens it once `RUNNING` (or at once if already). `query_host`, `query_source`, `query` and `a2s` are typed `Object` and reached with `.call(...)`.
+Both query protocols, their snapshot, the challenge, the provider API and the two console commands moved to [GameSpice Server Query](../../dot-server-query). What is left here is one hook, `attach_query_host(host: Object) -> DotResult`: `DotQueryHost` calls it, and `DotServer` opens it once `RUNNING` (or at once if already). `query_host`, `query_source`, `query` and `a2s` are typed `Object` and reached with `.call(...)`.
 
 **The configuration stayed**: `query_enabled`, `a2s_enabled`, `query_port`, `a2s_port`, `query_bind_address`, `query_player_detail` and the rest are `DotServerConfig` fields, and `sv_query`, `sv_a2s` and `sv_query_players` are registered here before `server.cfg` runs. They name no class, so every operator's config keeps working and a server without the addon has settings nothing reads. Without the addon, `DotModule.add_query_provider` returns a failed `DotResult` naming it and `to_stats_report()` reports 0 bots.
 

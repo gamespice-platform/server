@@ -29,7 +29,7 @@ func _test_console() -> void:
 	_done()
 
 ## A command object of the duck-typed shape, for [method DotConsole.add_source]. A bare
-## [RefCounted] on purpose: an addon dot-server has never heard of must be able to plug in.
+## [RefCounted] on purpose: an addon GameSpice Server has never heard of must be able to plug in.
 class ProbeSource:
 	extends RefCounted
 

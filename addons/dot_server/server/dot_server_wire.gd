@@ -18,7 +18,7 @@ func _make_envelope() -> DotEnvelope:
 
 
 ## Sends a kind to one client. False when not sent: no peer, or a client that does not know the
-## kind, which is what an older client looks like. The only way dot-server reaches a client;
+## kind, which is what an older client looks like. The only way GameSpice Server reaches a client;
 ## see [DotEnvelope]. Implemented by [DotServer], which declares the RPCs it rides on.
 func send_kind(
 	_peer_id: int,
@@ -259,7 +259,7 @@ func scoreboard_snapshot(for_session: DotClientSession = null, trim: bool = true
 			"seconds": session.connected_seconds(),
 			"bot": session.local,
 			"admin": session.is_admin(),
-			# Who a client's personal block list (dot-chat's `sm`) keys a player by, and
+			# Who a client's personal block list (GameSpice Chat's `sm`) keys a player by, and
 			# which voice frames are theirs. See [method player_key].
 			"key": player_key(session),
 			"peer": session.peer_id,

@@ -47,7 +47,7 @@ func _test_notices_bounds() -> void:
 	# one of them passed when this stripped only what is below 32.
 	var spoof := DotNotice.make(&"", "a\u007Fb\u200Bc\u200Dd\uFEFFe\u202Ef\u2066g\nh")
 	_check("and none of the characters chat refuses (%s)" % spoof.text.c_escape(), spoof.text == "abcdefg h")
-	# Every character dot-chat's filter refuses, written out rather than read from the
+	# Every character GameSpice Chat's filter refuses, written out rather than read from the
 	# constant, so the constant shrinking is visible here.
 	var refused := PackedStringArray()
 	for code in [0x00AD, 0x061C, 0x180E, 0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
@@ -502,7 +502,7 @@ func _test_web_transport_limits() -> void:
 	srv_peer.set_target_peer(ids[0])
 	srv_peer.transfer_mode = MultiplayerPeer.TRANSFER_MODE_RELIABLE
 	srv_peer.put_packet(board)
-	# 255 fragments of dot-net's 1200-byte MTU: the largest snapshot the wire can name.
+	# 255 fragments of GameSpice Net's 1200-byte MTU: the largest snapshot the wire can name.
 	var frag := PackedByteArray()
 	frag.resize(1200)
 	for i in 255:

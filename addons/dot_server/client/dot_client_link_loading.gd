@@ -130,7 +130,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 	_unload_scene()
 
 	# Without threads load() compiles the game's whole script closure in one frame (5 s in a
-	# browser); dot-cloud compiles it a slice per frame first. `warmed` holds it until we are done.
+	# browser); GameSpice Cloud compiles it a slice per frame first. `warmed` holds it until we are done.
 	var w0 := Time.get_ticks_usec()
 	var warmed: Variant = null
 	var cloud := DotRegistry.get_service(cloud_service)
