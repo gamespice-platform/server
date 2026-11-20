@@ -128,17 +128,14 @@ func _instantiate_module(path: String) -> DotResult:
 	return DotResult.success(instance)
 
 
-## Where a module's scripts live: a delivered pack's mount (res://dot_cloud/owner/id/version), else the
-## nearest directory up holding a game.yml, else the module's own directory.
+## Where a module's scripts live: the nearest directory up holding a game.yml (a game pack's root), not climbing out
+## of a delivered pack's mount; else the mount (res://dot_cloud/owner/id/version); else the module's own directory.
+## game.yml first: a pack published without a site claim mounts at res://dot_cloud/<id>/<version>, one level shallower.
 static func module_root_of(path: String) -> String:
 	const PACKS := "res://dot_cloud/"
-	if path.begins_with(PACKS):
-		var parts := path.trim_prefix(PACKS).split("/")
-		if parts.size() > 3:
-			return PACKS + "/".join(parts.slice(0, 3))
 	var dir := path.get_base_dir()
 	var d := dir
-	while d != "" and d != "user://":
+	while d != "" and d != "user://" and d != PACKS.trim_suffix("/"):
 		if FileAccess.file_exists(d.path_join("game.yml")):
 			return d
 		if d == "res://":
@@ -147,6 +144,10 @@ static func module_root_of(path: String) -> String:
 		if up == d:
 			break
 		d = up
+	if path.begins_with(PACKS):
+		var parts := path.trim_prefix(PACKS).split("/")
+		if parts.size() > 3:
+			return PACKS + "/".join(parts.slice(0, 3))
 	return dir
 
 

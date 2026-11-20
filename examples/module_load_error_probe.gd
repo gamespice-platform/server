@@ -106,6 +106,18 @@ func _ready() -> void:
 			and text.contains("net/extends_bridge.gd does not compile: net/extends_bridge.gd:1: Parse Error: Could not resolve")
 	)
 
+	# The production path: the same broken game delivered as a pack mounted under res://dot_cloud/. A pack published
+	# without a site claim mounts at res://dot_cloud/<id>/<version> (no owner), and its root is still found by game.yml.
+	var mounted := _mount_game("mod-load-mounted", "0.0.1", BRIDGE_UNTYPED)
+	var m_res: DotResult = await server.modules.load_module(mounted + "/scripts/module.gd")
+	var m_text := str(m_res.error) if not m_res.ok else ""
+	print("module_load_error: mounted -> ", m_text)
+	_check(
+		"a mounted pack's bridge parse error is named with its file and line",
+		not m_res.ok and m_text.contains(NETCODE) and m_text.contains("net/bridge.gd:%d:" % line)
+			and m_text.contains("Cannot infer the type of \"net_id\"")
+	)
+
 	# The same game with the declaration typed loads.
 	var fixed := _write_game("fixed", BRIDGE_TYPED)
 	var ok: DotResult = await server.modules.load_module(fixed + "/scripts/module.gd")
@@ -148,6 +160,20 @@ func _write_game(name_: String, bridge: String) -> String:
 	DotPaths.write_text(root + "/net/uses_bridge.gd", USES_BRIDGE)
 	DotPaths.write_text(root + "/net/extends_bridge.gd", EXTENDS_BRIDGE)
 	return root
+
+
+## Packs the game's files into a .pck and mounts it at res://dot_cloud/<id>/<version>, as dot-cloud's mounter does.
+func _mount_game(id: String, version: String, bridge: String) -> String:
+	var src := _write_game(id, bridge)
+	var at := "res://dot_cloud/%s/%s" % [id, version]
+	var pck := ProjectSettings.globalize_path(ROOT.path_join(id + ".pck"))
+	var packer := PCKPacker.new()
+	packer.pck_start(pck)
+	for rel in ["game.yml", "scripts/module.gd", "net/bridge.gd", "net/uses_bridge.gd", "net/extends_bridge.gd"]:
+		packer.add_file(at.path_join(rel), ProjectSettings.globalize_path(src.path_join(rel)))
+	packer.flush()
+	_check("the fixture pack mounts", ProjectSettings.load_resource_pack(pck, false))
+	return at
 
 
 func _check(label: String, ok: bool) -> void:
