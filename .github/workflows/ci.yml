@@ -25,5 +25,7 @@ jobs:
             hygiene: true
             suites: 'examples/content_switch examples/signon_revision examples/dedicated_server examples/mixed_transports'
             suite-timeout: 600
+            # Not a suite: its fixture prints a real Parse Error, which the suite runner fails on.
+            shell-command: 'examples/module_load_error_check.sh'
         secrets:
             DEPS_TOKEN: ${{ secrets.DOT_DEPS_TOKEN }}

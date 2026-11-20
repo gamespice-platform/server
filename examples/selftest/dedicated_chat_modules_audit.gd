@@ -306,10 +306,12 @@ func _on_spawn(_e: DotEvent) -> void:
 
 	# A module that does not compile must come back as a failed result, not abort the coroutine.
 	# The script is put in the resource cache uncompiled: parsing from disk prints a SCRIPT ERROR,
-	# which dot-ci fails a suite for. The `can_instantiate()` guard stays armed.
+	# which dot-ci fails a suite for, so the file on disk compiles (the host re-parses it to name
+	# the error; examples/module_load_error_check.sh covers a real parse error). The
+	# `can_instantiate()` guard stays armed.
 	DotPaths.write_text(
 		"user://example/unlinked_module.gd",
-		"extends DotNoSuchModuleBase\n"
+		"extends DotModule\n"
 	)
 	var uncompiled := GDScript.new()
 	uncompiled.source_code = "extends DotNoSuchModuleBase\n"
@@ -320,6 +322,10 @@ func _on_spawn(_e: DotEvent) -> void:
 	_check(
 		"uncompilable module refused with a result",
 		unlinked is DotResult and not (unlinked as DotResult).ok
+	)
+	_check(
+		"uncompilable module's result names the script",
+		unlinked is DotResult and str((unlinked as DotResult).error).contains("unlinked_module.gd does not compile")
 	)
 	_done()
 

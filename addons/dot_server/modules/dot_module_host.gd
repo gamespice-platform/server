@@ -7,6 +7,7 @@ extends Node
 
 const CHANNEL := "modules"
 const SERVICE := &"dot_module_host"
+const NOT_COMPILED := "Module script did not compile."
 
 signal module_loaded(module: Node)  # a DotModule, typed Node so the host (reached from dot_server.gd) does not hold the module parser, which names DotServer
 signal module_unloaded(module_name: String)
@@ -108,7 +109,7 @@ func _instantiate_module(path: String) -> DotResult:
 	if not (script as GDScript).can_instantiate():
 		return DotResult.fail(
 			DotError.CODE_INVALID,
-			"Module script did not compile; the parse error is in the log above.",
+			NOT_COMPILED,
 			path
 		)
 
@@ -127,10 +128,139 @@ func _instantiate_module(path: String) -> DotResult:
 	return DotResult.success(instance)
 
 
+## Where a module's scripts live: a delivered pack's mount (res://dot_cloud/owner/id/version), else the
+## nearest directory up holding a game.yml, else the module's own directory.
+static func module_root_of(path: String) -> String:
+	const PACKS := "res://dot_cloud/"
+	if path.begins_with(PACKS):
+		var parts := path.trim_prefix(PACKS).split("/")
+		if parts.size() > 3:
+			return PACKS + "/".join(parts.slice(0, 3))
+	var dir := path.get_base_dir()
+	var d := dir
+	while d != "res://" and d != "user://" and d != "":
+		if FileAccess.file_exists(d.path_join("game.yml")):
+			return d
+		var up := d.get_base_dir()
+		if up == d:
+			break
+		d = up
+	return dir
+
+
+## A failed module load, with the script errors under the module's root added to its message.
+## Without them the log carries only what the module concluded ("A game has to supply the bridge
+## ...") while the cause, a script of the game that no longer compiles against the installed
+## addons, was printed once, earlier, among the boot output. [param known_cause] is true when the
+## module script itself did not compile, so a broken script is the cause; for a module that refused
+## on its own the broken scripts are listed as found, not as the cause (a client-only or tool
+## script may be broken without being why the module refused).
+static func with_script_errors(failed: DotResult, path: String, known_cause := true) -> DotResult:
+	if failed.ok:
+		return failed
+	var errors := script_errors_under(module_root_of(path))
+	if errors.is_empty():
+		return failed
+	var code := failed.error.code if failed.error != null else DotError.CODE_INTERNAL
+	var message := failed.error.message if failed.error != null else "The module did not load."
+	var detail := failed.error.detail if failed.error != null else path
+	var what := "a script that does not compile" if errors.size() == 1 else "%d scripts that do not compile" % errors.size()
+	var e := DotError.make(
+		code,
+		("%s Caused by %s: %s" if known_cause else "%s The game has %s: %s") % [message, what, " | ".join(errors)],
+		detail
+	)
+	if failed.error != null:
+		e.context = failed.error.context
+	return DotResult.failure(e)
+
+
+## One line per script under [param root] that does not compile, naming its first own error as
+## "file:line: Parse Error: ..." (path relative to the root). A script that fails only because a
+## script it depends on failed is listed after the ones with errors of their own.
+static func script_errors_under(root: String) -> PackedStringArray:
+	var files := PackedStringArray()
+	for rel in DotPaths.list_files_recursive(root):
+		var found := module_script_of(rel)
+		if found != "" and not rel.begins_with(".") and not files.has(root.path_join(found)):
+			files.append(root.path_join(found))
+	files.sort()
+
+	var broken := PackedStringArray()
+	for f in files:
+		var s: Variant = load(f)
+		if not (s is GDScript and (s as GDScript).can_instantiate()):
+			broken.append(f)
+	if broken.is_empty():
+		return broken
+
+	# A loaded script does not keep its errors, so each broken one is parsed again, uncached, with
+	# the engine's error stream captured.
+	var own := PackedStringArray()
+	var follow_on := PackedStringArray()
+	for f in broken:
+		var capture := _ScriptErrorCapture.new()
+		OS.add_logger(capture)
+		ResourceLoader.load(f, "", ResourceLoader.CACHE_MODE_IGNORE)
+		OS.remove_logger(capture)
+		var rel := f.trim_prefix(root + "/")
+		var first := capture.first_own_error().replace(root + "/", "")
+		if first != "":
+			own.append(first)
+		else:
+			var any := capture.first_error().replace(root + "/", "")
+			follow_on.append("%s does not compile%s" % [rel, (": " + any) if any != "" else ""])
+	own.append_array(follow_on)
+	return own
+
+
+## Collects the script errors the engine reports while it is installed. Called from any thread.
+class _ScriptErrorCapture extends Logger:
+	const FOLLOW_ON := ["Could not resolve", "depended", "Could not preload", "Could not load", "Failed to load"]
+
+	var _lock := Mutex.new()
+	var _errors: PackedStringArray = []
+
+	func _log_error(
+		_function: String, file: String, line: int, code: String, rationale: String,
+		_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]
+	) -> void:
+		if error_type != ERROR_TYPE_SCRIPT:
+			return
+		var text := code if rationale == "" else "%s %s" % [code, rationale]
+		_lock.lock()
+		_errors.append("%s:%d: %s" % [file, line, text.strip_edges()])
+		_lock.unlock()
+
+	func first_error() -> String:
+		_lock.lock()
+		var e := "" if _errors.is_empty() else _errors[0]
+		_lock.unlock()
+		return e
+
+	func first_own_error() -> String:
+		_lock.lock()
+		var found := ""
+		for e in _errors:
+			var cascade := false
+			for marker in FOLLOW_ON:
+				if e.contains(marker):
+					cascade = true
+					break
+			if not cascade:
+				found = e
+				break
+		_lock.unlock()
+		return found
+
+
 ## Loads one module from a script path.
 func load_module(path: String) -> DotResult:
 	var made := _instantiate_module(path)
 	if not made.ok:
+		# Only a compile failure has a cause worth the scan; "must extend DotModule" says it all.
+		if made.error != null and made.error.message == NOT_COMPILED:
+			return with_script_errors(made, path)
 		return made
 
 	var module: Node = made.value  # a DotModule (see _is_module)
@@ -162,13 +292,17 @@ func load_module(path: String) -> DotResult:
 	# Typed explicitly, because `await` yields a Variant and `:=` would widen `result`.
 	var result: DotResult = await module._module_load()
 
+	if result == null:
+		result = DotResult.fail(DotError.CODE_INTERNAL, "_module_load() returned no result.", path)
+
 	if not result.ok:
+		result = with_script_errors(result, path, false)
 		# A module that refused to load must not stay half-attached: its partial
 		# registrations would fire into an object that believes it is not running.
 		DotLog.error(
 			CHANNEL,
 			"module refused to load",
-			{"module": module_name, "why": result.error.message}
+			{"module": module_name, "why": str(result.error)}
 		)
 		module._cleanup_registrations()
 		module.queue_free()
