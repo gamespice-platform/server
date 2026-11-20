@@ -217,7 +217,7 @@ static func script_errors_under(root: String) -> PackedStringArray:
 		if first != "":
 			own.append(first)
 		else:
-			var any := capture.first_error().replace(base, "")
+			var any := capture.first_error(base).replace(base, "")
 			follow_on.append("%s does not compile%s" % [rel, (": " + any) if any != "" else ""])
 	own.append_array(follow_on)
 	return own
@@ -245,9 +245,15 @@ class _ScriptErrorCapture extends Logger:
 		_files.append(file)
 		_lock.unlock()
 
-	func first_error() -> String:
+	## The first error reported against a file under [param root] ("" = any file): another module's
+	## or thread's error logged meanwhile never stands in for this module's cause.
+	func first_error(root := "") -> String:
 		_lock.lock()
-		var e := "" if _errors.is_empty() else _errors[0]
+		var e := ""
+		for i in _errors.size():
+			if root == "" or _files[i].begins_with(root):
+				e = _errors[i]
+				break
 		_lock.unlock()
 		return e
 
