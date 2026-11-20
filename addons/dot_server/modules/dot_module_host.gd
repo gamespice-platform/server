@@ -138,9 +138,11 @@ static func module_root_of(path: String) -> String:
 			return PACKS + "/".join(parts.slice(0, 3))
 	var dir := path.get_base_dir()
 	var d := dir
-	while d != "res://" and d != "user://" and d != "":
+	while d != "" and d != "user://":
 		if FileAccess.file_exists(d.path_join("game.yml")):
 			return d
+		if d == "res://":
+			break
 		var up := d.get_base_dir()
 		if up == d:
 			break
@@ -179,11 +181,17 @@ static func with_script_errors(failed: DotResult, path: String, known_cause := t
 ## "file:line: Parse Error: ..." (path relative to the root). A script that fails only because a
 ## script it depends on failed is listed after the ones with errors of their own.
 static func script_errors_under(root: String) -> PackedStringArray:
+	var base := root if root.ends_with("/") else root + "/"
 	var files := PackedStringArray()
 	for rel in DotPaths.list_files_recursive(root):
 		var found := module_script_of(rel)
-		if found != "" and not rel.begins_with(".") and not files.has(root.path_join(found)):
-			files.append(root.path_join(found))
+		if found == "" or rel.begins_with("."):
+			continue
+		# A game at the project root: its addons and the delivered packs are not the game's scripts.
+		if base == "res://" and (rel.begins_with("addons/") or rel.begins_with("dot_cloud/")):
+			continue
+		if not files.has(base + found):
+			files.append(base + found)
 	files.sort()
 
 	var broken := PackedStringArray()
@@ -203,23 +211,26 @@ static func script_errors_under(root: String) -> PackedStringArray:
 		OS.add_logger(capture)
 		ResourceLoader.load(f, "", ResourceLoader.CACHE_MODE_IGNORE)
 		OS.remove_logger(capture)
-		var rel := f.trim_prefix(root + "/")
-		var first := capture.first_own_error().replace(root + "/", "")
+		var rel := f.trim_prefix(base)
+		var first := capture.first_own_error(f).replace(base, "")
 		if first != "":
 			own.append(first)
 		else:
-			var any := capture.first_error().replace(root + "/", "")
+			var any := capture.first_error().replace(base, "")
 			follow_on.append("%s does not compile%s" % [rel, (": " + any) if any != "" else ""])
 	own.append_array(follow_on)
 	return own
 
 
-## Collects the script errors the engine reports while it is installed. Called from any thread.
+## Collects the script errors the engine reports while it is installed, each with its file. The
+## logger is process-wide, so errors about other files (another thread's load) land here too.
+## Called from any thread.
 class _ScriptErrorCapture extends Logger:
 	const FOLLOW_ON := ["Could not resolve", "depended", "Could not preload", "Could not load", "Failed to load"]
 
 	var _lock := Mutex.new()
 	var _errors: PackedStringArray = []
+	var _files: PackedStringArray = []
 
 	func _log_error(
 		_function: String, file: String, line: int, code: String, rationale: String,
@@ -230,6 +241,7 @@ class _ScriptErrorCapture extends Logger:
 		var text := code if rationale == "" else "%s %s" % [code, rationale]
 		_lock.lock()
 		_errors.append("%s:%d: %s" % [file, line, text.strip_edges()])
+		_files.append(file)
 		_lock.unlock()
 
 	func first_error() -> String:
@@ -238,10 +250,14 @@ class _ScriptErrorCapture extends Logger:
 		_lock.unlock()
 		return e
 
-	func first_own_error() -> String:
+	## The first error reported against [param file] itself that is not the echo of a dependency failing.
+	func first_own_error(file: String) -> String:
 		_lock.lock()
 		var found := ""
-		for e in _errors:
+		for i in _errors.size():
+			if _files[i] != file:
+				continue
+			var e := _errors[i]
 			var cascade := false
 			for marker in FOLLOW_ON:
 				if e.contains(marker):

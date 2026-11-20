@@ -64,6 +64,13 @@ func make() -> int:
 	return bridge.net_id_of()
 """
 
+## Fails only because the script it extends does not compile: listed after the bridge, as a follow-on.
+const EXTENDS_BRIDGE := """extends "bridge.gd"
+
+func again() -> int:
+	return net_id_of()
+"""
+
 var _fails := 0
 
 
@@ -90,9 +97,13 @@ func _ready() -> void:
 		"the bridge's parse error is named with its file and line",
 		text.contains("net/bridge.gd:%d:" % line) and text.contains("Cannot infer the type of \"net_id\"")
 	)
+	_check("a script that only uses the bridge is not blamed", not text.contains("uses_bridge.gd"))
+	var own_at := text.find("net/bridge.gd:%d:" % line)
+	var follow_at := text.find("net/extends_bridge.gd does not compile")
 	_check(
-		"a script that only uses the bridge is not blamed",
-		not text.contains("uses_bridge.gd") and text.contains("The game has a script that does not compile")
+		"a script that fails only through the bridge is listed after the bridge's own error",
+		text.contains("The game has 2 scripts that do not compile") and own_at >= 0 and follow_at > own_at
+			and text.contains("net/extends_bridge.gd does not compile: net/extends_bridge.gd:1: Parse Error: Could not resolve")
 	)
 
 	# The same game with the declaration typed loads.
@@ -135,6 +146,7 @@ func _write_game(name_: String, bridge: String) -> String:
 	DotPaths.write_text(root + "/scripts/module.gd", MODULE % [name_, NETCODE])
 	DotPaths.write_text(root + "/net/bridge.gd", bridge)
 	DotPaths.write_text(root + "/net/uses_bridge.gd", USES_BRIDGE)
+	DotPaths.write_text(root + "/net/extends_bridge.gd", EXTENDS_BRIDGE)
 	return root
 
 
