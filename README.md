@@ -1,4 +1,4 @@
-[![dot-server - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/213-dot-server)
+[![Server - GameSpice addon](docs/banner.png)](https://moddingcommunity.com/a/213-dot-server)
 
 A console-driven dedicated server for Godot 4. It is the piece a server owner runs: console variables and commands, RCON, admin permissions with immunity, bans and mutes, hot-loadable modules, and switching games while players stay connected.
 
