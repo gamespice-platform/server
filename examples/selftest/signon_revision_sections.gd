@@ -2,7 +2,7 @@ extends "res://examples/selftest/signon_revision_base.gd"
 
 ## signon_revision selftest sections: agreement, derivation, mismatch refusals, tickets and the warm feeds.
 
-const Credentials := preload("res://addons/dot_server/client/dot_client_credentials.gd")
+const Credentials := preload("res://addons/gs_server/client/gs_client_credentials.gd")
 
 ## Every `@rpc` on [GSServer] has a counterpart on [GSClientLink], and likewise for chat: Godot
 ## compares the name sets and refuses the pair when they differ. The suite asserts the sets, not
@@ -323,8 +323,8 @@ func _test_an_older_client_on_a_newer_server() -> void:
 
 	# Put an unknown kind on the wire anyway, as a server that did not filter would.
 	var dropped := old.envelope.dropped_arrivals
-	_server._dot_down_event.rpc_id(peer, "skew.server_news", {"x": 1})
-	_server._dot_down.rpc_id(peer, String(GSEnvelope.NOTICE), {"cue": "raw"})
+	_server._gs_down_event.rpc_id(peer, "skew.server_news", {"x": 1})
+	_server._gs_down.rpc_id(peer, String(GSEnvelope.NOTICE), {"cue": "raw"})
 	var ignored := await _until(func() -> bool: return old.envelope.dropped_arrivals >= dropped + 2, 5.0)
 	_check(ignored, "what it has never heard of is dropped on arrival (%d)" % (old.envelope.dropped_arrivals - dropped))
 
@@ -373,7 +373,7 @@ func _test_a_newer_client_on_an_older_server() -> void:
 	)
 
 	var dropped := _server.envelope.dropped_arrivals
-	newer._dot_up.rpc_id(1, "skew.client_news", {"hello": true})
+	newer._gs_up.rpc_id(1, "skew.client_news", {"hello": true})
 	var ignored := await _until(func() -> bool: return _server.envelope.dropped_arrivals > dropped, 5.0)
 	_check(ignored, "and one that arrives anyway is dropped by the server")
 
@@ -472,8 +472,8 @@ func _test_a_secret_never_rides_udp() -> void:
 		var counts: Dictionary = _server.multiplayer.multiplayer_peer.call("peer_counts")
 		seen.append({"token": credential.get("access_token", ""), "enet": counts["enet"]})
 	var client_auth := StandIns._TokenStandIn.new()
-	GSRegistry.register(&"dot_auth_server", server_auth)
-	GSRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"gs_auth_server", server_auth)
+	GSRegistry.register(&"gs_auth_client", client_auth)
 
 	var link := _new_link("Secretive", Callable())
 	await _join(link)
@@ -491,8 +491,8 @@ func _test_a_secret_never_rides_udp() -> void:
 		"minted for the audience the server announced", str(client_auth.minted_for)
 	)
 
-	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"gs_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"gs_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -508,8 +508,8 @@ func _test_introspect_refuses_a_server_not_ours() -> void:
 	server_auth.on_authenticate = func(credential: Dictionary) -> void:
 		seen.append(credential.duplicate())
 	var client_auth := StandIns._TokenStandIn.new()
-	GSRegistry.register(&"dot_auth_server", server_auth)
-	GSRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"gs_auth_server", server_auth)
+	GSRegistry.register(&"gs_auth_client", client_auth)
 
 	var link := _new_link("Stranger", func(l: GSClientLink) -> void:
 		l.transport_preference = "ws")
@@ -523,8 +523,8 @@ func _test_introspect_refuses_a_server_not_ours() -> void:
 	_check(seen.is_empty(), "and the server received no credentials (%d)" % seen.size())
 	_check(client_auth.minted_for.is_empty(), "and no join token was minted")
 
-	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"gs_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"gs_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -552,8 +552,8 @@ func _test_join_token_address_binding() -> void:
 			seen.append(credential.duplicate())
 		var client_auth := StandIns._TokenStandIn.new()
 		client_auth.config.bind_join_address = bind
-		GSRegistry.register(&"dot_auth_server", server_auth)
-		GSRegistry.register(&"dot_auth_client", client_auth)
+		GSRegistry.register(&"gs_auth_server", server_auth)
+		GSRegistry.register(&"gs_auth_client", client_auth)
 
 		var link := _new_link("Binder", func(l: GSClientLink) -> void:
 			l.transport_preference = "ws")
@@ -566,8 +566,8 @@ func _test_join_token_address_binding() -> void:
 		_check(seen.size() == 1 and str(seen[0].get("access_token", "")) == StandIns._TokenStandIn.JOIN,
 			"flag %s: the server still got the join token" % bind, str(seen))
 
-		GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
-		GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
+		GSRegistry.unregister_instance(&"gs_auth_server", server_auth)
+		GSRegistry.unregister_instance(&"gs_auth_client", client_auth)
 		_drop_link(link)
 	_done()
 
@@ -583,8 +583,8 @@ func _test_a_ticket_is_asked_for_by_the_dialled_address() -> void:
 	server_auth.on_authenticate = func(credential: Dictionary) -> void:
 		seen.append(credential.duplicate())
 	var client_auth := StandIns._TicketStandIn.new()
-	GSRegistry.register(&"dot_auth_server", server_auth)
-	GSRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"gs_auth_server", server_auth)
+	GSRegistry.register(&"gs_auth_client", client_auth)
 
 	var link := _new_link("Ticketed", func(l: GSClientLink) -> void:
 		l.transport_preference = "ws")
@@ -602,8 +602,8 @@ func _test_a_ticket_is_asked_for_by_the_dialled_address() -> void:
 			and not seen[0].has("ticket_nonce"),
 		"and the server checked it against its own copy, not the client's", str(server_auth.nonces))
 
-	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"gs_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"gs_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -614,7 +614,7 @@ func _test_an_account_holds_one_seat() -> void:
 	_section("an account signing in again replaces its older connection")
 
 	var auth := StandIns._SameAccountStandIn.new()
-	GSRegistry.register(&"dot_auth_server", auth)
+	GSRegistry.register(&"gs_auth_server", auth)
 	var same := func() -> int:
 		return _server.sessions().filter(func(x: GSClientSession) -> bool:
 			return x.is_active() and x.uid() == "tmc:the-same-account").size()
@@ -642,7 +642,7 @@ func _test_an_account_holds_one_seat() -> void:
 	_check(same.call() == 2, "and both seats stay (%d)" % same.call())
 	_server.console.set_cvar("sv_single_seat", "1")
 
-	GSRegistry.unregister_instance(&"dot_auth_server", auth)
+	GSRegistry.unregister_instance(&"gs_auth_server", auth)
 	_drop_link(first)
 	_drop_link(second)
 	_drop_link(third)
@@ -654,7 +654,7 @@ func _test_an_account_holds_one_seat() -> void:
 func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 	_section("The content warm: progress reaches the bar, and a freed cloud does not strand the join")
 
-	var dir := "res://dot_cloud/_warmtest/0.0.0"
+	var dir := "res://gs_cloud/_warmtest/0.0.0"
 	DirAccess.make_dir_recursive_absolute(dir)
 	var scene := PackedScene.new()
 	var node := Node.new()
@@ -665,7 +665,7 @@ func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 
 	var cloud := FakeCloud.new()
 	add_child(cloud)
-	GSRegistry.register(&"dot_cloud_client", cloud)
+	GSRegistry.register(&"gs_cloud_client", cloud)
 
 	var link := GSClientLink.new()
 	add_child(link)
@@ -689,8 +689,8 @@ func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 	_check(link2.phase != GSClientLink.Phase.LOADING or loaded, "and the join is not left in LOADING")
 	link2.queue_free()
 
-	GSRegistry.unregister(&"dot_cloud_client")
+	GSRegistry.unregister(&"gs_cloud_client")
 	DirAccess.remove_absolute(dir + "/s.tscn")
 	DirAccess.remove_absolute(dir)
-	DirAccess.remove_absolute("res://dot_cloud/_warmtest")
+	DirAccess.remove_absolute("res://gs_cloud/_warmtest")
 	_done()

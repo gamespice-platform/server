@@ -17,7 +17,7 @@
 - Clients still downloading at `sync_timeout_sec` are **kicked** by default: the players who got the content should not be denied the change.
 - A failed change **restores the previous game**: a server with no game is worse than one on the old map.
 - The old scene is `free()`d, not `queue_free()`d: the next scene is added in the same call, and two games in the tree means duplicate nodes, groups and physics for a frame.
-- Releasing old content calls dot-cloud's `release()`. A resource pack cannot be unmounted; version-namespaced mount paths are what make that sufficient (see dot-cloud's [mounting.md](../../dot-cloud/docs/mounting.md#a-mounted-resource-pack-can-never-be-unmounted)).
+- Releasing old content calls gs-cloud's `release()`. A resource pack cannot be unmounted; version-namespaced mount paths are what make that sufficient (see gs-cloud's [mounting.md](../../gs-cloud/docs/mounting.md#a-mounted-resource-pack-can-never-be-unmounted)).
 - `GSGameDescriptor.cvars` are applied when the game loads, in two passes ([console.md](console.md#modules)).
 - The server wakes for a game load ([boot.md](boot.md#a-game-loads-awake)).
 
@@ -45,7 +45,7 @@ The rule this puts on everything else: **nothing but a game adds children under 
 
 ## Pack lists on a descriptor
 
-`GSGameDescriptor.dependencies` (mounted on the server and sent to clients), `server_dependencies` (server only) and `maps` (fetched when the server changes to one), with `GSGameManager.current_server_dependencies()` / `current_maps()` (API level 2). Pinning the versions is the host's job; dot-server-deploy's installer does it ([its doc](../../dot-server-deploy/docs/installing-games.md#three-lists-of-packs-beside-the-games-own)).
+`GSGameDescriptor.dependencies` (mounted on the server and sent to clients), `server_dependencies` (server only) and `maps` (fetched when the server changes to one), with `GSGameManager.current_server_dependencies()` / `current_maps()` (API level 2). Pinning the versions is the host's job; gs-server-deploy's installer does it ([its doc](../../gs-server-deploy/docs/installing-games.md#three-lists-of-packs-beside-the-games-own)).
 
 ## Coupling: nothing is imported
 
@@ -53,10 +53,10 @@ GameSpice Server works standalone. Optional addons are found through `GSRegistry
 
 | Optional addon | How it is found | Without it |
 | --- | --- | --- |
-| GameSpice Auth | `dot_auth_server` | Everyone is a guest with a per-device id; `GSGuestIdentity` gives the same duck-typed surface as `GSAuthIdentity` |
-| GameSpice Cloud | `dot_cloud_client` | Games must ship inside the build; a server needing downloadable content refuses the client with a clear reason |
+| GameSpice Auth | `gs_auth_server` | Everyone is a guest with a per-device id; `GSGuestIdentity` gives the same duck-typed surface as `GSAuthIdentity` |
+| GameSpice Cloud | `gs_cloud_client` | Games must ship inside the build; a server needing downloadable content refuses the client with a clear reason |
 | GameSpice Auth admin source | duck-typed `lookup()` / `source_name()` | File-based admins only |
-| GameSpice Moderation | `dot_ban_source` | `GSBanManager`'s list is the whole ban list |
+| GameSpice Moderation | `gs_ban_source` | `GSBanManager`'s list is the whole ban list |
 | GameSpice Chat | `watch_relay` / `relay_fn` | Chat state reports no relay |
 | GameSpice Server Query | `attach_query_host(host)` | The server answers nothing on the query port, a supported configuration |
 
@@ -64,7 +64,7 @@ GameSpice Server works standalone. Optional addons are found through `GSRegistry
 
 ## Server queries live in GameSpice Server Query
 
-Both query protocols, their snapshot, the challenge, the provider API and the two console commands moved to [GameSpice Server Query](../../dot-server-query). What is left here is one hook, `attach_query_host(host: Object) -> GSResult`: `GSQueryHost` calls it, and `GSServer` opens it once `RUNNING` (or at once if already). `query_host`, `query_source`, `query` and `a2s` are typed `Object` and reached with `.call(...)`.
+Both query protocols, their snapshot, the challenge, the provider API and the two console commands moved to [GameSpice Server Query](../../gs-server-query). What is left here is one hook, `attach_query_host(host: Object) -> GSResult`: `GSQueryHost` calls it, and `GSServer` opens it once `RUNNING` (or at once if already). `query_host`, `query_source`, `query` and `a2s` are typed `Object` and reached with `.call(...)`.
 
 **The configuration stayed**: `query_enabled`, `a2s_enabled`, `query_port`, `a2s_port`, `query_bind_address`, `query_player_detail` and the rest are `GSServerConfig` fields, and `sv_query`, `sv_a2s` and `sv_query_players` are registered here before `server.cfg` runs. They name no class, so every operator's config keeps working and a server without the addon has settings nothing reads. Without the addon, `GSModule.add_query_provider` returns a failed `GSResult` naming it and `to_stats_report()` reports 0 bots.
 

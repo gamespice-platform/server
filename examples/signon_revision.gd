@@ -12,7 +12,7 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	print("dot-server: the signon revision, and what happens when it does not match")
+	print("gs-server: the signon revision, and what happens when it does not match")
 
 	_test_the_two_sides_agree()
 	_test_the_revision_is_derived()
@@ -99,7 +99,7 @@ func _boot() -> bool:
 	server_side.add_child(_server)
 
 	# What a host announces about its addons, so a client can fetch newer ones as packs.
-	_server.addon_set = [{"dir": "dot_ui", "repo": "dot-ui", "id": "gamespice-platform/ui", "version": "9.9.9"}]
+	_server.addon_set = [{"dir": "gs_ui", "repo": "gs-ui", "id": "gamespice-platform/ui", "version": "9.9.9"}]
 
 	var booted := await _server.boot()
 

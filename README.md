@@ -5,7 +5,7 @@ A console-driven dedicated server for Godot 4. It is the piece a server owner ru
 ## Install
 
 1. Get [Godot 4.7](https://godotengine.org/download).
-2. Either use [GameSpice Bootstrap](https://github.com/gamespice-platform/bootstrap), which clones every project and links the addons, or copy `addons/dot_core/` and `addons/dot_server/` into your project and enable both in *Project > Project Settings > Plugins*.
+2. Either use [GameSpice Bootstrap](https://github.com/gamespice-platform/bootstrap), which clones every project and links the addons, or copy `addons/gs_core/` and `addons/gs_server/` into your project and enable both in *Project > Project Settings > Plugins*.
 
 ## Run a server
 
@@ -25,7 +25,7 @@ Or headless, the usual way to run a dedicated server:
     --sv-port 27015 --sv-hostname "My Server" +sv_maxplayers 24 +changelevel dm_box
 ```
 
-`--sv-*` sets configuration and `+command` runs a console command. `DOT_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [GameSpice Serve](https://github.com/gamespice-platform/serve).
+`--sv-*` sets configuration and `+command` runs a console command. `GS_SERVER_*` environment variables work too, which suits a systemd unit or container. To start one without learning any of this, use [GameSpice Serve](https://github.com/gamespice-platform/serve).
 
 Threaded work (snapshots, NPCs) uses `sv_worker_threads` workers: -1 (default) is the core count less one, at most `sv_worker_threads_auto_max` (default 8, 0 = no cap); 0 keeps everything on the main thread.
 

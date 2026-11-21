@@ -39,9 +39,9 @@
 - **Writes are awaited before the in-memory set changes**, so `ban_uid`, `ban_address`, `ban_session` and `unban` are coroutines. `await bans.unban(x).ok` binds the await to the property: assign the result first.
 - **Expiry sweeping is local only**; expired bans are refused on read regardless.
 
-## Somebody else's ban list: `dot_ban_source`
+## Somebody else's ban list: `gs_ban_source`
 
-Whatever registers under `dot_ban_source` (GameSpice Moderation, in this family) answers `check_admission(uid: String, address: String) -> GSResult`. `GSServer.check_address_admission` asks with the address alone before a client says who it is; `check_identity_admission` asks again with both. Same shape as `dot_mute_source`.
+Whatever registers under `gs_ban_source` (GameSpice Moderation, in this family) answers `check_admission(uid: String, address: String) -> GSResult`. `GSServer.check_address_admission` asks with the address alone before a client says who it is; `check_identity_admission` asks again with both. Same shape as `gs_mute_source`.
 
 - **A registration that cannot answer is reported once, loudly, then ignored.** Admitting everybody is wrong; refusing everybody would take the server down. Four call sites in the family have found a service that did not speak the method called, each with no error at all.
 - **The seam is read-only.** `ban`, `banid` and `banip` write to `GSBanManager`; a deployment that wants GameSpice Moderation to be the ban list issues bans through it and leaves `GSBanManager` empty. Two write targets is the two-lists problem.
@@ -59,4 +59,4 @@ Whatever registers under `dot_ban_source` (GameSpice Moderation, in this family)
 
 ## Banning an account also bars guests from its address
 
-`GSBanManager.ban_session` on a signed-in account also records a guests-only address ban (`gip:<address>`, `ban_guests_with_account`, default on; length capped by `guest_ban_max_sec`, default 7 days). Signed-in players behind the same address are not affected, and `unban` of the account lifts it. A ban placed through a `dot_ban_source` gets the same one: GameSpice Server follows its `punished`/`revoked` signals and, for a connected account, calls `ban_guests_at` / `lift_guest_bans`. An account that is not connected when banned has no address to record.
+`GSBanManager.ban_session` on a signed-in account also records a guests-only address ban (`gip:<address>`, `ban_guests_with_account`, default on; length capped by `guest_ban_max_sec`, default 7 days). Signed-in players behind the same address are not affected, and `unban` of the account lifts it. A ban placed through a `gs_ban_source` gets the same one: GameSpice Server follows its `punished`/`revoked` signals and, for a connected account, calls `ban_guests_at` / `lift_guest_bans`. An account that is not connected when banned has no address to record.

@@ -49,7 +49,7 @@ func _ready() -> void:
 
 func _make_config() -> GSServerConfig:
 	var config := GSServerConfig.new()
-	config.hostname = "dot-server example"
+	config.hostname = "gs-server example"
 	config.server_id = "example-1"
 	# 0 lets the OS pick a free port, so the example never collides with a real
 	# server or with a second copy of itself.
@@ -71,7 +71,7 @@ func _make_config() -> GSServerConfig:
 	config.a2s_enabled = true
 	config.a2s_port = 27056
 	config.a2s_app_id = 4242
-	config.a2s_game_folder = "dotexample"
+	config.a2s_game_folder = "gsexample"
 	config.tags = PackedStringArray(["example", "dev"])
 	config.admins_path = "user://example/admins.json"
 	config.bans_path = "user://example/bans.json"

@@ -13,7 +13,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	print("dot-server: changing to DELIVERED content under a live client")
+	print("gs-server: changing to DELIVERED content under a live client")
 
 	GSPaths.remove_tree(DATA)
 
@@ -137,7 +137,7 @@ func _test_switch_to_delivered() -> void:
 	# and for a long time this one did not happen at all.
 	_check(
 		ResourceLoader.exists(
-			"res://dot_cloud/%s/%s/%s" % [PACK_ID, PACK_VERSION, PACK_SCENE]
+			"res://gs_cloud/%s/%s/%s" % [PACK_ID, PACK_VERSION, PACK_SCENE]
 		),
 		"the pack is mounted on the server",
 		"nothing here ever acquired it; the mount prefix was a path nobody wrote"
@@ -152,7 +152,7 @@ func _test_switch_to_delivered() -> void:
 
 	# The client is told where the content is because it cannot know: a browser build can only guess
 	# its page origin, which is wrong for every CDN.
-	var client_cloud := GSRegistry.get_service(&"dot_cloud_client")
+	var client_cloud := GSRegistry.get_service(&"gs_cloud_client")
 	if _check(client_cloud != null, "the client's content service is resolvable"):
 		var bases: PackedStringArray = client_cloud.get("http_base_urls")
 		_check(
@@ -209,11 +209,11 @@ func _test_delivered_client_mounted() -> void:
 		bool(_client_cloud.call("is_mounted", PACK_ID, PACK_VERSION)),
 		"the client mounted the pack it was sent to fetch"
 	)
-	# One process holds both ends and the game manager fetches through the registry's `dot_cloud_client`,
+	# One process holds both ends and the game manager fetches through the registry's `gs_cloud_client`,
 	# so the client object cannot tell server from client. A mount is process-wide, and the file readable
 	# at the dependency's own prefix is what the game relies on.
 	_check(
-		FileAccess.file_exists("res://dot_cloud/%s/%s/shared.txt" % [DEP_ID, DEP_VERSION]),
+		FileAccess.file_exists("res://gs_cloud/%s/%s/shared.txt" % [DEP_ID, DEP_VERSION]),
 		"the game's dependency is readable at its own mount prefix"
 	)
 	_check(
@@ -221,7 +221,7 @@ func _test_delivered_client_mounted() -> void:
 		"and the client mounted it too, from the same content.sync"
 	)
 	_check(
-		FileAccess.file_exists("res://dot_cloud/%s/%s/server.txt" % [SRV_ID, SRV_VERSION]),
+		FileAccess.file_exists("res://gs_cloud/%s/%s/server.txt" % [SRV_ID, SRV_VERSION]),
 		"the server-only pack is mounted for the game"
 	)
 	_check(
@@ -234,7 +234,7 @@ func _test_delivered_client_mounted() -> void:
 	)
 	_check(
 		Array(_server.games.current_maps()) == [MAP_KEY]
-			and not DirAccess.dir_exists_absolute("res://dot_cloud/test/map_a/1.0.0"),
+			and not DirAccess.dir_exists_absolute("res://gs_cloud/test/map_a/1.0.0"),
 		"and offers the map without mounting it (%s)" % [_server.games.current_maps()]
 	)
 	# A per-map download group (API 19): a client joining now is sent it beside the game's own groups.
@@ -315,7 +315,7 @@ func _test_switch_back() -> void:
 ## Checks the client's download base URLs are not duplicated.
 ## The same address arrives on every game change, and a growing list costs a request per entry on every miss.
 func _check_bases_are_not_duplicated() -> void:
-	var client_cloud := GSRegistry.get_service(&"dot_cloud_client")
+	var client_cloud := GSRegistry.get_service(&"gs_cloud_client")
 	if client_cloud == null:
 		return
 

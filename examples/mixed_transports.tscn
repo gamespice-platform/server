@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://dotserver0mixedtransports"]
+[gd_scene load_steps=2 format=3 uid="uid://gsserver0mixedtransports"]
 
 [ext_resource type="Script" path="res://examples/mixed_transports.gd" id="1"]
 

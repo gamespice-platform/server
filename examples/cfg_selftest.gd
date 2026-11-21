@@ -3,8 +3,8 @@ extends Node
 ## The yml layout of GameSpice Server's group and permission files: new path, flat shim, operator layer.
 ## Run: [code]godot --headless --path . res://examples/cfg_selftest.tscn[/code]
 
-const FOLDER := "dot_server"
-const LEGACY := "user://dot_server_cfg_selftest_legacy"
+const FOLDER := "gs_server"
+const LEGACY := "user://gs_server_cfg_selftest_legacy"
 
 const SECTIONS := 1
 const CHECKS := 8
@@ -20,7 +20,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	print("dot-server cfg self-test")
+	print("gs-server cfg self-test")
 	var addon_dir := "user://cfg/addons/" + FOLDER
 	var server_dir := "user://cfg/server/addons/" + FOLDER
 	_clean(addon_dir, server_dir)

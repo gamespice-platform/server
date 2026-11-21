@@ -58,7 +58,7 @@ func _test_notices_bounds() -> void:
 	for code in range(0x80, 0xA0):
 		refused.append(String.chr(code))
 	var every := GSNotice.make(&"", "a" + "".join(refused) + "b")
-	_check("nor any character dot-chat's filter refuses (%s)" % every.text.c_escape(), every.text == "ab")
+	_check("nor any character gs-chat's filter refuses (%s)" % every.text.c_escape(), every.text == "ab")
 	# A host that fills the fields itself skipped make(); the wire form bounds them again,
 	# because what the server sends is the server's to decide, not the receiving client's.
 	var by_hand := GSNotice.new()

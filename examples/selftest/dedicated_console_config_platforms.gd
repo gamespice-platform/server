@@ -248,7 +248,7 @@ func _test_config_files() -> void:
 			text.ok and str(text.value).contains("omitted (protected)")
 		)
 
-	server.console.execute("hostname \"dot-server example\"")
+	server.console.execute("hostname \"gs-server example\"")
 	_done()
 
 func _test_command_buffer() -> void:
@@ -276,7 +276,7 @@ func _test_command_buffer() -> void:
 
 	_check("buffer resumes after wait", console.get_string("hostname") == "waited")
 
-	console.execute("hostname \"dot-server example\"")
+	console.execute("hostname \"gs-server example\"")
 	_done()
 
 func _test_bans() -> void:
@@ -374,15 +374,15 @@ func _test_game_ids() -> void:
 	# legacy id: Airdrift was published under an older id; a rotation or `changelevel` that still names it
 	# must reach the same game as the current one.
 	var airdrift: GSGameDescriptor = d.call("gamemann/game-airdrift")
-	airdrift.metadata["former_ids"] = ["gamemann/game-g2gfast", "g2gfast"]
+	airdrift.metadata["former_ids"] = ["gamemann/game-airdrift", "airdrift"]
 	for id in ["alice/fc", "bob/fc", "lobby"]:
 		manager.add_game(d.call(id))
 	manager.add_game(airdrift)
 
 	_check("a short name that is unique finds its game, and so does its former id",
 		manager.find_game("game-airdrift") == airdrift
-		and manager.find_game("game-g2gfast") == airdrift
-		and manager.find_game("gamemann/game-g2gfast") == airdrift)
+		and manager.find_game("game-airdrift") == airdrift
+		and manager.find_game("gamemann/game-airdrift") == airdrift)
 	var ambiguous := manager.resolve_game("fc")
 	_check("a short name two owners share finds nothing, and says whose",
 		manager.find_game("fc") == null and not ambiguous.ok

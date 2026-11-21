@@ -299,18 +299,18 @@ func _test_connection_limits_server() -> void:
 
 func _test_ban_source() -> void:
 	print("")
-	_section("[an external ban list: dot-moderation]")
+	_section("[an external ban list: gs-moderation]")
 
 	# Loaded by path and called by duck typing: naming GSModerationManager would fail to
 	# parse in a checkout without the addon.
-	var manager_path := "res://addons/dot_moderation/runtime/dot_moderation_manager.gd"
-	var store_path := "res://addons/dot_moderation/store/dot_punishment_store_file.gd"
+	var manager_path := "res://addons/gs_moderation/runtime/gs_moderation_manager.gd"
+	var store_path := "res://addons/gs_moderation/store/gs_punishment_store_file.gd"
 
 	if not ResourceLoader.exists(manager_path):
 		# Said out loud rather than skipped. "0 failures" from a suite that ran nothing
 		# is how this family gets to a release with two ends that never met.
 		_check(
-			"dot-moderation is linked, so the ban-source seam is covered",
+			"gs-moderation is linked, so the ban-source seam is covered",
 			false
 		)
 		return
@@ -332,7 +332,7 @@ func _test_ban_source() -> void:
 
 	# One registry name, and neither addon names the other.
 	_check(
-		"it publishes itself where dot-server looks",
+		"it publishes itself where gs-server looks",
 		GSRegistry.get_service(GSServer.BAN_SOURCE) == manager
 	)
 
@@ -351,7 +351,7 @@ func _test_ban_source() -> void:
 
 func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	var refused := server.check_address_admission("203.0.113.55:51000")
-	_check("dot-server refuses that address at connect", not refused.ok)
+	_check("gs-server refuses that address at connect", not refused.ok)
 	_check(
 		"with a message the player can act on",
 		not refused.ok and refused.error.message.to_lower().contains("banned")
@@ -369,7 +369,7 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	var evil := _adopt(921, "198.51.100.91:1", "Evil")
 	_named(evil, "backbone:evil", "evil")
 	_check(
-		"and dot-server refuses them after they authenticate",
+		"and gs-server refuses them after they authenticate",
 		not server.check_identity_admission(evil).ok
 	)
 
@@ -386,7 +386,7 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	xg.identity.is_guest = true
 	_check("guest admitted before a source ban", server.check_identity_admission(xg).ok)
 	var xb: Variant = await manager.call("ban_uid", "backbone:viasource", "cheating", "admin:sarah", 0, 0)
-	_check("a dot_ban_source account ban refuses a guest at its address", not server.bans.check_session(xg).ok)
+	_check("a gs_ban_source account ban refuses a guest at its address", not server.bans.check_session(xg).ok)
 	await manager.call("revoke", str((xb as GSResult).value.get("id")), "admin:sarah", "appealed", 0)
 	_check("revoking it lifts the guest address ban", server.bans.check_session(xg).ok)
 	server.release_session(931)

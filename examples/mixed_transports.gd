@@ -30,7 +30,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	print("dot-server: a WebSocket player and an ENet player in one match")
+	print("gs-server: a WebSocket player and an ENet player in one match")
 
 	if not ClassDB.class_exists("ENetMultiplayerPeer"):
 		print("ERROR: this build has no ENet; the suite needs it.")

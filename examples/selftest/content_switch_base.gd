@@ -2,7 +2,7 @@ extends Node
 
 ## State, harness and the publish and boot steps of content_switch.gd.
 
-const DATA := "user://dot_server_content_switch"
+const DATA := "user://gs_server_content_switch"
 const DIST := DATA + "/dist"
 const SOURCE := DATA + "/src"
 const CACHE_SERVER := DATA + "/cache_server"

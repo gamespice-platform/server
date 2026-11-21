@@ -48,7 +48,7 @@ A cvar registered with `GSConVar.FLAG_REPLICATED` is one a client needs to predi
 
 ## How many bots: `GSBotQuota`
 
-`modules/dot_bot_quota.gd`. `GSBotQuota.install(module, default_quota, default_mode = "fill")` registers `bot_quota`, `bot_quota_mode` and `bot_quota_empty` on a game's module, and `wanted(humans, slots)` answers how many bots there should be.
+`modules/gs_bot_quota.gd`. `GSBotQuota.install(module, default_quota, default_mode = "fill")` registers `bot_quota`, `bot_quota_mode` and `bot_quota_empty` on a game's module, and `wanted(humans, slots)` answers how many bots there should be.
 
 - Modes: **fill** (bots + people = quota; a joining person takes a bot's place and the bot returns when they leave; the default), **fixed**, **per_player**, **off**. Every mode leaves the people their seats (`slots - humans`), and `bot_quota_empty 0` empties a server nobody is on.
 - **The policy is one rule an operator learns once; how a bot is made, named and removed stays the game's.** Before it, every game had its own count, cvar and meaning.

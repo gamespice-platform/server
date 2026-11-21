@@ -22,7 +22,7 @@ jobs:
             suites: 'examples/content_switch examples/signon_revision examples/dedicated_server'
             suite-timeout: 600
         secrets:
-            DEPS_TOKEN: ${{ secrets.DOT_DEPS_TOKEN }}
+            DEPS_TOKEN: ${{ secrets.GS_DEPS_TOKEN }}
 
     release:
         needs: validate

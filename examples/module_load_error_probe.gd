@@ -3,7 +3,7 @@ extends Node
 ## A game module whose net bridge no longer compiles against the installed addons must fail to
 ## load with the bridge's parse error in the result, not only the module's own conclusion. This is
 ## game-hungario 0.1.19 on 2026-11-19: `var net_id := identity.net_id` stopped inferring once
-## dot-net typed `identity` as Node, the bridge came back null and the host logged only "A game
+## gs-net typed `identity` as Node, the bridge came back null and the host logged only "A game
 ## has to supply the bridge between itself and the netcode."
 ##
 ## Run by examples/module_load_error_check.sh, not as a suite: the fixture prints a real Parse
@@ -106,8 +106,8 @@ func _ready() -> void:
 			and text.contains("net/extends_bridge.gd does not compile: net/extends_bridge.gd:1: Parse Error: Could not resolve")
 	)
 
-	# The production path: the same broken game delivered as a pack mounted under res://dot_cloud/. A pack published
-	# without a site claim mounts at res://dot_cloud/<id>/<version> (no owner), and its root is still found by game.yml.
+	# The production path: the same broken game delivered as a pack mounted under res://gs_cloud/. A pack published
+	# without a site claim mounts at res://gs_cloud/<id>/<version> (no owner), and its root is still found by game.yml.
 	var mounted := _mount_game("mod-load-mounted", "0.0.1", BRIDGE_UNTYPED)
 	var m_res: GSResult = await server.modules.load_module(mounted + "/scripts/module.gd")
 	var m_text := str(m_res.error) if not m_res.ok else ""
@@ -162,10 +162,10 @@ func _write_game(name_: String, bridge: String) -> String:
 	return root
 
 
-## Packs the game's files into a .pck and mounts it at res://dot_cloud/<id>/<version>, as dot-cloud's mounter does.
+## Packs the game's files into a .pck and mounts it at res://gs_cloud/<id>/<version>, as gs-cloud's mounter does.
 func _mount_game(id: String, version: String, bridge: String) -> String:
 	var src := _write_game(id, bridge)
-	var at := "res://dot_cloud/%s/%s" % [id, version]
+	var at := "res://gs_cloud/%s/%s" % [id, version]
 	var pck := ProjectSettings.globalize_path(ROOT.path_join(id + ".pck"))
 	var packer := PCKPacker.new()
 	packer.pck_start(pck)

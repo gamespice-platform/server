@@ -1,5 +1,5 @@
 # frame-hazards
 # Baselines only shrink: scripts/<gate> --update lowers or drops entries and refuses to add.
-addons/dot_server/console/dot_stdin_console.gd::_run::string_build	2
-addons/dot_server/rcon/dot_rcon_server.gd::_log_refusal::alloc_dict	1
-addons/dot_server/rcon/dot_rcon_server.gd::_poll_clients::alloc_array	1
+addons/gs_server/console/gs_stdin_console.gd::_run::string_build	2
+addons/gs_server/rcon/gs_rcon_server.gd::_log_refusal::alloc_dict	1
+addons/gs_server/rcon/gs_rcon_server.gd::_poll_clients::alloc_array	1

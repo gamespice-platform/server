@@ -1,0 +1,197 @@
+extends RefCounted
+## The credential half of the sign-in: what to attach to the CREDENTIALS payload for the
+## server's strategy, and the stable device id. Owned by [GSClientLink], which supplies the state.
+
+const CHANNEL := "client"
+
+var link: Node  # a GSClientLink, held as Node so this file and the link do not keep each other's parsers alive
+
+
+func _init(owner: Node) -> void:
+	link = owner
+
+
+## Adds only the credential the server's strategy asks for. INTROSPECT gets a join token
+## (first-party audience) or a ticket, else a refusal. False: the join is already failed.
+func attach_credential(payload: Dictionary, strategy: String) -> bool:
+	var auth := GSRegistry.get_service(link.auth_service)
+
+	if auth == null:
+		if strategy != "none" and strategy != "anonymous":
+			GSLog.warn(
+				CHANNEL,
+				"this server wants authentication but gs-auth is not installed",
+				{"strategy": strategy}
+			)
+		return true
+
+	match strategy:
+		"ticket":
+			await _attach_ticket(payload, auth)
+
+		"introspect":
+			return await _attach_introspect(payload, auth)
+
+		"local":
+			# Username and password for a LOCAL-strategy server come from a UI this
+			# node does not own; a game sets them before connecting.
+			pass
+
+	return true
+
+
+## A connect ticket for the address this client DIALLED, never the one the server announced
+## (a hostile server naming another's id would get a ticket valid there), bound to the
+## challenge nonce. Returns whether one was attached.
+func _attach_ticket(payload: Dictionary, auth: Object) -> bool:
+	var ticket: Variant = null
+	if auth.has_method("request_ticket_for_address"):
+		var dialled: String = link._last_address.strip_edges()
+		if dialled == "":
+			return false
+		if link._ticket_nonce != "" and auth.get_method_argument_count("request_ticket_for_address") >= 3:
+			ticket = await auth.call("request_ticket_for_address", dialled, "", link._ticket_nonce)
+		else:
+			ticket = await auth.call("request_ticket_for_address", dialled)
+	elif auth.has_method("request_ticket"):
+		var issuer := _issuer_url()
+		if issuer == "" or link.server_id == "":
+			GSLog.warn(CHANNEL, "cannot ask for a ticket: no issuer or no server_id")
+			return false
+		ticket = await auth.call("request_ticket", issuer, link.server_id)
+	else:
+		return false
+
+	if ticket is GSResult and (ticket as GSResult).ok:
+		payload["ticket"] = str((ticket as GSResult).value)
+		return true
+	var err: GSError = (ticket as GSResult).error if ticket is GSResult else null
+	GSLog.warn(CHANNEL, "no connect ticket for this server", {
+		"address": link._last_address,
+		"why": err.message if err != null else "unexpected reply",
+		"code": err.detail if err != null else "",
+	})
+	return false
+
+
+func _attach_introspect(payload: Dictionary, auth: Object) -> bool:
+	var audience: String = link.server_join_audience
+
+	# First-party: a join token. A server that lies about its audience gains nothing
+	# — the backbone spends the token only for the credential that audience names.
+	if audience != "" and auth.has_method("is_first_party") \
+			and bool(auth.call("is_first_party", audience)) \
+			and auth.has_method("request_join_token"):
+		var minted: Variant
+		if _binds_join_address(auth):
+			# The address bound is the one DIALLED, never one the server announced.
+			var target := dialled_host_port(link._last_address)
+			if target.is_empty():
+				_refuse_introspect(
+					"Could not tell which server address to sign in to.",
+					"join token bound to an address, but %s has no host:port" % link._last_address
+				)
+				return false
+			minted = await auth.call("request_join_token", audience, target["host"], target["port"])
+		else:
+			minted = await auth.call("request_join_token", audience)
+		if minted is GSResult and (minted as GSResult).ok:
+			payload["access_token"] = str((minted as GSResult).value)
+			return true
+		var err: GSError = (minted as GSResult).error if minted is GSResult else null
+		_refuse_introspect(
+			err.message if err != null else "Could not get a sign-in for this server.",
+			"join token mint failed for %s" % audience
+		)
+		return false
+
+	# Not one of ours: a connect ticket for the address we dialled.
+	if await _attach_ticket(payload, auth):
+		return true
+
+	_refuse_introspect(
+		"This server asks for your account sign-in, which this game only gives to its own servers.",
+		"introspect refused: audience %s is not first-party and no ticket was available" % (
+			audience if audience != "" else "(not announced)"
+		)
+	)
+	return false
+
+
+## True when GameSpice Auth is set to bind join tokens to the dialled address
+## (GSAuthConfig.bind_join_address, default off) and its request_join_token takes one.
+func _binds_join_address(auth: Object) -> bool:
+	if auth.get_method_argument_count("request_join_token") < 3:
+		return false
+	var config: Variant = auth.get("config")
+	return config != null and config.get("bind_join_address") == true
+
+
+## {host, port} of what was dialled: "host:port", "[v6]:port", or ws(s)://host[:port][/path].
+## Empty when there is no host or no usable port.
+static func dialled_host_port(address: String) -> Dictionary:
+	var rest := address.strip_edges()
+	var default_port := 0
+	var scheme := rest.find("://")
+	if scheme >= 0:
+		var name := rest.substr(0, scheme).to_lower()
+		default_port = 443 if name == "wss" or name == "https" else 80
+		rest = rest.substr(scheme + 3)
+	var slash := rest.find("/")
+	if slash >= 0:
+		rest = rest.substr(0, slash)
+	var host := rest
+	var port := default_port
+	if rest.begins_with("["):
+		var close := rest.find("]")
+		if close < 0:
+			return {}
+		host = rest.substr(1, close - 1)
+		var tail := rest.substr(close + 1)
+		if tail.begins_with(":"):
+			port = tail.substr(1).to_int() if tail.substr(1).is_valid_int() else 0
+	elif rest.count(":") == 1:
+		var at := rest.find(":")
+		host = rest.substr(0, at)
+		var number := rest.substr(at + 1)
+		port = number.to_int() if number.is_valid_int() else 0
+	if host == "" or port <= 0 or port > 65535:
+		return {}
+	return {"host": host, "port": port}
+
+
+func _refuse_introspect(message: String, detail: String) -> void:
+	var err := GSError.make(GSError.CODE_FORBIDDEN, message, detail)
+	GSLog.warn(CHANNEL, "not signing in to this server", {
+		"why": detail, "host": link.server_hostname,
+	})
+	link._fail(err)
+	link.disconnect_from_server(err.message)
+
+
+func _issuer_url() -> String:
+	var auth := GSRegistry.get_service(link.auth_service)
+	if auth == null:
+		return ""
+	var config: Variant = auth.get("config")
+	if config == null:
+		return ""
+	var url: Variant = config.get("ticket_issuer_url")
+	return str(url) if url != null else ""
+
+
+static func device_id() -> String:
+	# GSPlatform, not OS.get_unique_id(), which pushes an engine error on web and iOS.
+	var unique := GSPlatform.unique_id()
+	if unique != "":
+		return unique
+	# Web and some sandboxes have no unique id. A stored random value is stable
+	# enough for the session-scoped uses this has.
+	var path := "user://gs_device_id"
+	if FileAccess.file_exists(path):
+		var read := GSPaths.read_text(path)
+		if read.ok and str(read.value) != "":
+			return str(read.value)
+	var generated := GSHash.random_hex(16)
+	GSPaths.write_text(path, generated)
+	return generated

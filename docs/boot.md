@@ -10,7 +10,7 @@ config resource -> JSON file -> env -> argv       (GSServerConfig layers)
   -> cvars read back into config
   -> subsystems created (events, audit, admins, bans, chat, games, votes, modules, rcon)
   -> LISTENER OPENS                               <- FLAG_STARTUP_ONLY locks here
-  -> RUNNING (or HIBERNATING), then the query host is opened   <- dot-server-query, if attached
+  -> RUNNING (or HIBERNATING), then the query host is opened   <- gs-server-query, if attached
   -> autoexec.cfg executed
   -> +command arguments executed (the full pass)
 ```
@@ -37,7 +37,7 @@ The family's tickrate chain is `sv_tickrate` → `Engine.physics_ticks_per_secon
 
 `sv_hibernate_when_empty` (`GSServerConfig.hibernate_when_empty`, default 1, live) puts a server with no sessions into `HIBERNATING` (`hibernate_tickrate` ticks, `hibernate_frame_rate` frames) **from boot** and whenever the last session leaves; the first client to spawn wakes it.
 
-- **`hibernation_changed(hibernating: bool)` is the hook**, a plain bool on purpose: dot-vote's `GSVoteDirector.follow_hibernation(server)` and dot-map's `GSMapSession.follow_hibernation(server)` connect to it by name, and dot-game's `GSGameModule` hands the server to every such clock. Asleep they stop counting; on waking they restart from their configured values. Without this, a fresh server's map clock ran out to an empty room.
+- **`hibernation_changed(hibernating: bool)` is the hook**, a plain bool on purpose: gs-vote's `GSVoteDirector.follow_hibernation(server)` and gs-map's `GSMapSession.follow_hibernation(server)` connect to it by name, and gs-game's `GSGameModule` hands the server to every such clock. Asleep they stop counting; on waking they restart from their configured values. Without this, a fresh server's map clock ran out to an empty room.
 - Setting the cvar to 0 on an empty server wakes it. With it off, a time limit that runs out on nobody is GameSpice Vote's `empty_choice`.
 - **"Up" is `RUNNING or HIBERNATING`**, which is what `online` in the query answer has always said. A host waiting for `RUNNING` after boot will see `HIBERNATING`.
 

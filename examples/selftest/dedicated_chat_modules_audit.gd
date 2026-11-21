@@ -58,7 +58,7 @@ func _test_chat_state() -> void:
 	)
 	_check("with relay false", not bool(chat.chat_state().get("relay", true)))
 
-	# The point of the seam: dot-server never names a relay, it asks.
+	# The point of the seam: gs-server never names a relay, it asks.
 	chat.relay_fn = func() -> bool: return true
 	_check("a server with a relay says so", chat.is_relayed())
 	_check("and the payload carries it", bool(chat.chat_state().get("relay", false)))
@@ -69,7 +69,7 @@ func _test_chat_state() -> void:
 	chat.relay_fn = func() -> Variant: return "yes"
 	_check("a non-boolean answer is no", not chat.is_relayed())
 
-	# `watch_relay` is duck-typed because dot-server cannot name GSChatRelay. Held in a variable:
+	# `watch_relay` is duck-typed because gs-server cannot name GSChatRelay. Held in a variable:
 	# a [Callable] does not keep a [RefCounted] alive, so an inline `FakeRelay.new()` is freed at
 	# once and the seam reads "no relay".
 	var fake := FakeRelay.new()
@@ -131,7 +131,7 @@ func _test_events() -> void:
 	flood.free()
 	_done()
 
-## The identity used when dot-auth is absent; only a test reaches it with dot-auth installed.
+## The identity used when gs-auth is absent; only a test reaches it with gs-auth installed.
 func _test_guest_identity() -> void:
 	print("")
 	_section("[guest identity]")
@@ -306,7 +306,7 @@ func _on_spawn(_e: GSEvent) -> void:
 
 	# A module that does not compile must come back as a failed result, not abort the coroutine.
 	# The script is put in the resource cache uncompiled: parsing from disk prints a SCRIPT ERROR,
-	# which dot-ci fails a suite for, so the file on disk compiles (the host re-parses it to name
+	# which gs-ci fails a suite for, so the file on disk compiles (the host re-parses it to name
 	# the error; examples/module_load_error_check.sh covers a real parse error). The
 	# `can_instantiate()` guard stays armed.
 	GSPaths.write_text(
@@ -393,7 +393,7 @@ func _test_audit() -> void:
 	_check("audit command runs", _run("audit 5").length() > 0)
 	_done()
 
-# The query tests live in dot-server-query's suite, which drives both protocols through
+# The query tests live in gs-server-query's suite, which drives both protocols through
 # handle_datagram() without a socket.
 
 
@@ -422,7 +422,7 @@ func _test_chat_commands() -> void:
 	var on_run := func(c: GSCmdContext) -> void: ran.append(c.command)
 	console.command_executed.connect(on_run)
 
-	# `/` and `!`, both of dot-server's default prefixes, on a command that never marked
+	# `/` and `!`, both of gs-server's default prefixes, on a command that never marked
 	# itself `with_chat()`. This is the line the screenshot was of.
 	chat.handle_message(session, "/rcon_status")
 	_check("a `/` line runs an unmarked command", ran.has("rcon_status"))
