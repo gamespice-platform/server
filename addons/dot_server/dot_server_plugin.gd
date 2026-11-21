@@ -7,18 +7,18 @@ extends EditorPlugin
 const _ICON := "res://addons/dot_server/icon_placeholder.svg"
 
 const _TYPES := [
-	["DotServer", "Node", "res://addons/dot_server/server/dot_server.gd"],
-	["DotConsole", "Node", "res://addons/dot_server/console/dot_console.gd"],
-	["DotAdminManager", "Node", "res://addons/dot_server/admin/dot_admin_manager.gd"],
-	["DotBanManager", "Node", "res://addons/dot_server/moderation/dot_ban_manager.gd"],
-	["DotAuditLog", "Node", "res://addons/dot_server/moderation/dot_audit_log.gd"],
-	["DotRconServer", "Node", "res://addons/dot_server/rcon/dot_rcon_server.gd"],
-	["DotChatManager", "Node", "res://addons/dot_server/chat/dot_chat_manager.gd"],
-	["DotGameManager", "Node", "res://addons/dot_server/game/dot_game_manager.gd"],
-	["DotVoteManager", "Node", "res://addons/dot_server/vote/dot_vote_manager.gd"],
-	["DotEventBus", "Node", "res://addons/dot_server/events/dot_event_bus.gd"],
-	["DotModuleHost", "Node", "res://addons/dot_server/modules/dot_module_host.gd"],
-	["DotClientLink", "Node", "res://addons/dot_server/client/dot_client_link.gd"],
+	["GSServer", "Node", "res://addons/dot_server/server/dot_server.gd"],
+	["GSConsole", "Node", "res://addons/dot_server/console/dot_console.gd"],
+	["GSAdminManager", "Node", "res://addons/dot_server/admin/dot_admin_manager.gd"],
+	["GSBanManager", "Node", "res://addons/dot_server/moderation/dot_ban_manager.gd"],
+	["GSAuditLog", "Node", "res://addons/dot_server/moderation/dot_audit_log.gd"],
+	["GSRconServer", "Node", "res://addons/dot_server/rcon/dot_rcon_server.gd"],
+	["GSChatManager", "Node", "res://addons/dot_server/chat/dot_chat_manager.gd"],
+	["GSGameManager", "Node", "res://addons/dot_server/game/dot_game_manager.gd"],
+	["GSVoteManager", "Node", "res://addons/dot_server/vote/dot_vote_manager.gd"],
+	["GSEventBus", "Node", "res://addons/dot_server/events/dot_event_bus.gd"],
+	["GSModuleHost", "Node", "res://addons/dot_server/modules/dot_module_host.gd"],
+	["GSClientLink", "Node", "res://addons/dot_server/client/dot_client_link.gd"],
 ]
 
 

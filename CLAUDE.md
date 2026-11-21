@@ -1,6 +1,6 @@
 # GameSpice Server
 
-Dedicated server framework for Godot 4: console variables and commands, RCON, flag-based admin permissions, moderation, votes, a game event bus, hot-loadable modules, and switching games while players stay connected. Every game in the family runs on it, and `DotClientLink` is the client half every shell uses.
+Dedicated server framework for Godot 4: console variables and commands, RCON, flag-based admin permissions, moderation, votes, a game event bus, hot-loadable modules, and switching games while players stay connected. Every game in the family runs on it, and `GSClientLink` is the client half every shell uses.
 
 **The distributable is `addons/dot_server/`.** It requires [GameSpice Core](../dot-core) and optionally integrates with dot-auth, dot-cloud, dot-moderation, dot-chat and dot-server-query, all discovered at runtime, none imported.
 
@@ -18,12 +18,12 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | --- | --- |
 | [docs/README.md](docs/README.md) | the index |
 | [docs/boot.md](docs/boot.md) | boot order, `server.cfg`, startup-only cvars, hibernation, `sv_tickrate` |
-| [docs/signon.md](docs/signon.md) | anything on the join path, `DotClientLink`, `DotEnvelope`, `DotSignon`, heartbeats, the metered peer |
+| [docs/signon.md](docs/signon.md) | anything on the join path, `GSClientLink`, `GSEnvelope`, `GSSignon`, heartbeats, the metered peer |
 | [docs/transports.md](docs/transports.md) | `transport_mode`, ENet, the shared UDP port, credentials |
-| [docs/game-facing.md](docs/game-facing.md) | `DotNotice`, the scoreboard, chat state, `DotBotQuota` |
+| [docs/game-facing.md](docs/game-facing.md) | `GSNotice`, the scoreboard, chat state, `GSBotQuota` |
 | [docs/console.md](docs/console.md) | a command or cvar, chat commands, `add_source`, completion, modules, target names |
 | [docs/security.md](docs/security.md) | permissions, RCON, sanitising, bans, `dot_ban_source`, the per-address limit |
-| [docs/game-switching.md](docs/game-switching.md) | `DotGameManager`, descriptors, delivered content, an optional addon, the query hook |
+| [docs/game-switching.md](docs/game-switching.md) | `GSGameManager`, descriptors, delivered content, an optional addon, the query hook |
 | [docs/testing.md](docs/testing.md) | the four suites |
 | [docs/history.md](docs/history.md) | a server bug that "cannot be happening" |
 
@@ -45,7 +45,7 @@ Read the family [CLAUDE.md](../../CLAUDE.md) first; this file is only what is sp
 | `modules/` | `dot_module.gd` (base class; the helpers are not optional), `dot_module_host.gd`, `dot_bot_quota.gd` |
 | `cfg/` | `server.cfg` (shipped defaults; copy to `user://cfg` and edit that), `autoexec.cfg` |
 | `examples/` | `dedicated_server`, `signon_revision`, `content_switch`, `mixed_transports` |
-| `examples/cfg_selftest.tscn` | `groups.yml` and `permissions.yml` through `DotAdminCfg`: `cfg/addons/dot_server/`, `cfg/server/addons/dot_server/` over it, the flat `cfg/<file>.yml` shim (WARN once, removed 2026-12-31) |
+| `examples/cfg_selftest.tscn` | `groups.yml` and `permissions.yml` through `GSAdminCfg`: `cfg/addons/dot_server/`, `cfg/server/addons/dot_server/` over it, the flat `cfg/<file>.yml` shim (WARN once, removed 2026-12-31) |
 
 ## Running and testing
 
@@ -53,21 +53,21 @@ The family's two steps ([family CLAUDE.md](../../CLAUDE.md#validating-anything))
 
 ## API level
 
-`LEVEL` in `addons/dot_server/dot_server_api.gd` (no `class_name`) rises by one for anything a game could call that did not exist before; `OLDEST` is raised to `LEVEL` when something a game could call is removed or changes meaning. The rule is GameSpice Core's `DotAddonApi`; packs declare what they need in `requires.json` and a server refuses one it cannot run. Write the new level's additions in the file's comment. Current levels: 2 descriptor pack lists, 3 dual transport, 4 the scoreboard roster, 5 `DotBotQuota` / `addon_set` / `rtt_ms()`, 6 `net_meter()` and the heartbeat ack's `"sv"`, 7 the `PROFILE` signon stage (`hold_profile` / `release_profile` / `refuse_profile`, `profile_timeout_sec`), 8 replicated cvars (`DotEnvelope.CVARS`, `DotClientLink.replicated_cvar()`), 9 the block list's roster (`"key"` and `"peer"` on scoreboard rows, `DotServer.player_key()`, `DotClientLink.request_scoreboard()`), 10 `DotClientLink.tls_connect_timeout_sec` (a native WebSocket join to a public bare `host:port` tries `wss://` first), 11 the thread settings (`worker_threads`, `threads_net`, `threads_npc` as `sv_worker_threads` / `sv_threads_net` / `sv_threads_npc`, `net_snapshot_workers()`, `describe_threads()`), 12 `DotAdminCfg.load_groups` / `load_users` (the yml layout, `cfg/addons/dot_server/`), 13 the challenge's `ticket_nonce` passed to GameSpice Auth's `authenticate` (connection-bound tickets) and `sv_single_seat`, 14 `net_native` (`DotServerConfig.net_native`), 15 `net_native_interest`, 18 module scripts resolve in exports (`DotModuleHost.module_script_exists`), 20 `worker_threads_auto_max` (`sv_worker_threads_auto_max`, default 8, 0 = no cap) and `resolved_workers()`. 21 `DotConVar` refuses an out-of-range value with the reason instead of clamping (`range_text()`; `sv_tickrate_tiers` refuses a rate under 15), 22 no hard caps: `sv_scoreboard_max_rows` (default 1024, 0 = unlimited), `DotEventBus.max_events_per_frame` and `DotClientLink` replicated-cvar limits take 0 = unlimited, 23 `sv_max_ping_report` (default 60000, 0 = unlimited), 24 envelope, RCON, notice and immunity limits are settings (`sv_envelope_max_kinds`, `sv_rcon_max_packet_bytes`, `sv_notice_max_text`, `sv_max_immunity`, `DotServer.apply_limit_cvars()`; over-limit input is refused or cut with a `DotLog.error` naming the setting).
+`LEVEL` in `addons/dot_server/dot_server_api.gd` (no `class_name`) rises by one for anything a game could call that did not exist before; `OLDEST` is raised to `LEVEL` when something a game could call is removed or changes meaning. The rule is GameSpice Core's `GSAddonApi`; packs declare what they need in `requires.json` and a server refuses one it cannot run. Write the new level's additions in the file's comment. Current levels: 2 descriptor pack lists, 3 dual transport, 4 the scoreboard roster, 5 `GSBotQuota` / `addon_set` / `rtt_ms()`, 6 `net_meter()` and the heartbeat ack's `"sv"`, 7 the `PROFILE` signon stage (`hold_profile` / `release_profile` / `refuse_profile`, `profile_timeout_sec`), 8 replicated cvars (`GSEnvelope.CVARS`, `GSClientLink.replicated_cvar()`), 9 the block list's roster (`"key"` and `"peer"` on scoreboard rows, `GSServer.player_key()`, `GSClientLink.request_scoreboard()`), 10 `GSClientLink.tls_connect_timeout_sec` (a native WebSocket join to a public bare `host:port` tries `wss://` first), 11 the thread settings (`worker_threads`, `threads_net`, `threads_npc` as `sv_worker_threads` / `sv_threads_net` / `sv_threads_npc`, `net_snapshot_workers()`, `describe_threads()`), 12 `GSAdminCfg.load_groups` / `load_users` (the yml layout, `cfg/addons/dot_server/`), 13 the challenge's `ticket_nonce` passed to GameSpice Auth's `authenticate` (connection-bound tickets) and `sv_single_seat`, 14 `net_native` (`GSServerConfig.net_native`), 15 `net_native_interest`, 18 module scripts resolve in exports (`GSModuleHost.module_script_exists`), 20 `worker_threads_auto_max` (`sv_worker_threads_auto_max`, default 8, 0 = no cap) and `resolved_workers()`. 21 `GSConVar` refuses an out-of-range value with the reason instead of clamping (`range_text()`; `sv_tickrate_tiers` refuses a rate under 15), 22 no hard caps: `sv_scoreboard_max_rows` (default 1024, 0 = unlimited), `GSEventBus.max_events_per_frame` and `GSClientLink` replicated-cvar limits take 0 = unlimited, 23 `sv_max_ping_report` (default 60000, 0 = unlimited), 24 envelope, RCON, notice and immunity limits are settings (`sv_envelope_max_kinds`, `sv_rcon_max_packet_bytes`, `sv_notice_max_text`, `sv_max_immunity`, `GSServer.apply_limit_cvars()`; over-limit input is refused or cut with a `GSLog.error` naming the setting).
 
 ## Rules that bite
 
 **The wire**
 
-- `DotServer` and `DotClientLink` declare exactly six `@rpc` methods and nothing else here may declare any. A new feature is a new envelope kind, never an `@rpc`. [signon](docs/signon.md#the-rpc-surface-is-frozen-dotenvelope)
-- Payloads change only by adding a field, read through `DotEnvelope.number`/`text`/`flag`; a change that cannot be an addition is a new kind. [signon](docs/signon.md#the-rpc-surface-is-frozen-dotenvelope)
+- `GSServer` and `GSClientLink` declare exactly six `@rpc` methods and nothing else here may declare any. A new feature is a new envelope kind, never an `@rpc`. [signon](docs/signon.md#the-rpc-surface-is-frozen-dotenvelope)
+- Payloads change only by adding a field, read through `GSEnvelope.number`/`text`/`flag`; a change that cannot be an addition is a new kind. [signon](docs/signon.md#the-rpc-surface-is-frozen-dotenvelope)
 - Only core join kinds are required; a feature kind is optional so an older peer loses the feature and keeps the game. [signon](docs/signon.md#the-rpc-surface-is-frozen-dotenvelope)
 - The signon revision is derived from the RPC names, never written by hand; an empty revision is never a mismatch. [signon](docs/signon.md#the-signon-revision-dotsignon)
 - A hidden browser tab announces itself reliably and flushes its own peer; the grace is the server's number. [signon](docs/signon.md#a-browser-tab-that-is-not-on-screen-is-not-running)
-- `DotClientSession.State` values never move: a new stage goes on the end of the enum, the order is `_can_transition`'s. [signon](docs/signon.md#the-join-state-machine)
+- `GSClientSession.State` values never move: a new stage goes on the end of the enum, the order is `_can_transition`'s. [signon](docs/signon.md#the-join-state-machine)
 - A module holds `PROFILE` from inside `client_state_changed`, before any await; nobody holding means the player goes straight through. [signon](docs/signon.md#the-profile-stage-a-module-may-hold-a-player-and-refuse-them-unseen)
 - No bearer secret (access token, account password) is ever sent over ENet; tickets and the server's own join password are. [transports](docs/transports.md)
-- `FLAG_REPLICATED` cvars reach clients (`DotEnvelope.CVARS`, table before each `LOAD_GAME`, deltas after); never replicate a protected one. [game-facing](docs/game-facing.md#replicated-cvars-the-servers-rules-on-the-client)
+- `FLAG_REPLICATED` cvars reach clients (`GSEnvelope.CVARS`, table before each `LOAD_GAME`, deltas after); never replicate a protected one. [game-facing](docs/game-facing.md#replicated-cvars-the-servers-rules-on-the-client)
 - Ask a peer list before sending to a session; a session with no peer is an engine error per send. [game-facing](docs/game-facing.md#dotnotice-something-for-the-hud-that-is-not-chat)
 
 **Boot and time**
@@ -80,8 +80,8 @@ The family's two steps ([family CLAUDE.md](../../CLAUDE.md#validating-anything))
 
 **Console and modules**
 
-- Every path in goes through `DotConsole.execute` with a `DotCmdContext`; the permission flag is the boundary, not the source. [console](docs/console.md#console-design)
-- Modules register through `DotModule`'s helpers, or an unload leaves handlers on a freed object. [console](docs/console.md#modules)
+- Every path in goes through `GSConsole.execute` with a `GSCmdContext`; the permission flag is the boundary, not the source. [console](docs/console.md#console-design)
+- Modules register through `GSModule`'s helpers, or an unload leaves handlers on a freed object. [console](docs/console.md#modules)
 - Descriptor cvars apply in two passes; a host calls `reapply_descriptor_cvars()` once its module is up. [console](docs/console.md#modules)
 - `map` is GameSpice Map's; this addon switches games (`changelevel`, `game`). [console](docs/console.md#map-belongs-to-dot-map)
 - A lambda held by a long-lived console can outlive its script at teardown; use static methods for validators. [game-facing](docs/game-facing.md#how-many-bots-dotbotquota)
@@ -98,16 +98,16 @@ The family's two steps ([family CLAUDE.md](../../CLAUDE.md#validating-anything))
 
 **Games and content**
 
-- Never name an optional addon's class here; reach it through `DotRegistry` or `Object.call`. [game-switching](docs/game-switching.md#coupling-nothing-is-imported)
+- Never name an optional addon's class here; reach it through `GSRegistry` or `Object.call`. [game-switching](docs/game-switching.md#coupling-nothing-is-imported)
 - The server acquires the new content before telling clients; during a sync the current game is still the old one. [game-switching](docs/game-switching.md#the-change-flow)
 - A built-in game has no client scene (`""`); delivered is `needs_delivered_content()`, not a `manifest_url`. [game-switching](docs/game-switching.md#delivered-or-shipped-in-the-build)
-- The query config stays on `DotServerConfig` even though the responder is GameSpice Server Query's. [game-switching](docs/game-switching.md#server-queries-live-in-dot-server-query)
-- What a game parents under `Server` (its RPC link) is retired at the change on both ends: renamed at once, freed 10 s later. Nothing but a game adds children under `DotServer` after boot. [game-switching](docs/game-switching.md#what-a-game-parents-under-server-goes-with-the-game)
+- The query config stays on `GSServerConfig` even though the responder is GameSpice Server Query's. [game-switching](docs/game-switching.md#server-queries-live-in-dot-server-query)
+- What a game parents under `Server` (its RPC link) is retired at the change on both ends: renamed at once, freed 10 s later. Nothing but a game adds children under `GSServer` after boot. [game-switching](docs/game-switching.md#what-a-game-parents-under-server-goes-with-the-game)
 
 ## Things deliberately not here
 
-- **Serving content in-band.** GameSpice Cloud's `DotCloudSourceNetchan` expects a server exposing `cloud_chunk_size()` / `cloud_request_chunk()`; nothing here does. `allow_netchan_content`, `netchan_chunk_bytes` and `netchan_chunks_per_second` are declared, sent to clients and enforced by nothing; when it lands, the rate limit is the security control.
-- **State replication.** GameSpice Server gets a player into the world and hands over; snapshots, prediction and lag compensation are a game's (GameSpice Net). `DotTransport.Channel.STATE` is reserved for it.
+- **Serving content in-band.** GameSpice Cloud's `GSCloudSourceNetchan` expects a server exposing `cloud_chunk_size()` / `cloud_request_chunk()`; nothing here does. `allow_netchan_content`, `netchan_chunk_bytes` and `netchan_chunks_per_second` are declared, sent to clients and enforced by nothing; when it lands, the rate limit is the security control.
+- **State replication.** GameSpice Server gets a player into the world and hands over; snapshots, prediction and lag compensation are a game's (GameSpice Net). `GSTransport.Channel.STATE` is reserved for it.
 - **A master-server heartbeat.** `sv_lan` exists and does nothing yet; a tracker has to be told the address.
 - **Answering a query.** GameSpice Server Query does that, and GameSpice Browser asks.
-- **A listen-server helper.** `DotServer` and `DotClientLink` in one process works (that is why there are no autoloads), but nothing wraps the pattern.
+- **A listen-server helper.** `GSServer` and `GSClientLink` in one process works (that is why there are no autoloads), but nothing wraps the pattern.

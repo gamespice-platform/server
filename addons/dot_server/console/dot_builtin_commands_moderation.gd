@@ -1,20 +1,20 @@
 extends "res://addons/dot_server/console/dot_builtin_commands_info.gd"
 
-## Moderation commands of [DotBuiltinCommands]: kick, ban, mute, gag.
+## Moderation commands of [GSBuiltinCommands]: kick, ban, mute, gag.
 
 
-static func _register_moderation(server: Node, console: DotConsole) -> void:
+static func _register_moderation(server: Node, console: GSConsole) -> void:
 	console.command(
 		"ban",
-		func(ctx: DotCmdContext) -> void:
-			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
+		func(ctx: GSCmdContext) -> void:
+			var resolved: GSResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
 
-			var session: DotClientSession = resolved.value
+			var session: GSClientSession = resolved.value
 
-			var duration := DotBanManager.parse_duration(ctx.arg(1, "0"))
+			var duration := GSBanManager.parse_duration(ctx.arg(1, "0"))
 			if duration < 0:
 				ctx.reply(
 					"Could not read the duration '%s'. Use 30m, 2h, 7d, or 0 for permanent."
@@ -28,7 +28,7 @@ static func _register_moderation(server: Node, console: DotConsole) -> void:
 
 			var name := session.display_name
 
-			var banned: DotResult = await server.bans.ban_session(
+			var banned: GSResult = await server.bans.ban_session(
 				session, reason, duration, ctx.caller_label()
 			)
 			if not banned.ok:
@@ -44,7 +44,7 @@ static func _register_moderation(server: Node, console: DotConsole) -> void:
 
 			ctx.reply("Banned %s (%s): %s%s" % [
 				name,
-				DotBanManager.format_duration(duration),
+				GSBanManager.format_duration(duration),
 				reason,
 				"" if also == 0 else " (%d more at that address removed)" % also
 			])
@@ -54,23 +54,23 @@ static func _register_moderation(server: Node, console: DotConsole) -> void:
 					"%s was banned: %s" % [name, reason]
 				),
 		"Ban a connected player.",
-		DotAdminFlags.BAN
+		GSAdminFlags.BAN
 	).with_usage("<player> [duration] [reason]").with_args(1).with_chat().with_completer(
 		_player_completer(server)
 	)
 	_register_moderation_banid(server, console)
 
 
-static func _register_moderation_banid(server: Node, console: DotConsole) -> void:
+static func _register_moderation_banid(server: Node, console: GSConsole) -> void:
 	console.command(
 		"banid",
-		func(ctx: DotCmdContext) -> void:
-			var duration := DotBanManager.parse_duration(ctx.arg(1, "0"))
+		func(ctx: GSCmdContext) -> void:
+			var duration := GSBanManager.parse_duration(ctx.arg(1, "0"))
 			if duration < 0:
 				ctx.reply("Could not read the duration '%s'." % ctx.arg(1))
 				return
 
-			var res: DotResult = await server.bans.ban_uid(
+			var res: GSResult = await server.bans.ban_uid(
 				ctx.arg(0), ctx.rest(2), duration, ctx.caller_label()
 			)
 			if not res.ok:
@@ -81,17 +81,17 @@ static func _register_moderation_banid(server: Node, console: DotConsole) -> voi
 
 			ctx.reply("Banned account %s (%s).%s" % [
 				ctx.arg(0),
-				DotBanManager.format_duration(duration),
+				GSBanManager.format_duration(duration),
 				"" if removed == 0 else " %d removed." % removed
 			]),
 		"Ban an account id, connected or not.",
-		DotAdminFlags.BAN
+		GSAdminFlags.BAN
 	).with_usage("<uid> [duration] [reason]").with_args(1).with_chat()
 
 	console.command(
 		"banip",
-		func(ctx: DotCmdContext) -> void:
-			var duration := DotBanManager.parse_duration(ctx.arg(1, "0"))
+		func(ctx: GSCmdContext) -> void:
+			var duration := GSBanManager.parse_duration(ctx.arg(1, "0"))
 			if duration < 0:
 				ctx.reply("Could not read the duration '%s'." % ctx.arg(1))
 				return
@@ -108,7 +108,7 @@ static func _register_moderation_banid(server: Node, console: DotConsole) -> voi
 			if reason == "":
 				reason = "Banned by an admin"
 
-			var res: DotResult = await server.bans.ban_address(
+			var res: GSResult = await server.bans.ban_address(
 				host, reason, duration, ctx.caller_label()
 			)
 			if not res.ok:
@@ -121,33 +121,33 @@ static func _register_moderation_banid(server: Node, console: DotConsole) -> voi
 			var removed: int = server.enforce_bans("Banned: %s" % reason)
 
 			ctx.reply("Banned address %s (%s). %d removed." % [
-				host, DotBanManager.format_duration(duration), removed
+				host, GSBanManager.format_duration(duration), removed
 			])
 
 			if server.chat != null and removed > 0:
 				server.chat.announce_action("An address was banned: %s" % reason),
 		"Ban an address, or a connected player's address. Affects everyone behind it.",
-		DotAdminFlags.BAN
+		GSAdminFlags.BAN
 	).with_usage("<player|address> [duration] [reason]").with_args(1).with_chat()
 	_register_moderation_unban(server, console)
 
 
-static func _register_moderation_unban(server: Node, console: DotConsole) -> void:
+static func _register_moderation_unban(server: Node, console: GSConsole) -> void:
 	console.command(
 		"unban",
-		func(ctx: DotCmdContext) -> void:
-			var res: DotResult = await server.bans.unban(ctx.arg(0), ctx.caller_label())
+		func(ctx: GSCmdContext) -> void:
+			var res: GSResult = await server.bans.unban(ctx.arg(0), ctx.caller_label())
 			if not res.ok:
 				ctx.reply_error(res)
 				return
 			ctx.reply("Lifted ban %s." % res.value),
 		"Lift a ban.",
-		DotAdminFlags.UNBAN
+		GSAdminFlags.UNBAN
 	).with_usage("<uid|address|key>").with_args(1, 1).with_chat()
 
 	console.command(
 		"banlist",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			if ctx.argc() > 0:
 				var matches: Array[Dictionary] = server.bans.search(ctx.arg(0))
 				var lines := PackedStringArray()
@@ -161,41 +161,41 @@ static func _register_moderation_unban(server: Node, console: DotConsole) -> voi
 
 			_reply_capped(ctx, server.bans.describe_lines()),
 		"List bans.",
-		DotAdminFlags.BAN
+		GSAdminFlags.BAN
 	).with_usage("[search]").with_chat()
 
 	console.command(
 		"mute",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			_silence(server, ctx, true, true),
 		"Stop a player speaking and typing.",
-		DotAdminFlags.MUTE
+		GSAdminFlags.MUTE
 	).with_usage("<player> [duration] [reason]").with_args(1).with_chat().with_completer(
 		_player_completer(server)
 	)
 	_register_moderation_silence(server, console)
 
 
-static func _register_moderation_silence(server: Node, console: DotConsole) -> void:
+static func _register_moderation_silence(server: Node, console: GSConsole) -> void:
 	console.command(
 		"gag",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			_silence(server, ctx, false, true),
 		"Stop a player typing in chat.",
-		DotAdminFlags.MUTE
+		GSAdminFlags.MUTE
 	).with_usage("<player> [duration] [reason]").with_args(1).with_chat().with_completer(
 		_player_completer(server)
 	)
 
 	console.command(
 		"unmute",
-		func(ctx: DotCmdContext) -> void:
-			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
+		func(ctx: GSCmdContext) -> void:
+			var resolved: GSResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
 
-			var session: DotClientSession = resolved.value
+			var session: GSClientSession = resolved.value
 			session.unsilence()
 			ctx.reply("%s can speak again." % session.display_name)
 
@@ -204,12 +204,12 @@ static func _register_moderation_silence(server: Node, console: DotConsole) -> v
 					"unmute", ctx.caller_label(), session.display_name, {}
 				),
 		"Let a muted player speak again.",
-		DotAdminFlags.MUTE
+		GSAdminFlags.MUTE
 	).with_usage("<player>").with_args(1, 1).with_chat()
 
 	console.command(
 		"audit",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			if server.audit == null:
 				ctx.reply("No audit log is attached.")
 				return
@@ -226,7 +226,7 @@ static func _register_moderation_silence(server: Node, console: DotConsole) -> v
 
 			ctx.reply_lines(server.audit.describe_lines(ctx.arg_int(0, 25))),
 		"Show recent administrative actions.",
-		DotAdminFlags.LOGS
+		GSAdminFlags.LOGS
 	).with_usage("[count|search]")
 
 
@@ -235,20 +235,20 @@ static func _register_moderation_silence(server: Node, console: DotConsole) -> v
 ## so checking only the named player lets a junior admin remove a senior one via their housemate.
 static func _resolve_address(
 	server: Node,
-	ctx: DotCmdContext,
+	ctx: GSCmdContext,
 	target: String
-) -> DotResult:
+) -> GSResult:
 	var query := target.strip_edges()
 
 	if query == "":
-		return DotResult.fail(DotError.CODE_INVALID, "No address or player given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No address or player given.")
 
 	var host := ""
 
 	if query.to_lower().begins_with("ip:"):
 		host = query.substr(3)
 	else:
-		var matches: Array[DotClientSession] = server.find_sessions(query, ctx.session)
+		var matches: Array[GSClientSession] = server.find_sessions(query, ctx.session)
 
 		if matches.is_empty():
 			# Nobody by that name, so it is an address — including one nobody is
@@ -257,43 +257,43 @@ static func _resolve_address(
 		else:
 			host = matches[0].address
 			for session in matches:
-				if DotBanManager.normalise_address(session.address) \
-					!= DotBanManager.normalise_address(host):
+				if GSBanManager.normalise_address(session.address) \
+					!= GSBanManager.normalise_address(host):
 					var names := PackedStringArray()
 					for other in matches:
 						names.append("#%d %s" % [other.userid, other.display_name])
-					return DotResult.fail(
-						DotError.CODE_INVALID,
+					return GSResult.fail(
+						GSError.CODE_INVALID,
 						"'%s' matches players at different addresses." % query,
 						", ".join(Array(names))
 					)
 
-	host = DotBanManager.normalise_address(host)
+	host = GSBanManager.normalise_address(host)
 
 	if host == "":
-		return DotResult.fail(DotError.CODE_INVALID, "No address given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No address given.")
 
 	for session in server.sessions_from(host):
 		if not ctx.outranks(session.immunity):
-			return DotResult.fail(
-				DotError.CODE_FORBIDDEN,
+			return GSResult.fail(
+				GSError.CODE_FORBIDDEN,
 				"%s is at that address and has equal or higher immunity than you."
 					% session.display_name,
 				"theirs %d, yours %d" % [session.immunity, ctx.immunity]
 			)
 
-	return DotResult.success(host)
+	return GSResult.success(host)
 
 
 ## Sends a listing, cut short when it is going to a chat window.
 ## A ban list is hundreds of lines and chat answers one line per message, so an unbounded listing floods the admin,
 ## and the rate limiter does not run on server messages.
 static func _reply_capped(
-	ctx: DotCmdContext,
+	ctx: GSCmdContext,
 	lines: PackedStringArray,
 	cap: int = 12
 ) -> void:
-	if ctx.source != DotCmdContext.Source.CHAT or lines.size() <= cap:
+	if ctx.source != GSCmdContext.Source.CHAT or lines.size() <= cap:
 		ctx.reply_lines(lines)
 		return
 
@@ -307,18 +307,18 @@ static func _reply_capped(
 
 static func _silence(
 	server: Node,
-	ctx: DotCmdContext,
+	ctx: GSCmdContext,
 	voice: bool,
 	text: bool
 ) -> void:
-	var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
+	var resolved: GSResult = server.resolve_target(ctx, ctx.arg(0))
 	if not resolved.ok:
 		ctx.reply_error(resolved)
 		return
 
-	var session: DotClientSession = resolved.value
+	var session: GSClientSession = resolved.value
 
-	var duration := DotBanManager.parse_duration(ctx.arg(1, "0"))
+	var duration := GSBanManager.parse_duration(ctx.arg(1, "0"))
 	if duration < 0:
 		ctx.reply("Could not read the duration '%s'." % ctx.arg(1))
 		return
@@ -326,7 +326,7 @@ static func _silence(
 	session.silence(voice, text, duration)
 
 	var what := "muted" if voice else "gagged"
-	var window := DotBanManager.format_duration(duration)
+	var window := GSBanManager.format_duration(duration)
 
 	ctx.reply("%s %s (%s)." % [session.display_name, what, window])
 

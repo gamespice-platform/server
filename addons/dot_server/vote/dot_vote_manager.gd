@@ -1,5 +1,5 @@
 @tool
-class_name DotVoteManager
+class_name GSVoteManager
 extends Node
 
 ## Player votes: map changes, kicks, and anything a game defines.
@@ -33,7 +33,7 @@ signal vote_ended(vote: Dictionary, passed: bool)
 ## A vote among two people is not a vote.
 @export_range(1, 64, 1) var min_players: int = 3
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 ## The open vote, or empty.
 var _vote: Dictionary = {}
@@ -50,7 +50,7 @@ var _timer: Timer = null
 
 func setup(p_server: Node) -> void:
 	server = p_server
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	_timer = Timer.new()
 	_timer.one_shot = true
@@ -63,7 +63,7 @@ func setup(p_server: Node) -> void:
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 
@@ -72,13 +72,13 @@ func _exit_tree() -> void:
 func start(
 	kind: String,
 	question: String,
-	starter: DotClientSession,
+	starter: GSClientSession,
 	on_passed: Callable,
 	payload: Dictionary = {}
-) -> DotResult:
+) -> GSResult:
 	if is_active():
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"A vote is already running.",
 			str(_vote.get("question", ""))
 		)
@@ -86,8 +86,8 @@ func start(
 	var playing: int = server.player_count()
 
 	if playing < min_players:
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"There are not enough players to hold a vote.",
 			"%d playing, %d needed" % [playing, min_players]
 		)
@@ -97,8 +97,8 @@ func start(
 	if global_cooldown_sec > 0.0 and _last_vote_ended_at > 0:
 		var since := now - _last_vote_ended_at
 		if since < int(global_cooldown_sec):
-			return DotResult.fail(
-				DotError.CODE_RATE_LIMITED,
+			return GSResult.fail(
+				GSError.CODE_RATE_LIMITED,
 				"Please wait %ds before starting another vote."
 					% (int(global_cooldown_sec) - since)
 			)
@@ -107,8 +107,8 @@ func start(
 		var key := starter.uid() if starter.uid() != "" else str(starter.userid)
 		var last := int(_last_started.get(key, 0))
 		if last > 0 and (now - last) < int(per_player_cooldown_sec):
-			return DotResult.fail(
-				DotError.CODE_RATE_LIMITED,
+			return GSResult.fail(
+				GSError.CODE_RATE_LIMITED,
 				"You can start another vote in %ds."
 					% (int(per_player_cooldown_sec) - (now - last))
 			)
@@ -134,7 +134,7 @@ func start(
 
 	_timer.start(duration_sec)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"vote started",
 		{"kind": kind, "question": question, "by": _vote["started_by"]}
@@ -151,26 +151,26 @@ func start(
 		)
 
 	vote_started.emit(_vote)
-	return DotResult.success(_vote)
+	return GSResult.success(_vote)
 
 
 
 ## Records a ballot. A player may change their vote until the deadline.
-func cast_vote(session: DotClientSession, yes: bool) -> DotResult:
+func cast_vote(session: GSClientSession, yes: bool) -> GSResult:
 	if not is_active():
-		return DotResult.fail(
-			DotError.CODE_STATE, "There is no vote running."
+		return GSResult.fail(
+			GSError.CODE_STATE, "There is no vote running."
 		)
 
 	if not session.is_playing():
-		return DotResult.fail(
-			DotError.CODE_STATE, "You must be in the game to vote."
+		return GSResult.fail(
+			GSError.CODE_STATE, "You must be in the game to vote."
 		)
 
 	var changed := _ballots.has(session.userid) and bool(_ballots[session.userid]) != yes
 	_ballots[session.userid] = yes
 
-	DotLog.debug(
+	GSLog.debug(
 		CHANNEL,
 		"vote cast",
 		{"user": session.label(), "yes": yes, "changed": changed}
@@ -181,12 +181,12 @@ func cast_vote(session: DotClientSession, yes: bool) -> DotResult:
 	if _ballots.size() >= int(_vote.get("eligible", 0)):
 		_finish()
 
-	return DotResult.success(
+	return GSResult.success(
 		"Vote changed." if changed else "Vote recorded."
 	)
 
 
-func _on_client_left(session: DotClientSession, _reason: String) -> void:
+func _on_client_left(session: GSClientSession, _reason: String) -> void:
 	if not is_active():
 		return
 
@@ -238,7 +238,7 @@ func _finish() -> void:
 	if not met_quorum:
 		summary += " (not enough votes)"
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"vote passed" if passed else "vote failed",
 		{
@@ -273,10 +273,10 @@ func _finish() -> void:
 
 
 ## Ends the open vote early without running its callback.
-func cancel(reason: String = "cancelled") -> DotResult:
+func cancel(reason: String = "cancelled") -> GSResult:
 	if not is_active():
-		return DotResult.fail(
-			DotError.CODE_STATE, "There is no vote running."
+		return GSResult.fail(
+			GSError.CODE_STATE, "There is no vote running."
 		)
 
 	var question := str(_vote.get("question", ""))
@@ -286,22 +286,22 @@ func cancel(reason: String = "cancelled") -> DotResult:
 	_ballots.clear()
 	_last_vote_ended_at = int(Time.get_unix_time_from_system())
 
-	DotLog.info(CHANNEL, "vote cancelled", {"reason": reason})
+	GSLog.info(CHANNEL, "vote cancelled", {"reason": reason})
 
 	if server.chat != null:
 		server.chat.broadcast_system("Vote cancelled: %s" % question)
 
-	return DotResult.success(question)
+	return GSResult.success(question)
 
 
 ## Ends the open vote now, honouring whatever has been cast.
-func force_finish() -> DotResult:
+func force_finish() -> GSResult:
 	if not is_active():
-		return DotResult.fail(
-			DotError.CODE_STATE, "There is no vote running."
+		return GSResult.fail(
+			GSError.CODE_STATE, "There is no vote running."
 		)
 	_finish()
-	return DotResult.success(true)
+	return GSResult.success(true)
 
 
 

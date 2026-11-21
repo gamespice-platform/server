@@ -1,4 +1,4 @@
-class_name DotAdminFlags
+class_name GSAdminFlags
 extends RefCounted
 
 ## Permission flags and immunity. Flags are strings so a game adds its own and a server composes
@@ -40,7 +40,7 @@ const NOCLIP := "noclip"
 
 ## Act on a player's body without changing the rules (slay, slap, freeze, respawn, rename, burn).
 ## Not [constant CHEATS] on purpose: freezing a griefer is not giving somebody a rocket launcher.
-## GameSpice Moderation's [code]DotModToolCommands[/code] checks it.
+## GameSpice Moderation's [code]GSModToolCommands[/code] checks it.
 const SLAY := "slay"
 
 ## Move players: bring, goto, send, return. Separate from [constant SLAY] because
@@ -125,7 +125,7 @@ static func root_immunity() -> int:
 ## Sets [member max_immunity] (0 = unlimited). A negative value is refused with an error.
 static func set_max_immunity(value: int) -> bool:
 	if value < 0:
-		DotLog.error("admin", "sv_max_immunity refused: negative", {"value": value})
+		GSLog.error("admin", "sv_max_immunity refused: negative", {"value": value})
 		return false
 	max_immunity = value
 	return true
@@ -135,7 +135,7 @@ static func set_max_immunity(value: int) -> bool:
 static func immunity_allowed(immunity: int) -> bool:
 	if immunity >= 0 and (max_immunity == 0 or immunity <= max_immunity):
 		return true
-	DotLog.error("admin", "immunity refused: outside 0 to sv_max_immunity", {
+	GSLog.error("admin", "immunity refused: outside 0 to sv_max_immunity", {
 		"immunity": immunity, "sv_max_immunity": max_immunity})
 	return false
 

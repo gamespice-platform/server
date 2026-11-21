@@ -10,22 +10,22 @@ Godot refuses every RPC between two nodes unless both declare the same set of `@
 
 An RPC set mismatch reads as `ERROR: The rpc node checksum failed. Make sure to have the same methods on both nodes. Node path: /root/Server`, and the server then reports "timed out during join". Neither end says "version". `signon_revision` exists to catch it on the commit that adds a method to one side.
 
-## DotAddressGuard
+## GSAddressGuard
 
 It is neither a ban ("may this person be here at all") nor the connect rate limiter ("how fast may they try"); neither stops one machine slowly holding twelve slots on a sixteen-slot server. It is pure by design: it is told the addresses in use rather than holding a count, because a hand-kept counter drifts the first time a path forgets to decrement it (a rejected peer, a kick, a transport closing without a signal) and the server then refuses everybody from an address nobody is connected from.
 
 ```gdscript
-var guard := DotAddressGuard.new()
+var guard := GSAddressGuard.new()
 guard.limit = 2
 guard.check("203.0.113.9", server.addresses_in_use())   # ok, or a refusal to show
 ```
 
-## DotEventBus
+## GSEventBus
 
 Pre-hooks can cancel and post-hooks observe. Hooks run in registration order and a cancel stops the remaining pre-hooks.
 
 ```gdscript
-events.hook_pre("player_chat", func(e: DotEvent) -> void:
+events.hook_pre("player_chat", func(e: GSEvent) -> void:
     if e.get_string("text").contains("badword"):
         e.cancel("filtered"))
 
@@ -34,25 +34,25 @@ if e.cancelled:
     return
 ```
 
-## DotModule
+## GSModule
 
-A module that registers a console command and is then unloaded would leave a handler on a freed object, so every helper records what it registered for `DotModuleHost` to undo.
+A module that registers a console command and is then unloaded would leave a handler on a freed object, so every helper records what it registered for `GSModuleHost` to undo.
 
 ```gdscript
-extends DotModule
+extends GSModule
 
 func _module_name() -> String: return "welcome"
 
-func _module_load() -> DotResult:
-    add_command("welcome", _cmd_welcome, "Greet a player", DotAdminFlags.CHAT)
+func _module_load() -> GSResult:
+    add_command("welcome", _cmd_welcome, "Greet a player", GSAdminFlags.CHAT)
     hook_post("client_spawn", _on_spawn)
-    return DotResult.success(null)
+    return GSResult.success(null)
 
-func _on_spawn(e: DotEvent) -> void:
+func _on_spawn(e: GSEvent) -> void:
     server.broadcast_message("Welcome, %s!" % e.get_string("name"))
 ```
 
-## DotBotQuota
+## GSBotQuota
 
 One rule for every game instead of one per game, so an operator learns one set of cvars and a person joining takes a bot's place everywhere. The module that installs the cvars owns them, so a game change re-registers them with that game's defaults.
 
@@ -63,7 +63,7 @@ One rule for every game instead of one per game, so an operator learns one set o
 Every mode leaves room for people (`slots - humans`).
 
 ```gdscript
-_quota = DotBotQuota.install(self, 4)          # in _module_load
+_quota = GSBotQuota.install(self, 4)          # in _module_load
 var want := _quota.wanted(humans, max_players)  # on the roster tick
 # add bots while fewer than want, remove (newest first) while more
 ```

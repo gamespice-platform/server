@@ -1,7 +1,7 @@
 @tool
 extends "res://addons/dot_server/client/dot_client_link_signon.gd"
 
-## Page visibility, scoreboard, replicated cvars, chat and notices of [DotClientLink].
+## Page visibility, scoreboard, replicated cvars, chat and notices of [GSClientLink].
 
 
 ## Subscribes to the browser's visibility events. No-op off-web.
@@ -12,7 +12,7 @@ func _watch_page_visibility() -> void:
 	# otherwise root their listeners under the same name, and the second would
 	# silently replace the first.
 	var key := "dot_client_link_visibility_%d" % get_instance_id()
-	if DotWeb.watch_visibility(
+	if GSWeb.watch_visibility(
 		key, func(visible: bool) -> void: _on_page_visibility(visible)
 	):
 		_visibility_key = key
@@ -24,13 +24,13 @@ func _on_page_visibility(visible: bool) -> void:
 	if not background_keepalive or not _connected:
 		return
 
-	DotLog.debug(
+	GSLog.debug(
 		CHANNEL,
 		"page visibility changed",
 		{"visible": visible, "grace": background_grace_sec}
 	)
 
-	send_kind(DotEnvelope.VISIBILITY, {"visible": visible, "grace": background_grace_sec})
+	send_kind(GSEnvelope.VISIBILITY, {"visible": visible, "grace": background_grace_sec})
 
 	if visible:
 		# Coming back, the heartbeat timer resumes, but its next tick may be far off while the server
@@ -59,7 +59,7 @@ func want_scoreboard(open: bool) -> bool:
 	_scoreboard_held = open
 	if not _connected:
 		return false
-	return send_kind(DotEnvelope.SCOREBOARD_WANT, {"open": open, "paged": true})
+	return send_kind(GSEnvelope.SCOREBOARD_WANT, {"open": open, "paged": true})
 
 
 ## Asks for ONE board, leaving a held board held; a client's block list (GameSpice Chat's `sm`) uses it to learn who is here.
@@ -67,7 +67,7 @@ func want_scoreboard(open: bool) -> bool:
 func request_scoreboard() -> bool:
 	if not _connected:
 		return false
-	return send_kind(DotEnvelope.SCOREBOARD_WANT, {"open": _scoreboard_held, "once": true, "paged": true})
+	return send_kind(GSEnvelope.SCOREBOARD_WANT, {"open": _scoreboard_held, "once": true, "paged": true})
 
 
 func _on_scoreboard(_peer_id: int, payload: Dictionary) -> void:
@@ -163,7 +163,7 @@ func _on_cvars(_peer_id: int, payload: Dictionary) -> void:
 		return
 
 	var values := raw as Dictionary
-	var full := DotEnvelope.flag(payload, "full", false)
+	var full := GSEnvelope.flag(payload, "full", false)
 	var next := {} if full else replicated_cvars.duplicate()
 	var changed := PackedStringArray()
 
@@ -190,7 +190,7 @@ func _on_cvars(_peer_id: int, payload: Dictionary) -> void:
 
 	replicated_cvars = next
 	if not skipped.is_empty():
-		DotLog.warn(CHANNEL, "replicated cvars skipped past a limit (0 = unlimited)",
+		GSLog.warn(CHANNEL, "replicated cvars skipped past a limit (0 = unlimited)",
 			{"skipped": skipped.size(), "first": Array(skipped.slice(0, 8))})
 
 	for cvar_name in changed:
@@ -211,28 +211,28 @@ func _on_chat_line(_peer_id: int, payload: Dictionary) -> void:
 
 
 ## Creates the child that mirrors the server's chat node.
-## Named to match [DotServer]'s [code]chat_ref[/code] default, because the name is the routing.
+## Named to match [GSServer]'s [code]chat_ref[/code] default, because the name is the routing.
 func _ensure_chat() -> void:
 	if _chat != null and is_instance_valid(_chat):
 		return
 
-	_chat = DotClientChat.new()
+	_chat = GSClientChat.new()
 	_chat.name = "Chat"
 	_chat.link = self
 	add_child(_chat)
 
 
 ## The server's HUD line, countdown or cue. See [signal notice_received].
-## Decoded through [method DotNotice.from_wire], which defaults and bounds every field, since a server one build off may send an unknown shape;
+## Decoded through [method GSNotice.from_wire], which defaults and bounds every field, since a server one build off may send an unknown shape;
 ## a payload that decodes to nothing is dropped here rather than handed to a HUD.
 func _on_notice(_peer_id: int, payload: Dictionary) -> void:
-	var notice := DotNotice.from_wire(payload)
+	var notice := GSNotice.from_wire(payload)
 
 	if notice.is_empty():
 		return
 
 	last_notice = notice
-	DotLog.debug(CHANNEL, "notice", notice.describe())
+	GSLog.debug(CHANNEL, "notice", notice.describe())
 	notice_received.emit(notice)
 
 
@@ -240,10 +240,10 @@ func _on_notice(_peer_id: int, payload: Dictionary) -> void:
 ## Sent before the socket closes: the only way a player learns they were banned rather than disconnected.
 ## A protocol-mismatch refusal carries its code and detail, so a shell can tell "this build cannot play here" from a kick.
 func _on_disconnect_notice(_peer_id: int, payload: Dictionary) -> void:
-	var reason := DotEnvelope.text(payload, "reason")
-	var code := DotEnvelope.text(payload, "code", DotError.CODE_FORBIDDEN)
-	DotLog.info(CHANNEL, "disconnected by server", {"reason": reason, "code": code})
-	last_error = DotError.make(code, reason, DotEnvelope.text(payload, "detail"))
+	var reason := GSEnvelope.text(payload, "reason")
+	var code := GSEnvelope.text(payload, "code", GSError.CODE_FORBIDDEN)
+	GSLog.info(CHANNEL, "disconnected by server", {"reason": reason, "code": code})
+	last_error = GSError.make(code, reason, GSEnvelope.text(payload, "detail"))
 	_set_phase(Phase.FAILED, reason)
 	_reason_reported = true
 	disconnected.emit(reason)

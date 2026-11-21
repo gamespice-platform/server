@@ -1,25 +1,25 @@
 @tool
 extends Node
 
-## The signals, enums, settings and state of [DotServer], kept apart so each file stays readable.
+## The signals, enums, settings and state of [GSServer], kept apart so each file stays readable.
 
 const Cvars := preload("dot_server_cvars.gd")
 const CHANNEL := "server"
 const SERVICE := &"dot_server"
 
 ## Registry name of an optional external ban list; GameSpice Moderation registers under it and answers
-## [code]check_admission(uid, address) -> DotResult[/code]. Neither addon imports the other.
+## [code]check_admission(uid, address) -> GSResult[/code]. Neither addon imports the other.
 const BAN_SOURCE := &"dot_ban_source"
 
 ## Reported in `status`, in query responses and in the backbone stats report.
 const VERSION := "0.1.0"
 
 ## Multiplayer channel used for the join handshake and console traffic.
-const CHANNEL_CONTROL := DotTransport.Channel.CONTROL
+const CHANNEL_CONTROL := GSTransport.Channel.CONTROL
 
-## Multiplayer channel for [DotNotice]s: reliable and ordered, like chat, and off the
+## Multiplayer channel for [GSNotice]s: reliable and ordered, like chat, and off the
 ## control channel so a HUD line never waits behind a content sync.
-const CHANNEL_EVENT := DotTransport.Channel.EVENT
+const CHANNEL_EVENT := GSTransport.Channel.EVENT
 
 ## Seconds between telling a peer why it is being disconnected and closing its socket. See
 ## [method _close_peer].
@@ -52,25 +52,25 @@ signal tickrate_pending(rate: int)
 signal tickrate_changed(rate: int)
 
 ## A client finished the whole join flow.
-signal client_spawned(session: DotClientSession)
+signal client_spawned(session: GSClientSession)
 
 ## A client left, for any reason. [param reason] is empty on a clean disconnect.
-signal client_disconnected(session: DotClientSession, reason: String)
+signal client_disconnected(session: GSClientSession, reason: String)
 
 ## A client's signon state advanced.
-signal client_state_changed(session: DotClientSession)
+signal client_state_changed(session: GSClientSession)
 
 ## Emitted before the game changes, so subsystems can prepare.
 signal game_changing(from_key: String, to_key: String)
 
-## A [DotNotice] went out. [param recipients] is how many clients it was put on the wire
+## A [GSNotice] went out. [param recipients] is how many clients it was put on the wire
 ## for, which is 0 on a server with nobody playing — and a notice nobody received is still
 ## one the server meant, so a host that logs or mirrors them hears it either way.
-signal notice_sent(notice: DotNotice, recipients: int)
+signal notice_sent(notice: GSNotice, recipients: int)
 
 @export_group("Configuration")
 
-@export var config: DotServerConfig = null
+@export var config: GSServerConfig = null
 
 ## JSON config layered over [member config]'s defaults.
 @export var config_file: String = "user://cfg/server.json"
@@ -82,39 +82,39 @@ signal notice_sent(notice: DotNotice, recipients: int)
 
 ## Where to find or create the console. Every subsystem ref defaults to creating a child;
 ## point one at an existing node to share it.
-@export var console_ref: DotNodeRef = null
-@export var admin_ref: DotNodeRef = null
-@export var bans_ref: DotNodeRef = null
-@export var audit_ref: DotNodeRef = null
-@export var chat_ref: DotNodeRef = null
-@export var rcon_ref: DotNodeRef = null
-@export var stdin_ref: DotNodeRef = null
-@export var games_ref: DotNodeRef = null
-@export var votes_ref: DotNodeRef = null
+@export var console_ref: GSNodeRef = null
+@export var admin_ref: GSNodeRef = null
+@export var bans_ref: GSNodeRef = null
+@export var audit_ref: GSNodeRef = null
+@export var chat_ref: GSNodeRef = null
+@export var rcon_ref: GSNodeRef = null
+@export var stdin_ref: GSNodeRef = null
+@export var games_ref: GSNodeRef = null
+@export var votes_ref: GSNodeRef = null
 
-@export var events_ref: DotNodeRef = null
-@export var modules_ref: DotNodeRef = null
+@export var events_ref: GSNodeRef = null
+@export var modules_ref: GSNodeRef = null
 
-## Where the log goes, over and above stdout: a [DotLogSink], or a GameSpice Log [code]DotLogRouter[/code]
-## (duck-typed; only GameSpice Core may be a hard dependency). Null makes a [DotLogSink] from
-## [member DotServerConfig.log_file_enabled].
-@export var log_sink_ref: DotNodeRef = null
+## Where the log goes, over and above stdout: a [GSLogSink], or a GameSpice Log [code]GSLogRouter[/code]
+## (duck-typed; only GameSpice Core may be a hard dependency). Null makes a [GSLogSink] from
+## [member GSServerConfig.log_file_enabled].
+@export var log_sink_ref: GSNodeRef = null
 
-## Where the log is going, if anywhere: a [DotLogSink], a GameSpice Log router, or null.
+## Where the log is going, if anywhere: a [GSLogSink], a GameSpice Log router, or null.
 var log_node: Node = null
 
 ## Whether [member log_node] is a router rather than a plain sink. Duck-typed.
 var log_is_router: bool = false
 
-var console: DotConsole = null
-var admins: DotAdminManager = null
-var bans: DotBanManager = null
-var audit: DotAuditLog = null
-var chat: DotChatManager = null
-var rcon: DotRconServer = null
+var console: GSConsole = null
+var admins: GSAdminManager = null
+var bans: GSBanManager = null
+var audit: GSAuditLog = null
+var chat: GSChatManager = null
+var rcon: GSRconServer = null
 ## The server's own terminal, when there is one to read.
-var stdin_console: DotStdinConsole = null
-var games: DotGameManager = null
+var stdin_console: GSStdinConsole = null
+var games: GSGameManager = null
 
 ## Default for [code]sv_scoreboard_max_rows[/code]: most player rows one scoreboard carries
 ## (0 = unlimited). Bounds a payload sent twice a second.
@@ -127,7 +127,7 @@ const MAX_PING_REPORT := 60000
 ## Seconds between scoreboards sent to a client holding its board open.
 var scoreboard_interval_sec: float = 0.5
 
-## `func(session: DotClientSession) -> Dictionary`: a game's own columns for one player
+## `func(session: GSClientSession) -> Dictionary`: a game's own columns for one player
 ## (kills, team, points), merged into its row of [method scoreboard_snapshot].
 var scoreboard_fields: Callable = Callable()
 
@@ -142,9 +142,9 @@ var scoreboard_extra: Callable = Callable()
 var addon_set: Array = []
 
 var _scoreboard_accum: float = 0.0
-var votes: DotVoteManager = null
-var events: DotEventBus = null
-var modules: DotModuleHost = null
+var votes: GSVoteManager = null
+var events: GSEventBus = null
+var modules: GSModuleHost = null
 ## The query responder, when GameSpice Server Query is plugged in. Duck-typed: naming its class here
 ## would make an optional addon mandatory, since a script naming a missing class fails to parse.
 ## Filled in by the host through [method attach_query_host]; null when nothing attaches.
@@ -162,7 +162,7 @@ var a2s: Object = null
 
 var state: State = State.IDLE
 
-## peer_id -> DotClientSession
+## peer_id -> GSClientSession
 var _sessions: Dictionary = {}
 
 ## userid -> peer_id, so `kickid` can find a session.
@@ -170,28 +170,28 @@ var _by_userid: Dictionary = {}
 
 var _next_userid: int = 1
 var _peer: MultiplayerPeer = null
-var _transport: DotTransport = null
+var _transport: GSTransport = null
 var _started_at: int = 0
 
 ## Cvars this node owns and reads on hot paths.
-var _cv_hostname: DotConVar
-var _cv_password: DotConVar
-var _cv_allow_web: DotConVar
-var _cv_allow_desktop: DotConVar
-var _cv_allow_mobile: DotConVar
-var _cv_single_seat: DotConVar
-var _cv_maxplayers: DotConVar
-var _cv_cheats: DotConVar
-var _cv_tickrate: DotConVar
+var _cv_hostname: GSConVar
+var _cv_password: GSConVar
+var _cv_allow_web: GSConVar
+var _cv_allow_desktop: GSConVar
+var _cv_allow_mobile: GSConVar
+var _cv_single_seat: GSConVar
+var _cv_maxplayers: GSConVar
+var _cv_cheats: GSConVar
+var _cv_tickrate: GSConVar
 var _pending_tickrate: int = -1
-var _cv_timeout: DotConVar
-var _cv_background_grace: DotConVar
+var _cv_timeout: GSConVar
+var _cv_background_grace: GSConVar
 
-var _connect_limiter: DotRateLimiter = null
+var _connect_limiter: GSRateLimiter = null
 var _warned_about_ban_source: bool = false
 
-## How many clients one address may hold at once. See [DotAddressGuard].
-var address_guard: DotAddressGuard = null
+## How many clients one address may hold at once. See [GSAddressGuard].
+var address_guard: GSAddressGuard = null
 
 var _sweep_accum: float = 0.0
 

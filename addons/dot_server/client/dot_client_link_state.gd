@@ -1,13 +1,13 @@
 @tool
 extends Node
 
-## State, signals and phase helpers of [DotClientLink].
+## State, signals and phase helpers of [GSClientLink].
 
 const CHANNEL := "client"
 const Credentials := preload("dot_client_credentials.gd")
 const SERVICE := &"dot_client_link"
-const CHANNEL_CONTROL := DotTransport.Channel.CONTROL
-const CHANNEL_EVENT := DotTransport.Channel.EVENT
+const CHANNEL_CONTROL := GSTransport.Channel.CONTROL
+const CHANNEL_EVENT := GSTransport.Channel.EVENT
 
 ## Mirrors the server's view of the join, for loading-screen text.
 enum Phase {
@@ -35,10 +35,10 @@ signal disconnected(reason: String)
 
 signal chat_received(payload: Dictionary)
 
-## The server put something on this player's HUD: a line, a countdown, a sound, or the end of one. See [DotNotice].
+## The server put something on this player's HUD: a line, a countdown, a sound, or the end of one. See [GSNotice].
 ## The one message sent to the APPLICATION rather than the game on screen: a game's wire is replaced when the game changes,
 ## this is GameSpice Server's, so something that outlives a game (a next-game vote, a restart warning) reaches a player as more than chat.
-signal notice_received(notice: DotNotice)
+signal notice_received(notice: GSNotice)
 
 ## The browser tab was hidden or shown. Never fires off-web.
 ## Emitted from a JavaScript listener, not a frame, so a handler must be synchronous; see [member background_keepalive].
@@ -48,7 +48,7 @@ signal page_visibility_changed(visible: bool)
 signal server_info(info: Dictionary)
 
 ## The roster, while this client holds its scoreboard open. See [method want_scoreboard] and
-## [method DotServer.scoreboard_snapshot] for the shape.
+## [method GSServer.scoreboard_snapshot] for the shape.
 signal scoreboard_received(snapshot: Dictionary)
 
 ## The server told this client which game to load.
@@ -58,7 +58,7 @@ signal game_changed(game_id: String, content_id: String, display_name: String)
 
 ## A replicated cvar's value arrived or changed (FLAG_REPLICATED cvars, see [member replicated_cvars]).
 ## Fires once per name whose value is new, not per message. Duck-typed followers
-## (GameSpice Combat's [code]DotCombatManager.follow_cvars[/code]) connect here by name.
+## (GameSpice Combat's [code]GSCombatManager.follow_cvars[/code]) connect here by name.
 signal replicated_cvar_changed(cvar_name: String, value: String)
 
 @export_group("Identity")
@@ -66,18 +66,18 @@ signal replicated_cvar_changed(cvar_name: String, value: String)
 ## Name to request. Honoured for guests; an authenticated account uses its own.
 @export var player_name: String = "Player"
 
-## Where to find a [code]DotAuthClient[/code], when GameSpice Auth is installed.
-## Resolved through [DotRegistry], so this addon has no dependency on GameSpice Auth.
+## Where to find a [code]GSAuthClient[/code], when GameSpice Auth is installed.
+## Resolved through [GSRegistry], so this addon has no dependency on GameSpice Auth.
 @export var auth_service: StringName = &"dot_auth_client"
 
-## Where to find a [code]DotCloudClient[/code], when GameSpice Cloud is installed.
+## Where to find a [code]GSCloudClient[/code], when GameSpice Cloud is installed.
 @export var cloud_service: StringName = &"dot_cloud_client"
 
 @export_group("Transport")
 
 ## Transport for connecting. When set, it is the only one tried. When unset (the
 ## usual case) the link chooses: see [member transport_preference].
-@export var transport: DotTransport = null
+@export var transport: GSTransport = null
 
 ## [code]auto[/code]: native tries ENet over UDP for [member udp_connect_timeout_sec], then WebSocket (browsers always WebSocket).
 ## [code]udp[/code]: ENet only. [code]ws[/code]: WebSocket only.
@@ -110,13 +110,13 @@ var _secure_rejoin: bool = false
 @export_group("Behaviour")
 
 ## Where the game scene is added. Defaults to a child of this node.
-@export var game_root_ref: DotNodeRef = null
+@export var game_root_ref: GSNodeRef = null
 
 ## Seconds between heartbeats, which also measure ping.
 @export_range(0.5, 30.0, 0.5) var heartbeat_interval_sec: float = 2.0
 
 ## Seconds to wait for the server's challenge before deciding it is never coming.
-## A challenge that never arrives is the half of an RPC mismatch [DotSignon] cannot report, and the server's "Timed out while authenticating" blames the network;
+## A challenge that never arrives is the half of an RPC mismatch [GSSignon] cannot report, and the server's "Timed out while authenticating" blames the network;
 ## shorter than `sv_auth_timeout` so the end that can name the likely cause answers.
 @export_range(2.0, 120.0, 1.0) var signon_timeout_sec: float = 15.0
 
@@ -132,7 +132,7 @@ var _secure_rejoin: bool = false
 var phase: Phase = Phase.IDLE
 
 ## The server's signon revision, from the handshake. Empty for a server too old to
-## send one, which is not an error -- see [DotSignon].
+## send one, which is not an error -- see [GSSignon].
 var server_signon: String = ""
 
 ## Set from the handshake, so a client knows which server it is talking to.
@@ -144,11 +144,11 @@ var server_hostname: String = ""
 var server_join_audience: String = ""
 var _ticket_nonce := ""
 
-## The addon versions the server runs, from the handshake: `{dir, repo, id, version}` per addon (see [member DotServer.addon_set]). Empty if none sent.
+## The addon versions the server runs, from the handshake: `{dir, repo, id, version}` per addon (see [member GSServer.addon_set]). Empty if none sent.
 ## Read before the join completes, so a shell can fetch newer addons and restart into them.
 var server_addons: Array = []
 
-## The game the server is currently running, as [DotGameManager.load_info] reported it. Empty before the first load.
+## The game the server is currently running, as [GSGameManager.load_info] reported it. Empty before the first load.
 ## A game shipped inside a client's build names no scene ([method _resolve_scene] refuses absolute paths outside the mount),
 ## so the id is the only thing telling a multi-game client which built-in game to show.
 var server_game_id: String = ""
@@ -163,17 +163,17 @@ var server_content_id: String = ""
 ## What the client was ASKED for: a mount is process-wide, so "is it mounted" cannot say which side wanted it in a process holding a server too. Server-only packs never appear.
 var content_extra: PackedStringArray = PackedStringArray()
 
-var last_error: DotError = null
+var last_error: GSError = null
 
 ## True once [signal disconnected] has been emitted for the current connection, so the transport's later close does not emit a second, generic reason over the first.
 var _reason_reported: bool = false
 
-## The last [DotNotice] the server sent, for [method describe] and for a HUD built after
+## The last [GSNotice] the server sent, for [method describe] and for a HUD built after
 ## it arrived. Null until one has.
-var last_notice: DotNotice = null
+var last_notice: GSNotice = null
 
 ## The server's replicated cvars, name -> value as a string, as last told. Empty against a
-## server older than the [constant DotEnvelope.CVARS] kind: a reader keeps its own default.
+## server older than the [constant GSEnvelope.CVARS] kind: a reader keeps its own default.
 var replicated_cvars: Dictionary = {}
 
 ## Defaults for the three limits below.
@@ -216,9 +216,9 @@ var _progress_handler: Callable = Callable()
 var _creds := Credentials.new(self)
 
 ## The kinds this client knows, and what the server it is talking to knows. See
-## [DotEnvelope]. A kind this client does not handle is dropped with a DEBUG line; one the
+## [GSEnvelope]. A kind this client does not handle is dropped with a DEBUG line; one the
 ## server does not know is not sent to it.
-var envelope: DotEnvelope = _make_envelope()
+var envelope: GSEnvelope = _make_envelope()
 
 
 ## Heartbeats sent quickly as a join completes. See [method _enter_playing].
@@ -255,19 +255,19 @@ func _reset_scoreboard_state() -> void:
 
 ## The client's chat node. It declares no RPCs any more -- chat is two kinds on the
 ## envelope -- and is kept because games reach chat through it by name.
-var _chat: DotClientChat = null
+var _chat: GSClientChat = null
 
 
-## Built by [DotClientLink], which owns the handlers.
-func _make_envelope() -> DotEnvelope:
-	return DotEnvelope.new()
+## Built by [GSClientLink], which owns the handlers.
+func _make_envelope() -> GSEnvelope:
+	return GSEnvelope.new()
 
 
-## Sends a kind to the server; implemented by [DotClientLink], which declares the RPCs it rides on.
+## Sends a kind to the server; implemented by [GSClientLink], which declares the RPCs it rides on.
 func send_kind(
 	_kind: StringName,
 	_payload: Dictionary = {},
-	_lane: DotEnvelope.Lane = DotEnvelope.Lane.CONTROL
+	_lane: GSEnvelope.Lane = GSEnvelope.Lane.CONTROL
 ) -> bool:
 	return false
 
@@ -279,13 +279,13 @@ func _set_phase(new_phase: Phase, text: String) -> void:
 	phase_changed.emit(new_phase, text)
 
 
-func _fail(error: DotError) -> DotResult:
+func _fail(error: GSError) -> GSResult:
 	last_error = error
 	_set_phase(Phase.FAILED, error.message)
-	DotLog.error(
+	GSLog.error(
 		CHANNEL, error.message, {"code": error.code, "detail": error.detail}
 	)
-	return DotResult.failure(error)
+	return GSResult.failure(error)
 
 
 func is_connected_to_server() -> bool:

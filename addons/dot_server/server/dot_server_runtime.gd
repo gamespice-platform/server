@@ -1,28 +1,28 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_state.gd"
 
-## Session queries, tick rate, hibernation and the status reports of [DotServer].
+## Session queries, tick rate, hibernation and the status reports of [GSServer].
 
-func session_of(peer_id: int) -> DotClientSession:
+func session_of(peer_id: int) -> GSClientSession:
 	return _sessions.get(peer_id)
 
 
-func session_by_userid(userid: int) -> DotClientSession:
+func session_by_userid(userid: int) -> GSClientSession:
 	var peer_id: Variant = _by_userid.get(userid)
 	if peer_id == null:
 		return null
 	return _sessions.get(int(peer_id))
 
 
-func sessions() -> Array[DotClientSession]:
-	var out: Array[DotClientSession] = []
+func sessions() -> Array[GSClientSession]:
+	var out: Array[GSClientSession] = []
 	for peer_id in _sessions:
 		out.append(_sessions[peer_id])
 	return out
 
 
-func playing_sessions() -> Array[DotClientSession]:
-	var out: Array[DotClientSession] = []
+func playing_sessions() -> Array[GSClientSession]:
+	var out: Array[GSClientSession] = []
 	for session in sessions():
 		if session.is_playing():
 			out.append(session)
@@ -34,15 +34,15 @@ func player_count() -> int:
 
 
 ## Every active session connected from [param address]; what an address ban acts on.
-func sessions_from(address: String) -> Array[DotClientSession]:
-	var out: Array[DotClientSession] = []
-	var host := DotBanManager.normalise_address(address)
+func sessions_from(address: String) -> Array[GSClientSession]:
+	var out: Array[GSClientSession] = []
+	var host := GSBanManager.normalise_address(address)
 
 	if host == "":
 		return out
 
 	for session in sessions():
-		if session.is_active() and DotBanManager.normalise_address(session.address) == host:
+		if session.is_active() and GSBanManager.normalise_address(session.address) == host:
 			out.append(session)
 
 	return out
@@ -50,7 +50,7 @@ func sessions_from(address: String) -> Array[DotClientSession]:
 
 ## The address of every session currently holding a slot, duplicates included.
 ##
-## Duplicates are the point: this is what [DotAddressGuard] counts.
+## Duplicates are the point: this is what [GSAddressGuard] counts.
 func addresses_in_use() -> PackedStringArray:
 	var out := PackedStringArray()
 	for session in sessions():
@@ -60,7 +60,7 @@ func addresses_in_use() -> PackedStringArray:
 
 
 ## The rate the server plays at -- [code]sv_tickrate[/code] as last applied, not the
-## engine's, which reads [member DotServerConfig.hibernate_tickrate] while it hibernates.
+## engine's, which reads [member GSServerConfig.hibernate_tickrate] while it hibernates.
 func tickrate() -> int:
 	return config.tickrate
 
@@ -83,7 +83,7 @@ func apply_pending_tickrate() -> bool:
 		return false
 	config.tickrate = rate
 	_apply_tickrate()
-	DotLog.info(CHANNEL, "tickrate changed", {"tickrate": rate})
+	GSLog.info(CHANNEL, "tickrate changed", {"tickrate": rate})
 	tickrate_changed.emit(rate)
 	return true
 
@@ -93,7 +93,7 @@ func apply_pending_tickrate() -> bool:
 func _pend_tier_rate() -> void:
 	if console == null:
 		return
-	var tiers := DotTickTiers.parse(console.get_string("sv_tickrate_tiers", ""))
+	var tiers := GSTickTiers.parse(console.get_string("sv_tickrate_tiers", ""))
 	if tiers.is_off():
 		return
 	var players := player_count()
@@ -114,14 +114,14 @@ func _apply_tickrate() -> void:
 	Engine.physics_ticks_per_second = maxi(1, rate)
 
 	# An unbounded max_fps spins a core on a server with nothing to draw, so match the tickrate.
-	# Hibernating, the frame rate is the socket rate: see DotServerConfig.hibernate_frame_rate.
-	if DotPlatform.is_headless():
+	# Hibernating, the frame rate is the socket rate: see GSServerConfig.hibernate_frame_rate.
+	if GSPlatform.is_headless():
 		var frames := rate
 		if state == State.HIBERNATING:
 			frames = maxi(rate, config.hibernate_frame_rate)
 		Engine.max_fps = maxi(1, frames)
 
-	DotLog.debug(CHANNEL, "tickrate applied", {"rate": rate})
+	GSLog.debug(CHANNEL, "tickrate applied", {"rate": rate})
 
 
 ## True while a game change is under way: see the connection in [method start].
@@ -150,7 +150,7 @@ func _maybe_hibernate() -> void:
 
 	_set_state(State.HIBERNATING)
 	_apply_tickrate()
-	DotLog.info(CHANNEL, "hibernating (no players)")
+	GSLog.info(CHANNEL, "hibernating (no players)")
 	hibernation_changed.emit(true)
 
 
@@ -159,12 +159,12 @@ func _wake_from_hibernation() -> void:
 		return
 	_set_state(State.RUNNING)
 	_apply_tickrate()
-	DotLog.info(CHANNEL, "woke from hibernation")
+	GSLog.info(CHANNEL, "woke from hibernation")
 	hibernation_changed.emit(false)
 
 
 ## Whether the server is hibernating: up, empty, and ticking at
-## [member DotServerConfig.hibernate_tickrate].
+## [member GSServerConfig.hibernate_tickrate].
 func is_hibernating() -> bool:
 	return state == State.HIBERNATING
 
@@ -210,14 +210,14 @@ func status_lines() -> PackedStringArray:
 	if games != null and games.current() != null:
 		game_version = games.current().version
 	out.append("version : %s(dot-server %s, %s)" % [
-		(game_version + " ") if game_version != "" else "", VERSION, DotPlatform.kind_name()
+		(game_version + " ") if game_version != "" else "", VERSION, GSPlatform.kind_name()
 	])
 	out.append("udp/ip  : %s:%d (%s)" % [
 		config.bind_address, config.port, _transport._transport_name()
 			if _transport != null else "not listening",
 	])
 	out.append("state   : %s, up %s" % [
-		state_name().to_lower(), DotBanManager.format_duration(uptime_seconds())
+		state_name().to_lower(), GSBanManager.format_duration(uptime_seconds())
 	])
 
 	if games != null:
@@ -261,8 +261,8 @@ func describe() -> Dictionary:
 		"a2s": a2s != null,
 		"per_ip_limit": address_guard.limit if address_guard != null else 0,
 		"per_ip_refused": address_guard.refused if address_guard != null else 0,
-		"ban_source": DotRegistry.get_service(BAN_SOURCE) != null,
-		"log_level": DotLog.level_name(DotLog.get_level()),
+		"ban_source": GSRegistry.get_service(BAN_SOURCE) != null,
+		"log_level": GSLog.level_name(GSLog.get_level()),
 		# Named rather than a bool, because "where does the log go" is a question an
 		# operator asks of a server that has just lost something, and "true" is not an
 		# answer to it.
@@ -273,15 +273,15 @@ func describe() -> Dictionary:
 
 ## One line: the worker count and cores, what is pooled, and the physics engine, read-only
 ## from the project because nothing in the process can change it. The figures come from
-## GameSpice Core's [DotParallel], whose labels the threaded subsystems name ("net.snapshot").
+## GameSpice Core's [GSParallel], whose labels the threaded subsystems name ("net.snapshot").
 func describe_threads() -> String:
 	var workers := config.resolved_workers() if config != null else 0
-	var resolved := DotParallel.resolve_workers(workers)
-	var labels: Dictionary = DotParallel.describe()["labels"]
+	var resolved := GSParallel.resolve_workers(workers)
+	var labels: Dictionary = GSParallel.describe()["labels"]
 	var parts := PackedStringArray()
 	parts.append("workers %d of %d cores%s" % [
 		resolved, OS.get_processor_count(),
-		"" if DotParallel.available() else " (no worker pool here)",
+		"" if GSParallel.available() else " (no worker pool here)",
 	])
 	for which: Array in [["net", "net.snapshot", config != null and config.threads_net],
 			["npc", "npc.think", config != null and config.threads_npc]]:
@@ -313,7 +313,7 @@ func _log_destination() -> String:
 	return log_node.name
 
 
-## The shape [code]DotBackboneClient.report_stats[/code] expects.
+## The shape [code]GSBackboneClient.report_stats[/code] expects.
 func to_stats_report() -> Dictionary:
 	return {
 		"online": state == State.RUNNING or state == State.HIBERNATING,
@@ -328,7 +328,7 @@ func to_stats_report() -> Dictionary:
 		# have its whole report refused.
 		"map": _report_map(),
 		"password": _cv_password.get_string() != "",
-		"dedicated": DotPlatform.is_headless(),
+		"dedicated": GSPlatform.is_headless(),
 		"version": VERSION,
 	}
 
@@ -345,7 +345,7 @@ func _bot_count() -> int:
 	return int(snap.call("bot_count"))
 
 
-## The shape [code]DotBackboneClient.report_users[/code] expects.
+## The shape [code]GSBackboneClient.report_users[/code] expects.
 func _report_map() -> Variant:
 	var id := games.reported_map() if games != null else ""
 	return id if id != "" else null

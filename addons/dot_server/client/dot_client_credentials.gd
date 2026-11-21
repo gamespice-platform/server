@@ -1,10 +1,10 @@
 extends RefCounted
 ## The credential half of the sign-in: what to attach to the CREDENTIALS payload for the
-## server's strategy, and the stable device id. Owned by [DotClientLink], which supplies the state.
+## server's strategy, and the stable device id. Owned by [GSClientLink], which supplies the state.
 
 const CHANNEL := "client"
 
-var link: Node  # a DotClientLink, held as Node so this file and the link do not keep each other's parsers alive
+var link: Node  # a GSClientLink, held as Node so this file and the link do not keep each other's parsers alive
 
 
 func _init(owner: Node) -> void:
@@ -14,11 +14,11 @@ func _init(owner: Node) -> void:
 ## Adds only the credential the server's strategy asks for. INTROSPECT gets a join token
 ## (first-party audience) or a ticket, else a refusal. False: the join is already failed.
 func attach_credential(payload: Dictionary, strategy: String) -> bool:
-	var auth := DotRegistry.get_service(link.auth_service)
+	var auth := GSRegistry.get_service(link.auth_service)
 
 	if auth == null:
 		if strategy != "none" and strategy != "anonymous":
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"this server wants authentication but dot-auth is not installed",
 				{"strategy": strategy}
@@ -56,17 +56,17 @@ func _attach_ticket(payload: Dictionary, auth: Object) -> bool:
 	elif auth.has_method("request_ticket"):
 		var issuer := _issuer_url()
 		if issuer == "" or link.server_id == "":
-			DotLog.warn(CHANNEL, "cannot ask for a ticket: no issuer or no server_id")
+			GSLog.warn(CHANNEL, "cannot ask for a ticket: no issuer or no server_id")
 			return false
 		ticket = await auth.call("request_ticket", issuer, link.server_id)
 	else:
 		return false
 
-	if ticket is DotResult and (ticket as DotResult).ok:
-		payload["ticket"] = str((ticket as DotResult).value)
+	if ticket is GSResult and (ticket as GSResult).ok:
+		payload["ticket"] = str((ticket as GSResult).value)
 		return true
-	var err: DotError = (ticket as DotResult).error if ticket is DotResult else null
-	DotLog.warn(CHANNEL, "no connect ticket for this server", {
+	var err: GSError = (ticket as GSResult).error if ticket is GSResult else null
+	GSLog.warn(CHANNEL, "no connect ticket for this server", {
 		"address": link._last_address,
 		"why": err.message if err != null else "unexpected reply",
 		"code": err.detail if err != null else "",
@@ -95,10 +95,10 @@ func _attach_introspect(payload: Dictionary, auth: Object) -> bool:
 			minted = await auth.call("request_join_token", audience, target["host"], target["port"])
 		else:
 			minted = await auth.call("request_join_token", audience)
-		if minted is DotResult and (minted as DotResult).ok:
-			payload["access_token"] = str((minted as DotResult).value)
+		if minted is GSResult and (minted as GSResult).ok:
+			payload["access_token"] = str((minted as GSResult).value)
 			return true
-		var err: DotError = (minted as DotResult).error if minted is DotResult else null
+		var err: GSError = (minted as GSResult).error if minted is GSResult else null
 		_refuse_introspect(
 			err.message if err != null else "Could not get a sign-in for this server.",
 			"join token mint failed for %s" % audience
@@ -119,7 +119,7 @@ func _attach_introspect(payload: Dictionary, auth: Object) -> bool:
 
 
 ## True when GameSpice Auth is set to bind join tokens to the dialled address
-## (DotAuthConfig.bind_join_address, default off) and its request_join_token takes one.
+## (GSAuthConfig.bind_join_address, default off) and its request_join_token takes one.
 func _binds_join_address(auth: Object) -> bool:
 	if auth.get_method_argument_count("request_join_token") < 3:
 		return false
@@ -161,8 +161,8 @@ static func dialled_host_port(address: String) -> Dictionary:
 
 
 func _refuse_introspect(message: String, detail: String) -> void:
-	var err := DotError.make(DotError.CODE_FORBIDDEN, message, detail)
-	DotLog.warn(CHANNEL, "not signing in to this server", {
+	var err := GSError.make(GSError.CODE_FORBIDDEN, message, detail)
+	GSLog.warn(CHANNEL, "not signing in to this server", {
 		"why": detail, "host": link.server_hostname,
 	})
 	link._fail(err)
@@ -170,7 +170,7 @@ func _refuse_introspect(message: String, detail: String) -> void:
 
 
 func _issuer_url() -> String:
-	var auth := DotRegistry.get_service(link.auth_service)
+	var auth := GSRegistry.get_service(link.auth_service)
 	if auth == null:
 		return ""
 	var config: Variant = auth.get("config")
@@ -181,17 +181,17 @@ func _issuer_url() -> String:
 
 
 static func device_id() -> String:
-	# DotPlatform, not OS.get_unique_id(), which pushes an engine error on web and iOS.
-	var unique := DotPlatform.unique_id()
+	# GSPlatform, not OS.get_unique_id(), which pushes an engine error on web and iOS.
+	var unique := GSPlatform.unique_id()
 	if unique != "":
 		return unique
 	# Web and some sandboxes have no unique id. A stored random value is stable
 	# enough for the session-scoped uses this has.
 	var path := "user://dot_device_id"
 	if FileAccess.file_exists(path):
-		var read := DotPaths.read_text(path)
+		var read := GSPaths.read_text(path)
 		if read.ok and str(read.value) != "":
 			return str(read.value)
-	var generated := DotHash.random_hex(16)
-	DotPaths.write_text(path, generated)
+	var generated := GSHash.random_hex(16)
+	GSPaths.write_text(path, generated)
 	return generated

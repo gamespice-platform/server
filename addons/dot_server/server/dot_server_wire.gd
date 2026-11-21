@@ -1,30 +1,30 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_runtime.gd"
 
-## Sending to clients: kinds, notices, the scoreboard and replicated cvars of [DotServer].
+## Sending to clients: kinds, notices, the scoreboard and replicated cvars of [GSServer].
 
-## The kinds this server knows, and what each client it has heard from knows (see [DotEnvelope]).
+## The kinds this server knows, and what each client it has heard from knows (see [GSEnvelope]).
 ## A game or module adds a kind here, never an [code]@rpc[/code]: a seventh RPC moves the signon
 ## revision and locks out every older client.
-var envelope: DotEnvelope = _make_envelope()
+var envelope: GSEnvelope = _make_envelope()
 ## [method _warn_scoreboard_cut] rate limit, per cvar: last warning (msec) and cuts since.
 var _sb_cut_warned_ms: Dictionary = {}
 var _sb_cut_skipped: Dictionary = {}
 
 
-## Built by [DotServer], which owns the handlers.
-func _make_envelope() -> DotEnvelope:
-	return DotEnvelope.new()
+## Built by [GSServer], which owns the handlers.
+func _make_envelope() -> GSEnvelope:
+	return GSEnvelope.new()
 
 
 ## Sends a kind to one client. False when not sent: no peer, or a client that does not know the
 ## kind, which is what an older client looks like. The only way GameSpice Server reaches a client;
-## see [DotEnvelope]. Implemented by [DotServer], which declares the RPCs it rides on.
+## see [GSEnvelope]. Implemented by [GSServer], which declares the RPCs it rides on.
 func send_kind(
 	_peer_id: int,
 	_kind: StringName,
 	_payload: Dictionary = {},
-	_lane: DotEnvelope.Lane = DotEnvelope.Lane.CONTROL
+	_lane: GSEnvelope.Lane = GSEnvelope.Lane.CONTROL
 ) -> bool:
 	return false
 
@@ -40,54 +40,54 @@ func _watch_replicated_cvars() -> void:
 
 ## Sends [param session] every replicated cvar. False when it was not sent (no peer, or a
 ## client that does not know the kind).
-func _send_replicated_cvars(session: DotClientSession) -> bool:
+func _send_replicated_cvars(session: GSClientSession) -> bool:
 	if console == null or session == null:
 		return false
-	return send_kind(session.peer_id, DotEnvelope.CVARS, {
+	return send_kind(session.peer_id, GSEnvelope.CVARS, {
 		"values": console.replicated_values(),
 		"full": true,
 	})
 
 
-func _on_replicated_cvar_changed(c: DotConVar, _old_value: String) -> void:
+func _on_replicated_cvar_changed(c: GSConVar, _old_value: String) -> void:
 	_broadcast_replicated_cvar(c)
 
 
-func _on_replicated_cvar_registered(c: DotConVar) -> void:
+func _on_replicated_cvar_registered(c: GSConVar) -> void:
 	_broadcast_replicated_cvar(c)
 
 
-func _broadcast_replicated_cvar(c: DotConVar) -> void:
-	if not DotConsole.is_replicated(c):
+func _broadcast_replicated_cvar(c: GSConVar) -> void:
+	if not GSConsole.is_replicated(c):
 		return
 
 	var payload := {"values": {c.name: c.get_string()}, "full": false}
 	var sent := 0
 
 	for session in sessions():
-		if session.state != DotClientSession.State.LOADING and not session.is_playing():
+		if session.state != GSClientSession.State.LOADING and not session.is_playing():
 			continue
-		if send_kind(session.peer_id, DotEnvelope.CVARS, payload):
+		if send_kind(session.peer_id, GSEnvelope.CVARS, payload):
 			sent += 1
 
-	DotLog.debug(CHANNEL, "replicated cvar sent", {"cvar": c.name, "value": c.get_string(), "clients": sent})
+	GSLog.debug(CHANNEL, "replicated cvar sent", {"cvar": c.name, "value": c.get_string(), "clients": sent})
 
 
 ## A client's scoreboard opened or closed. Open is answered at once, then every
 ## [member scoreboard_interval_sec] until it closes.
 func _on_scoreboard_want(peer_id: int, payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 	# A client that reassembles pages says so; one that does not gets the single trimmed board.
 	if payload.has("paged"):
-		session.scoreboard_paged = DotEnvelope.flag(payload, "paged", false)
+		session.scoreboard_paged = GSEnvelope.flag(payload, "paged", false)
 	# `once`: one board now, held state untouched, so a client's periodic block-list roster
 	# request does not close a board the player holds open.
-	if DotEnvelope.flag(payload, "once", false):
+	if GSEnvelope.flag(payload, "once", false):
 		_send_scoreboard(session)
 		return
-	session.wants_scoreboard = DotEnvelope.flag(payload, "open", false)
+	session.wants_scoreboard = GSEnvelope.flag(payload, "open", false)
 	if session.wants_scoreboard:
 		_send_scoreboard(session)
 
@@ -104,7 +104,7 @@ func _send_scoreboards() -> void:
 var _scoreboard_seq: int = 0
 
 
-func _send_scoreboard(session: DotClientSession, bump: bool = true) -> void:
+func _send_scoreboard(session: GSClientSession, bump: bool = true) -> void:
 	# `seq`: unreliable over ENet is unordered, so the client drops a board older than the one it
 	# holds.
 	if bump:
@@ -114,7 +114,7 @@ func _send_scoreboard(session: DotClientSession, bump: bool = true) -> void:
 		return
 	var snap := scoreboard_snapshot(session)
 	snap["seq"] = _scoreboard_seq
-	var _sent := send_kind(session.peer_id, DotEnvelope.SCOREBOARD, snap, DotEnvelope.Lane.UNRELIABLE)
+	var _sent := send_kind(session.peer_id, GSEnvelope.SCOREBOARD, snap, GSEnvelope.Lane.UNRELIABLE)
 
 
 ## Wire version of a paged board: `v`, `seq`, `page`, `pages`; page 0 also carries the header keys.
@@ -123,16 +123,16 @@ const SCOREBOARD_WIRE_VERSION := 2
 
 ## The board as pages that each fit one datagram, so no lost fragment can drop the whole board.
 ## Pages are unreliable: the client keeps the last copy of a page that did not arrive.
-func _send_scoreboard_pages(session: DotClientSession) -> void:
+func _send_scoreboard_pages(session: GSClientSession) -> void:
 	var pages := scoreboard_pages(session, _scoreboard_seq)
 	for page in pages:
-		var _sent := send_kind(session.peer_id, DotEnvelope.SCOREBOARD, page, DotEnvelope.Lane.UNRELIABLE)
+		var _sent := send_kind(session.peer_id, GSEnvelope.SCOREBOARD, page, GSEnvelope.Lane.UNRELIABLE)
 
 
 ## [method scoreboard_snapshot] split into payloads of at most [code]sv_scoreboard_page_bytes[/code]
 ## (a single row bigger than that still gets a page of its own). Built once per [param seq] and
 ## shared by every viewer; only page 0's `you` differs.
-func scoreboard_pages(for_session: DotClientSession, seq: int) -> Array[Dictionary]:
+func scoreboard_pages(for_session: GSClientSession, seq: int) -> Array[Dictionary]:
 	var budget := clampi(console.get_int("sv_scoreboard_page_bytes", SCOREBOARD_PAGE_BYTES), 256, SCOREBOARD_PAGE_MAX)
 	var count := playing_sessions().size()
 	var max_rows := scoreboard_max_rows()
@@ -158,7 +158,7 @@ var _sb_cache: Array[Dictionary] = []
 var _sb_epoch: int = 0
 
 
-func _build_scoreboard_pages(for_session: DotClientSession, seq: int, budget: int) -> Array[Dictionary]:
+func _build_scoreboard_pages(for_session: GSClientSession, seq: int, budget: int) -> Array[Dictionary]:
 	if _sb_epoch == 0:
 		_sb_epoch = maxi(1, randi())
 	var snap := scoreboard_snapshot(for_session, false)
@@ -199,13 +199,13 @@ var _player_key_salt: String = ""
 ## A player's key for a CLIENT's block list: stable for one account on this server, meaningless
 ## elsewhere. A digest salted with a per-server secret, not the uid (which would let anyone follow
 ## a person between servers). Empty without an identity (a bot): the client matches by name.
-func player_key(session: DotClientSession) -> String:
+func player_key(session: GSClientSession) -> String:
 	if session == null or session.local:
 		return ""
 	var uid := session.uid()
 	if uid == "":
 		return ""
-	return DotHash.sha256_text("%s|%s" % [_key_salt(), uid]).substr(0, 20)
+	return GSHash.sha256_text("%s|%s" % [_key_salt(), uid]).substr(0, 20)
 
 
 func _key_salt() -> String:
@@ -216,13 +216,13 @@ func _key_salt() -> String:
 		if read.length() >= 16:
 			_player_key_salt = read
 			return _player_key_salt
-	_player_key_salt = DotHash.random_hex(16)
+	_player_key_salt = GSHash.random_hex(16)
 	var _made := DirAccess.make_dir_recursive_absolute(player_key_salt_path.get_base_dir())
 	var file := FileAccess.open(player_key_salt_path, FileAccess.WRITE)
 	if file == null:
 		# Kept for this process: keys stay stable until a restart, which only costs a
 		# client's mutes falling back to matching by name.
-		DotLog.warn(CHANNEL, "could not keep the player key salt; keys change on restart", {
+		GSLog.warn(CHANNEL, "could not keep the player key salt; keys change on restart", {
 			"path": player_key_salt_path, "error": error_string(FileAccess.get_open_error()),
 		})
 		return _player_key_salt
@@ -234,7 +234,7 @@ func _key_salt() -> String:
 ## What a held scoreboard shows: `server`, `you`, `players` (plus [member scoreboard_fields]
 ## columns) and whatever [member scoreboard_extra] returns. Sent unreliable, only to a client
 ## holding its board open; the server has numbers (everyone's ping, join time) a client does not.
-func scoreboard_snapshot(for_session: DotClientSession = null, trim: bool = true) -> Dictionary:
+func scoreboard_snapshot(for_session: GSClientSession = null, trim: bool = true) -> Dictionary:
 	var players: Array = []
 	var own_index := -1
 	var own_min := {}
@@ -364,22 +364,22 @@ func _warn_scoreboard_cut(cvar_name: String, detail: Dictionary) -> void:
 	_sb_cut_warned_ms[cvar_name] = now_ms
 	_sb_cut_skipped[cvar_name] = 0
 	detail["cut_since_last_warning"] = skipped
-	DotLog.warn(CHANNEL, "scoreboard left players out; raise %s (0 = unlimited)" % cvar_name, detail)
+	GSLog.warn(CHANNEL, "scoreboard left players out; raise %s (0 = unlimited)" % cvar_name, detail)
 
 
 ## A client announcing that its page went into, or came back from, the background. Reliable,
 ## because a lost announcement costs the player their slot. The requested grace is clamped to
 ## [code]sv_background_grace[/code]; 0 asks for the maximum.
 func _on_visibility(peer_id: int, payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
 	session.touch()
 	set_session_background(
 		session,
-		not DotEnvelope.flag(payload, "visible", true),
-		DotEnvelope.number(payload, "grace", 0.0)
+		not GSEnvelope.flag(payload, "visible", true),
+		GSEnvelope.number(payload, "grace", 0.0)
 	)
 
 
@@ -387,7 +387,7 @@ func _on_visibility(peer_id: int, payload: Dictionary) -> void:
 ## Split from the RPC so the clamp is reachable without a peer. A server whose maximum is 0
 ## grants nothing and leaves the session unflagged, so `status` shows no `B` for it.
 func set_session_background(
-	session: DotClientSession,
+	session: GSClientSession,
 	backgrounded: bool,
 	requested_grace_sec: float = 0.0
 ) -> void:
@@ -411,7 +411,7 @@ func set_session_background(
 
 ## How long this session may say nothing before it is dropped: `sv_timeout`, or longer after a
 ## granted background announcement ([method set_session_background]).
-func silence_budget(session: DotClientSession) -> float:
+func silence_budget(session: GSClientSession) -> float:
 	var budget := _cv_timeout.get_float() if _cv_timeout != null else 0.0
 	if session != null and session.backgrounded:
 		budget = maxf(budget, session.background_grace_sec)
@@ -426,10 +426,10 @@ func broadcast_message(text: String) -> void:
 		chat.broadcast_system(text)
 
 
-## Puts a [DotNotice] on every playing client's HUD. Returns how many it reached.
+## Puts a [GSNotice] on every playing client's HUD. Returns how many it reached.
 ## Playing clients only, like [method broadcast_message]; a host resends a still-true line from
 ## [signal client_spawned] for late joiners.
-func broadcast_notice(notice: DotNotice) -> int:
+func broadcast_notice(notice: GSNotice) -> int:
 	if notice == null or notice.is_empty():
 		return 0
 
@@ -440,7 +440,7 @@ func broadcast_notice(notice: DotNotice) -> int:
 		if _put_notice(session, payload):
 			sent += 1
 
-	DotLog.debug(CHANNEL, "notice", {
+	GSLog.debug(CHANNEL, "notice", {
 		"cue": String(notice.cue),
 		"topic": String(notice.topic),
 		"seconds": notice.seconds,
@@ -452,8 +452,8 @@ func broadcast_notice(notice: DotNotice) -> int:
 	return sent
 
 
-## Puts a [DotNotice] on one client's HUD. False when it could not be sent.
-func send_notice(session: DotClientSession, notice: DotNotice) -> bool:
+## Puts a [GSNotice] on one client's HUD. False when it could not be sent.
+func send_notice(session: GSClientSession, notice: GSNotice) -> bool:
 	if notice == null or notice.is_empty() or session == null or not session.is_playing():
 		return false
 
@@ -468,7 +468,7 @@ func send_notice(session: DotClientSession, notice: DotNotice) -> bool:
 ## Sends the payload if the peer list still has this session, and says whether it did. The peer
 ## list is asked, not the session state: an rpc_id to a departed peer prints an engine error
 ## each time. An adopted session has no peer.
-func _put_notice(session: DotClientSession, payload: Dictionary) -> bool:
+func _put_notice(session: GSClientSession, payload: Dictionary) -> bool:
 	if session == null or session.local or not session.is_active():
 		return false
 
@@ -480,7 +480,7 @@ func _put_notice(session: DotClientSession, payload: Dictionary) -> bool:
 
 	# False for a client that does not know notices -- an older one. Not an error: it
 	# keeps its game and loses the HUD line.
-	return send_kind(session.peer_id, DotEnvelope.NOTICE, payload, DotEnvelope.Lane.EVENT)
+	return send_kind(session.peer_id, GSEnvelope.NOTICE, payload, GSEnvelope.Lane.EVENT)
 
 
 ## Sends a message to clients holding a permission flag; decided server-side (admin chat).

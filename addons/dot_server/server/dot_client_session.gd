@@ -1,4 +1,4 @@
-class_name DotClientSession
+class_name GSClientSession
 extends RefCounted
 
 ## One connected client and its signon: CONNECTING, AUTHENTICATING, PROFILE, DOWNLOADING,
@@ -21,7 +21,7 @@ enum State {
 	## Gone.
 	DISCONNECTED,
 	## Authenticated and held by a module before any content is sent; see
-	## [method DotServer.hold_profile]. Last in the enum, not in signon order, because a
+	## [method GSServer.hold_profile]. Last in the enum, not in signon order, because a
 	## state is stored as its number elsewhere (replays); the order is [method _can_transition].
 	PROFILE,
 }
@@ -51,7 +51,7 @@ var address: String = ""
 var ticket_nonce: String = ""
 
 ## What kind of client this is -- `web`, `desktop` or `mobile` -- as it said at signon.
-## Empty for a shell exported before clients said. See [method DotServer.platform_refusal_for].
+## Empty for a shell exported before clients said. See [method GSServer.platform_refusal_for].
 var platform: String = ""
 
 ## Admin permission flags, resolved once at authentication and cached: a lookup can hit
@@ -66,7 +66,7 @@ var groups: PackedStringArray = PackedStringArray()
 
 ## Whether the client's credentials have arrived, and how many challenges it was sent. A busy server
 ## can lose the first answer (100-client load: 2 to 12 of 100 never reached the handler), so the sweep
-## asks again for a client still silent; see [method DotServer._resend_challenge].
+## asks again for a client still silent; see [method GSServer._resend_challenge].
 var credentials_seen: bool = false
 var challenges_sent: int = 1
 
@@ -85,9 +85,9 @@ var ping_ms: int = -1
 var ping_refusal_logged: bool = false
 
 ## Whether this client is holding its scoreboard open, and so is sent the roster. See
-## [method DotServer.scoreboard_snapshot].
+## [method GSServer.scoreboard_snapshot].
 var wants_scoreboard: bool = false
-## The client reassembles paged boards (wire version 2); see DotServer.scoreboard_pages.
+## The client reassembles paged boards (wire version 2); see GSServer.scoreboard_pages.
 var scoreboard_paged: bool = false
 
 ## Whether the client said its page went into the background. A hidden tab stops the main
@@ -104,7 +104,7 @@ var background_grace_sec: float = 0.0
 var score: int = 0
 
 ## Who holds this session in [constant State.PROFILE], by the name each gave
-## [method DotServer.hold_profile]; it leaves when the last releases. Names, not a count,
+## [method GSServer.hold_profile]; it leaves when the last releases. Names, not a count,
 ## so a double release cannot let the player in and `status` can say who is waited on.
 var profile_holds: PackedStringArray = PackedStringArray()
 
@@ -131,7 +131,7 @@ var used_reserved_slot: bool = false
 
 ## Whether no transport peer is behind this session: a bot, a listen server's own player,
 ## a test. These still count as players but must never be sent a packet. See
-## [method DotServer.adopt_session].
+## [method GSServer.adopt_session].
 var local: bool = false
 
 var _state_entered_ms: int = 0
@@ -153,7 +153,7 @@ func transition_to(new_state: State) -> bool:
 		return true
 
 	if not _can_transition(state, new_state):
-		DotLog.warn(
+		GSLog.warn(
 			"session",
 			"invalid state transition",
 			{
@@ -191,7 +191,7 @@ static func _can_transition(from: State, to: State) -> bool:
 		State.CONNECTING:
 			return to == State.AUTHENTICATING
 		State.AUTHENTICATING:
-			# DotServer always goes through PROFILE; the direct moves stay legal for hosts
+			# GSServer always goes through PROFILE; the direct moves stay legal for hosts
 			# that drive the machine themselves. Content is optional: a game that needs
 			# nothing new sends an authenticated client straight to loading.
 			return to == State.PROFILE or to == State.DOWNLOADING or to == State.LOADING
@@ -316,21 +316,21 @@ func unsilence() -> void:
 
 
 func has_permission(flag: String) -> bool:
-	return DotAdminFlags.granted(permissions, flag)
+	return GSAdminFlags.granted(permissions, flag)
 
 
 func is_admin() -> bool:
 	return not permissions.is_empty()
 
 
-## Builds a [DotCmdContext] for a command this client is running.
+## Builds a [GSCmdContext] for a command this client is running.
 func make_context(
 	command: String,
 	args: PackedStringArray,
-	source: DotCmdContext.Source,
+	source: GSCmdContext.Source,
 	reply_sink: Callable = Callable()
-) -> DotCmdContext:
-	var ctx := DotCmdContext.new()
+) -> GSCmdContext:
+	var ctx := GSCmdContext.new()
 	ctx.source = source
 	ctx.command = command
 	ctx.args = args
@@ -402,7 +402,7 @@ func describe() -> Dictionary:
 	}
 
 
-## The shape [code]DotBackboneClient.report_users[/code] expects.
+## The shape [code]GSBackboneClient.report_users[/code] expects.
 func to_roster_entry() -> Dictionary:
 	return {
 		"name": display_name,
@@ -412,4 +412,4 @@ func to_roster_entry() -> Dictionary:
 
 
 func _to_string() -> String:
-	return "DotClientSession(%s, %s)" % [label(), state_name()]
+	return "GSClientSession(%s, %s)" % [label(), state_name()]

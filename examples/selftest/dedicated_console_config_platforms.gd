@@ -14,11 +14,11 @@ func _test_console() -> void:
 	_check("echo works", _run("echo hello").contains("hello"))
 
 	# Quoting must survive tokenization, or every multi-word argument breaks.
-	var tokens := DotConsole.tokenize('say "hello world" extra')
+	var tokens := GSConsole.tokenize('say "hello world" extra')
 	_check("quoted argument kept whole", tokens.size() == 3 and tokens[1] == "hello world")
 
 	# Semicolons split, but not inside quotes.
-	var statements := DotConsole.split_statements('say "a; b"; status')
+	var statements := GSConsole.split_statements('say "a; b"; status')
 	_check("semicolon in quotes not split", statements.size() == 2)
 
 	_check("cvarlist runs", _run("cvarlist sv_").contains("sv_maxplayers"))
@@ -28,7 +28,7 @@ func _test_console() -> void:
 	_check("alias resolves", _run("mystatus").contains("hostname:"))
 	_done()
 
-## A command object of the duck-typed shape, for [method DotConsole.add_source]. A bare
+## A command object of the duck-typed shape, for [method GSConsole.add_source]. A bare
 ## [RefCounted] on purpose: an addon GameSpice Server has never heard of must be able to plug in.
 class ProbeSource:
 	extends RefCounted
@@ -58,14 +58,14 @@ class ProbeSource:
 				out.append("probe " + word)
 		return out
 
-	func execute(line: String) -> DotResult:
+	func execute(line: String) -> GSResult:
 		calls += 1
 		last_line = line
 		if line.contains("fail"):
-			return DotResult.fail(DotError.CODE_INVALID, "the probe refused")
+			return GSResult.fail(GSError.CODE_INVALID, "the probe refused")
 		if line.contains("lines"):
-			return DotResult.success(PackedStringArray(["one", "two"]))
-		return DotResult.success("probe ran: %s" % line)
+			return GSResult.success(PackedStringArray(["one", "two"]))
+		return GSResult.success("probe ran: %s" % line)
 
 ## Which stdin the operator console reads. A reader on an unclosed pipe cannot be cancelled and
 ## hangs the exit, so only a terminal and a file are read unless a host asks for pipes. The exit
@@ -73,19 +73,19 @@ class ProbeSource:
 func _test_stdin_console() -> void:
 	_section("[stdin console]")
 
-	_check("a terminal is read", DotStdinConsole.should_read(OS.STD_HANDLE_CONSOLE, false))
+	_check("a terminal is read", GSStdinConsole.should_read(OS.STD_HANDLE_CONSOLE, false))
 	_check("a file is read, because it ends",
-		DotStdinConsole.should_read(OS.STD_HANDLE_FILE, false))
+		GSStdinConsole.should_read(OS.STD_HANDLE_FILE, false))
 	_check("a pipe is not read by default",
-		not DotStdinConsole.should_read(OS.STD_HANDLE_PIPE, false))
+		not GSStdinConsole.should_read(OS.STD_HANDLE_PIPE, false))
 	_check("nor /dev/null or a socket (UNKNOWN)",
-		not DotStdinConsole.should_read(OS.STD_HANDLE_UNKNOWN, false))
+		not GSStdinConsole.should_read(OS.STD_HANDLE_UNKNOWN, false))
 	_check("a pipe is read when asked",
-		DotStdinConsole.should_read(OS.STD_HANDLE_PIPE, true))
+		GSStdinConsole.should_read(OS.STD_HANDLE_PIPE, true))
 	_check("no handle is never read, asked or not",
-		not DotStdinConsole.should_read(OS.STD_HANDLE_INVALID, true))
+		not GSStdinConsole.should_read(OS.STD_HANDLE_INVALID, true))
 	_check("pipes are off by default in the config",
-		DotServerConfig.new().stdin_console_pipes == false)
+		GSServerConfig.new().stdin_console_pipes == false)
 
 	var console := server.stdin_console
 
@@ -97,7 +97,7 @@ func _test_stdin_console() -> void:
 	var reading: bool = console.describe().get("reading", false)
 
 	# A file may have been read to its end already, so only the refusing side is exact.
-	if DotStdinConsole.should_read(kind, server.config.stdin_console_pipes):
+	if GSStdinConsole.should_read(kind, server.config.stdin_console_pipes):
 		_check("this run's stdin (%d) is read or already ended" % kind, true)
 	else:
 		_check("this run's stdin (%d) started no reader" % kind, not reading)
@@ -160,13 +160,13 @@ func _test_argument_completion() -> void:
 	_section("[argument completion]")
 	var console := server.console
 
-	# `DotConCommand.completer` was set by seven builtins and read by nothing: the only
+	# `GSConCommand.completer` was set by seven builtins and read by nothing: the only
 	# reader was `complete_argument`, which had no callers in this family. These two
 	# assertions are the difference between a completer that exists and one that runs.
 	var seen := PackedStringArray()
 	console.command(
 		"probe_args",
-		func(_ctx: DotCmdContext) -> void: pass,
+		func(_ctx: GSCmdContext) -> void: pass,
 		"A command with a completer."
 	).with_completer(
 		func(partial: String, index: int) -> PackedStringArray:
@@ -212,7 +212,7 @@ func _test_config_files() -> void:
 	_section("[config files]")
 	var console := server.console
 
-	DotPaths.write_text(
+	GSPaths.write_text(
 		"user://cfg/example_test.cfg",
 		"// a comment\nhostname \"Set From Config\"\nsv_maxplayers 20\n"
 	)
@@ -237,7 +237,7 @@ func _test_config_files() -> void:
 	_check("writeconfig wrote a file", written.ok)
 
 	if written.ok:
-		var text := DotPaths.read_text(str(written.value))
+		var text := GSPaths.read_text(str(written.value))
 		_check(
 			"archived cvar written",
 			text.ok and str(text.value).contains("sv_maxplayers")
@@ -286,11 +286,11 @@ func _test_bans() -> void:
 
 	_check("the ban list starts empty, not with a previous run's", bans.count() == 0)
 
-	_check("duration: bare number is minutes", DotBanManager.parse_duration("30") == 1800)
-	_check("duration: 2h", DotBanManager.parse_duration("2h") == 7200)
-	_check("duration: 7d", DotBanManager.parse_duration("7d") == 604800)
-	_check("duration: 0 is permanent", DotBanManager.parse_duration("0") == 0)
-	_check("duration: garbage rejected", DotBanManager.parse_duration("soon") == -1)
+	_check("duration: bare number is minutes", GSBanManager.parse_duration("30") == 1800)
+	_check("duration: 2h", GSBanManager.parse_duration("2h") == 7200)
+	_check("duration: 7d", GSBanManager.parse_duration("7d") == 604800)
+	_check("duration: 0 is permanent", GSBanManager.parse_duration("0") == 0)
+	_check("duration: garbage rejected", GSBanManager.parse_duration("soon") == -1)
 
 	var banned := await bans.ban_uid("backbone:evil", "cheating", 0, "test")
 	_check("account banned", banned.ok)
@@ -308,7 +308,7 @@ func _test_bans() -> void:
 
 	# An already-expired ban must not block, even before the sweep runs.
 	await bans.ban_uid("backbone:expired", "old", 1, "test")
-	bans._bans[DotBanManager.uid_key("backbone:expired")]["expires_at"] = 1
+	bans._bans[GSBanManager.uid_key("backbone:expired")]["expires_at"] = 1
 	_check("expired ban does not block", bans.check_uid("backbone:expired").ok)
 
 	# Assigned first: `await x.f().ok` binds the await to the property access, not
@@ -319,21 +319,21 @@ func _test_bans() -> void:
 	_check("address ban works", by_address.ok)
 	_check("banned address refused", not bans.check_address("203.0.113.5:51234").ok)
 
-	var acct := DotClientSession.new(71, 71)
+	var acct := GSClientSession.new(71, 71)
 	acct.address = "198.51.100.7:4000"
-	acct.identity = DotAuthIdentityStub.make("backbone:badguy", false)
-	var gst := DotClientSession.new(72, 72)
+	acct.identity = GSAuthIdentityStub.make("backbone:badguy", false)
+	var gst := GSClientSession.new(72, 72)
 	gst.address = "198.51.100.7:4001"
-	gst.identity = DotAuthIdentityStub.make("guest:abc", true)
-	var other := DotClientSession.new(73, 73)
+	gst.identity = GSAuthIdentityStub.make("guest:abc", true)
+	var other := GSClientSession.new(73, 73)
 	other.address = "198.51.100.7:4002"
-	other.identity = DotAuthIdentityStub.make("backbone:neighbour", false)
+	other.identity = GSAuthIdentityStub.make("backbone:neighbour", false)
 	_check("guest admitted before the ban", bans.check_session(gst).ok)
 	var sb := await bans.ban_session(acct, "cheating", 0, "test")
 	_check("session ban ok", sb.ok)
 	_check("the banned account's address refuses a guest", not bans.check_session(gst).ok)
 	_check("but not another signed-in account behind it", bans.check_session(other).ok)
-	var gb: Dictionary = bans._bans[DotBanManager.guest_ip_key("198.51.100.7")]
+	var gb: Dictionary = bans._bans[GSBanManager.guest_ip_key("198.51.100.7")]
 	_check("guest ban is capped at the config default", int(gb["duration_sec"]) == 604800)
 	await bans.unban("backbone:badguy")
 	_check("unbanning the account lifts the guest ban", bans.check_session(gst).ok)
@@ -349,7 +349,7 @@ func _test_bans() -> void:
 
 ## The flags column of a `status` line, or "" when it is empty. Splits on whitespace, so it
 ## needs one-word display names.
-func _status_flags(session: DotClientSession) -> String:
+func _status_flags(session: GSClientSession) -> String:
 	var fields := session.status_line().split(" ", false)
 	# "# userid name state time ping [flags] uid addr"
 	return fields[6] if fields.size() >= 9 else ""
@@ -358,22 +358,22 @@ func _test_game_ids() -> void:
 	print("")
 	_section("[game ids]")
 
-	var d := func(id: String) -> DotGameDescriptor:
-		var g := DotGameDescriptor.new()
+	var d := func(id: String) -> GSGameDescriptor:
+		var g := GSGameDescriptor.new()
 		g.game_id = id
 		g.scene = "res://x.tscn"
 		return g
 
-	_check("an owner/name id validates", (d.call("zees-games/game-fatal-contact") as DotGameDescriptor).validate().ok)
-	_check("so does a built-in's bare name", (d.call("lobby") as DotGameDescriptor).validate().ok)
+	_check("an owner/name id validates", (d.call("zees-games/game-fatal-contact") as GSGameDescriptor).validate().ok)
+	_check("so does a built-in's bare name", (d.call("lobby") as GSGameDescriptor).validate().ok)
 	_check("two slashes or capitals do not",
-		not (d.call("a/b/c") as DotGameDescriptor).validate().ok
-		and not (d.call("Zees-Games/FC") as DotGameDescriptor).validate().ok)
+		not (d.call("a/b/c") as GSGameDescriptor).validate().ok
+		and not (d.call("Zees-Games/FC") as GSGameDescriptor).validate().ok)
 
-	var manager := DotGameManager.new()
+	var manager := GSGameManager.new()
 	# legacy id: Airdrift was published under an older id; a rotation or `changelevel` that still names it
 	# must reach the same game as the current one.
-	var airdrift: DotGameDescriptor = d.call("gamemann/game-airdrift")
+	var airdrift: GSGameDescriptor = d.call("gamemann/game-airdrift")
 	airdrift.metadata["former_ids"] = ["gamemann/game-g2gfast", "g2gfast"]
 	for id in ["alice/fc", "bob/fc", "lobby"]:
 		manager.add_game(d.call(id))
@@ -393,7 +393,7 @@ func _test_game_ids() -> void:
 		manager.add_game(d.call("fc")).ok)
 	_check("and once it exists the bare name means the built-in",
 		manager.find_game("fc") != null and manager.find_game("fc").game_id == "fc")
-	var renamed: DotGameDescriptor = d.call("gamemann/game-newname")
+	var renamed: GSGameDescriptor = d.call("gamemann/game-newname")
 	renamed.metadata["former_ids"] = ["gamemann/game-oldname", "oldname"]
 	manager.add_game(renamed)
 	_check("a renamed game answers to its former ids, whole or by name half",
@@ -409,21 +409,21 @@ func _test_hibernation() -> void:
 	# The frame rate is the socket rate: every listener is read once a frame. At the old
 	# 5 frames an empty server answered each query up to 200 ms late.
 	var tickrate := server.console.get_int("sv_tickrate")
-	server._set_state(DotServer.State.HIBERNATING)
+	server._set_state(GSServer.State.HIBERNATING)
 	server._apply_tickrate()
 	_check("hibernating drops physics to the hibernate tickrate",
 		Engine.physics_ticks_per_second == server.config.hibernate_tickrate)
 	_check("but keeps frames, and so the sockets, at hibernate_frame_rate (%d)" % Engine.max_fps,
 		Engine.max_fps == maxi(server.config.hibernate_tickrate, server.config.hibernate_frame_rate))
 
-	server._set_state(DotServer.State.RUNNING)
+	server._set_state(GSServer.State.RUNNING)
 	server._apply_tickrate()
 	_check("waking restores the tickrate", Engine.physics_ticks_per_second == tickrate)
 	_check("and frames follow it again", Engine.max_fps == tickrate)
 
 	# On by default, and the cvar says so: the user's rule is that an empty server idles
 	# unless somebody turns it off.
-	_check("hibernating when empty is the default", DotServerConfig.new().hibernate_when_empty)
+	_check("hibernating when empty is the default", GSServerConfig.new().hibernate_when_empty)
 	var cvar := server.console.find_cvar("sv_hibernate_when_empty")
 	_check("sv_hibernate_when_empty is a cvar", cvar != null)
 
@@ -450,7 +450,7 @@ func _test_boot_hibernation() -> void:
 	print("")
 	_section("[hibernation from boot]")
 
-	var config := DotServerConfig.new()
+	var config := GSServerConfig.new()
 	config.hostname = "hibernating example"
 	config.port = 0
 	config.query_enabled = false
@@ -462,7 +462,7 @@ func _test_boot_hibernation() -> void:
 	config.bans_path = "user://example/hib_bans.json"
 	config.audit_log_path = "user://example/hib_audit.jsonl"
 
-	var second := DotServer.new()
+	var second := GSServer.new()
 	second.name = "Hibernating"
 	second.config = config
 	second.config_file = ""
@@ -471,10 +471,10 @@ func _test_boot_hibernation() -> void:
 	second.hibernation_changed.connect(func(on: bool) -> void: heard.append(on))
 	add_child(second)
 
-	var booted: DotResult = await second.boot()
+	var booted: GSResult = await second.boot()
 	_check("a server with the default boots", booted.ok)
 	_check("and, being empty, hibernates straight away (%s)" % second.state_name(),
-		second.state == DotServer.State.HIBERNATING)
+		second.state == GSServer.State.HIBERNATING)
 	_check("saying so on hibernation_changed (%s)" % str(heard), str(heard) == str([true]))
 	_check("its cvar reads 1", second.console.get_bool("sv_hibernate_when_empty", false))
 
@@ -483,7 +483,7 @@ func _test_boot_hibernation() -> void:
 	# that sync sent the first player's commands 28 s early and left them on the spawn pad.
 	second._on_peer_connected(4242)
 	_check("a client connecting wakes it, before any spawn (%s)" % second.state_name(),
-		second.state == DotServer.State.RUNNING
+		second.state == GSServer.State.RUNNING
 		and Engine.physics_ticks_per_second == second.config.tickrate)
 
 	second.shutdown("test over")
@@ -491,7 +491,7 @@ func _test_boot_hibernation() -> void:
 	second.free()
 
 	# The shipped server.cfg is found (no game cfg/ here) and must not override the game's rate.
-	var third_cfg := DotServerConfig.new()
+	var third_cfg := GSServerConfig.new()
 	third_cfg.port = 0
 	third_cfg.tickrate = 66
 	third_cfg.query_enabled = false
@@ -503,13 +503,13 @@ func _test_boot_hibernation() -> void:
 	third_cfg.admins_path = "user://example/tr_admins.json"
 	third_cfg.bans_path = "user://example/tr_bans.json"
 	third_cfg.audit_log_path = "user://example/tr_audit.jsonl"
-	var third := DotServer.new()
+	var third := GSServer.new()
 	third.name = "ShippedCfg"
 	third.config = third_cfg
 	third.config_file = ""
 	third.auto_boot = false
 	add_child(third)
-	var third_boot: DotResult = await third.boot()
+	var third_boot: GSResult = await third.boot()
 	_check("a server booting with the shipped server.cfg present boots", third_boot.ok)
 	_check("and keeps the game's tickrate of 66 (%d)" % third.config.tickrate,
 		third.config.tickrate == 66 and third.console.get_int("sv_tickrate", 0) == 66)
@@ -526,7 +526,7 @@ func _test_worker_threads() -> void:
 	_section("[worker threads]")
 
 	# No hard caps: the automatic count's ceiling is a setting, default 8, 0 = no cap.
-	var cfg := DotServerConfig.new()
+	var cfg := GSServerConfig.new()
 	var cores := OS.get_processor_count()
 	_check("the automatic ceiling defaults to 8", cfg.worker_threads_auto_max == 8)
 	_check("-1 resolves to cores less one, at most 8",
@@ -582,7 +582,7 @@ func _test_background_grace() -> void:
 
 	var console := server.console
 	var session := _adopt(9100, "10.0.0.9", "Backgrounder")
-	session.state = DotClientSession.State.SPAWNED
+	session.state = GSClientSession.State.SPAWNED
 
 	console.execute("sv_timeout 60")
 	console.execute("sv_background_grace 300")
@@ -643,8 +643,8 @@ func _test_background_grace() -> void:
 	server.release_session(session.peer_id)
 	_done()
 
-func _adopt(peer_id: int, address: String, display_name: String) -> DotClientSession:
-	var session := DotClientSession.new(peer_id, peer_id)
+func _adopt(peer_id: int, address: String, display_name: String) -> GSClientSession:
+	var session := GSClientSession.new(peer_id, peer_id)
 	session.address = address
 	session.display_name = display_name
 	server.adopt_session(session)
@@ -652,17 +652,17 @@ func _adopt(peer_id: int, address: String, display_name: String) -> DotClientSes
 
 ## Gives an adopted session an identity, so uid and username targeting have something
 ## to match.
-func _named(session: DotClientSession, uid: String, username: String) -> void:
-	var identity := DotGuestIdentity.new()
+func _named(session: GSClientSession, uid: String, username: String) -> void:
+	var identity := GSGuestIdentity.new()
 	identity.uid = uid
 	identity.username = username
 	identity.display_name = session.display_name
 	session.identity = identity
 
 
-class DotAuthIdentityStub:
-	static func make(uid: String, guest: bool) -> DotGuestIdentity:
-		var id := DotGuestIdentity.new()
+class GSAuthIdentityStub:
+	static func make(uid: String, guest: bool) -> GSGuestIdentity:
+		var id := GSGuestIdentity.new()
 		id.uid = uid
 		id.is_guest = guest
 		return id

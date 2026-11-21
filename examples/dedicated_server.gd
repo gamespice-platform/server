@@ -5,17 +5,17 @@ extends "res://examples/selftest/dedicated_notices_rcon.gd"
 ## Exits non-zero if any check fails, so it works as a CI smoke test.
 
 func _ready() -> void:
-	DotLog.set_level(DotLog.Level.INFO)
-	DotLog.timestamps = true
+	GSLog.set_level(GSLog.Level.INFO)
+	GSLog.timestamps = true
 
 	var config := _make_config()
 
 	# A self-test starts from nothing in user://example: the ban list, audit log and admin file are read
 	# back at boot, so a stale permanent ban or a huge audit log would carry over. Not when serving. See docs/testing.md.
 	if _should_selftest():
-		DotPaths.remove_tree("user://example")
+		GSPaths.remove_tree("user://example")
 
-	server = DotServer.new()
+	server = GSServer.new()
 	server.name = "Server"
 	server.config = config
 	# Empty so the example is not affected by a config file left from another run.
@@ -44,11 +44,11 @@ func _ready() -> void:
 	timer.wait_time = 30.0
 	timer.autostart = true
 	timer.timeout.connect(func() -> void:
-		DotLog.info("example", "still running", server.describe()))
+		GSLog.info("example", "still running", server.describe()))
 	add_child(timer)
 
-func _make_config() -> DotServerConfig:
-	var config := DotServerConfig.new()
+func _make_config() -> GSServerConfig:
+	var config := GSServerConfig.new()
 	config.hostname = "dot-server example"
 	config.server_id = "example-1"
 	# 0 lets the OS pick a free port, so the example never collides with a real
@@ -92,7 +92,7 @@ func _should_selftest() -> bool:
 		return true
 	if args.has("--serve"):
 		return false
-	return DotPlatform.is_headless()
+	return GSPlatform.is_headless()
 
 
 func _run_selftest() -> void:
@@ -133,7 +133,7 @@ func _run_selftest() -> void:
 	await _test_rcon_socket()
 	await _test_rcon_websocket()
 	await _test_web_transport_limits()
-	# Last: a second DotServer replaces the first's registry entries, and every section above
+	# Last: a second GSServer replaces the first's registry entries, and every section above
 	# that looks a subsystem up by name would be talking to the wrong server.
 	await _test_boot_hibernation()
 

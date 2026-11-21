@@ -1,4 +1,4 @@
-class_name DotConVar
+class_name GSConVar
 extends RefCounted
 
 ## A console variable. Values are stored as strings because every path in and out (cfg, RCON,
@@ -69,7 +69,7 @@ var max_value: float = 0.0
 var has_min: bool = false
 var has_max: bool = false
 
-## Optional validator returning a [DotResult]; a failure refuses the change. For constraints
+## Optional validator returning a [GSResult]; a failure refuses the change. For constraints
 ## reflection cannot express (a port in use, a map that does not exist).
 var validator: Callable = Callable()
 
@@ -88,7 +88,7 @@ func _init(
 
 
 ## Sets numeric bounds. Returns self so construction can chain.
-func with_range(p_min: float, p_max: float) -> DotConVar:
+func with_range(p_min: float, p_max: float) -> GSConVar:
 	min_value = p_min
 	max_value = p_max
 	has_min = true
@@ -96,19 +96,19 @@ func with_range(p_min: float, p_max: float) -> DotConVar:
 	return self
 
 
-func with_min(p_min: float) -> DotConVar:
+func with_min(p_min: float) -> GSConVar:
 	min_value = p_min
 	has_min = true
 	return self
 
 
-func with_max(p_max: float) -> DotConVar:
+func with_max(p_max: float) -> GSConVar:
 	max_value = p_max
 	has_max = true
 	return self
 
 
-func with_validator(p_validator: Callable) -> DotConVar:
+func with_validator(p_validator: Callable) -> GSConVar:
 	validator = p_validator
 	return self
 
@@ -143,18 +143,18 @@ func is_default() -> bool:
 ## Changes the value, enforcing flags and bounds. [param context] says who sets it (keys
 ## [code]cheats_enabled[/code], [code]server_running[/code], [code]has_permission[/code],
 ## [code]source[/code]): a boot-time config legitimately bypasses checks an RCON client must not.
-func set_value(new_value: String, context: Dictionary = {}) -> DotResult:
+func set_value(new_value: String, context: Dictionary = {}) -> GSResult:
 	var trimmed := new_value.strip_edges()
 
 	if (flags & FLAG_CHEAT) and not bool(context.get("cheats_enabled", false)):
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN,
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN,
 			"%s is a cheat variable and sv_cheats is off." % name
 		)
 
 	if (flags & FLAG_STARTUP_ONLY) and bool(context.get("server_running", false)):
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"%s can only be changed before the server starts." % name,
 			"restart with the new value"
 		)
@@ -162,8 +162,8 @@ func set_value(new_value: String, context: Dictionary = {}) -> DotResult:
 	if (flags & FLAG_NEEDS_PERMISSION) and not bool(
 		context.get("has_permission", true)
 	):
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN,
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN,
 			"You do not have permission to change %s." % name
 		)
 
@@ -175,18 +175,18 @@ func set_value(new_value: String, context: Dictionary = {}) -> DotResult:
 
 	if validator.is_valid():
 		var checked: Variant = validator.call(final)
-		if checked is DotResult and not (checked as DotResult).ok:
+		if checked is GSResult and not (checked as GSResult).ok:
 			return checked
 
 	if final == _value:
-		return DotResult.success(final)
+		return GSResult.success(final)
 
 	var old := _value
 	_value = final
 
 	changed.emit(old, final)
 
-	DotLog.debug(
+	GSLog.debug(
 		"convar",
 		"changed",
 		{
@@ -200,7 +200,7 @@ func set_value(new_value: String, context: Dictionary = {}) -> DotResult:
 		}
 	)
 
-	return DotResult.success(final)
+	return GSResult.success(final)
 
 
 ## Sets the value ignoring every flag check. For internal use at boot only.
@@ -218,26 +218,26 @@ func reset() -> void:
 ## Applies bounds by refusing, never clamping: `sv_maxplayers 99999` is an error that
 ## names the allowed range, and the cvar keeps its value. A silent clamp hid typos and
 ## made the cvar say something other than what the operator asked for.
-func _coerce(value: String) -> DotResult:
+func _coerce(value: String) -> GSResult:
 	if not (has_min or has_max):
-		return DotResult.success(value)
+		return GSResult.success(value)
 
 	if not value.is_valid_float():
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"%s expects a number, got '%s'." % [name, value]
 		)
 
 	var f := value.to_float()
 	if (has_min and f < min_value) or (has_max and f > max_value):
-		return DotResult.fail(DotError.CODE_INVALID, "%s is %s; it takes %s." % [name, value, range_text()])
+		return GSResult.fail(GSError.CODE_INVALID, "%s is %s; it takes %s." % [name, value, range_text()])
 
 	# Preserve integer formatting so `sv_maxplayers` reads 32 rather than 32.0 in
 	# cvarlist and writeconfig output.
 	if is_equal_approx(f, roundf(f)) and not value.contains("."):
-		return DotResult.success(str(int(f)))
+		return GSResult.success(str(int(f)))
 
-	return DotResult.success(str(f))
+	return GSResult.success(str(f))
 
 
 ## The allowed range in words: "0 to 4095", "10 or more", "at most 8", or "any number".
@@ -326,4 +326,4 @@ func describe_help() -> PackedStringArray:
 
 
 func _to_string() -> String:
-	return "DotConVar(%s = %s)" % [name, display_value()]
+	return "GSConVar(%s = %s)" % [name, display_value()]

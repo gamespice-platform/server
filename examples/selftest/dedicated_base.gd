@@ -5,14 +5,14 @@ extends Node
 ## Runs a command as the local console and returns its output.
 func _run(line: String) -> String:
 	var lines := PackedStringArray()
-	var ctx := DotCmdContext.console("", PackedStringArray())
+	var ctx := GSCmdContext.console("", PackedStringArray())
 	ctx.reply_sink = func(text: String) -> void: lines.append(text)
 	server.console.execute(line, ctx)
 	return "\n".join(lines)
 
-func _client_context(permissions: PackedStringArray) -> DotCmdContext:
-	var ctx := DotCmdContext.new()
-	ctx.source = DotCmdContext.Source.RCON
+func _client_context(permissions: PackedStringArray) -> GSCmdContext:
+	var ctx := GSCmdContext.new()
+	ctx.source = GSCmdContext.Source.RCON
 	ctx.permissions = permissions
 	ctx.immunity = 10
 	ctx.address = "203.0.113.1"
@@ -21,7 +21,7 @@ func _client_context(permissions: PackedStringArray) -> DotCmdContext:
 
 const SELFTEST_ARG := "--selftest"
 
-var server: DotServer
+var server: GSServer
 ## Sections entered against sections that ran to their last line, and against this. A
 ## runtime error inside a section aborts that function and nothing says so; a section that
 ## bailed out early after a failed guard is counted as not finished on purpose.
@@ -37,7 +37,7 @@ var _completed := 0
 var _passed := 0
 var _failed := 0
 
-## Stands in for a DotChatRelay, which this addon deliberately cannot name.
+## Stands in for a GSChatRelay, which this addon deliberately cannot name.
 class FakeRelay extends RefCounted:
 	func is_carrying() -> bool:
 		return true
@@ -169,9 +169,9 @@ class UidTableSource:
 	func source_name() -> String:
 		return "uid-table"
 
-	func lookup(identity: Object) -> DotResult:
+	func lookup(identity: Object) -> GSResult:
 		if identity == null:
-			return DotResult.fail(DotError.CODE_STATE, "No identity.")
+			return GSResult.fail(GSError.CODE_STATE, "No identity.")
 
 		var name: Variant = identity.get("display_name")
 		if name != null and str(name) != "":
@@ -181,9 +181,9 @@ class UidTableSource:
 		var key := "" if uid == null else str(uid)
 
 		if key == "" or not rows.has(key):
-			return DotResult.fail(DotError.CODE_STATE, "Not listed.")
+			return GSResult.fail(GSError.CODE_STATE, "Not listed.")
 
-		return DotResult.success({
+		return GSResult.success({
 			"flags": rows[key],
 			"immunity": 10,
 			"source": source_name(),

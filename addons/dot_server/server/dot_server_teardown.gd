@@ -1,38 +1,38 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_wire.gd"
 
-## Chat submit, kicks and disconnects of [DotServer].
+## Chat submit, kicks and disconnects of [GSServer].
 
-## A client sending chat. Handled by [DotChatManager], which is where every rule about
+## A client sending chat. Handled by [GSChatManager], which is where every rule about
 ## chat lives; this only finds the session.
 func _on_chat_submit(peer_id: int, payload: Dictionary) -> void:
 	if chat == null:
 		return
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 	session.touch()
 	chat.handle_message(
 		session,
-		DotEnvelope.text(payload, "text"),
-		DotEnvelope.flag(payload, "team", false)
+		GSEnvelope.text(payload, "text"),
+		GSEnvelope.flag(payload, "team", false)
 	)
 
 
 ## Disconnects a client with a reason they will see.
 ##
-## [param why] rides along so a version mismatch reads as that, not as a kick; see [method DotClientLink.last_error].
-func kick(session: DotClientSession, reason: String = "Kicked", why: DotError = null) -> DotResult:
+## [param why] rides along so a version mismatch reads as that, not as a kick; see [method GSClientLink.last_error].
+func kick(session: GSClientSession, reason: String = "Kicked", why: GSError = null) -> GSResult:
 	if session == null or not session.is_active():
-		return DotResult.fail(DotError.CODE_INVALID, "No such player.")
+		return GSResult.fail(GSError.CODE_INVALID, "No such player.")
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL, "kicked", {"user": session.label(), "reason": reason}
 	)
 
 	_notify_peer_disconnect(session.peer_id, reason, why)
 
-	session.transition_to(DotClientSession.State.DISCONNECTED)
+	session.transition_to(GSClientSession.State.DISCONNECTED)
 	_disconnect_peer(session.peer_id)
 
 	_sessions.erase(session.peer_id)
@@ -48,10 +48,10 @@ func kick(session: DotClientSession, reason: String = "Kicked", why: DotError = 
 			"reason": reason,
 		})
 
-	return DotResult.success(session)
+	return GSResult.success(session)
 
 
-func _reject_session(session: DotClientSession, reason: String, why: DotError = null) -> void:
+func _reject_session(session: GSClientSession, reason: String, why: GSError = null) -> void:
 	session.reject(reason)
 	client_state_changed.emit(session)
 
@@ -68,15 +68,15 @@ func _reject_peer(peer_id: int, reason: String) -> void:
 	_disconnect_peer(peer_id)
 
 
-func _notify_disconnect(session: DotClientSession, reason: String) -> void:
+func _notify_disconnect(session: GSClientSession, reason: String) -> void:
 	_notify_peer_disconnect(session.peer_id, reason)
 
 
-func _notify_peer_disconnect(peer_id: int, reason: String, why: DotError = null) -> void:
+func _notify_peer_disconnect(peer_id: int, reason: String, why: GSError = null) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
 
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session != null and session.local:
 		# Adopted sessions have no peer. Sending to one is an engine error on a path
 		# that is otherwise working perfectly, which is how error output stops being
@@ -88,14 +88,14 @@ func _notify_peer_disconnect(peer_id: int, reason: String, why: DotError = null)
 	if why != null:
 		payload["code"] = why.code
 		payload["detail"] = why.detail
-	send_kind(peer_id, DotEnvelope.DISCONNECT, payload)
+	send_kind(peer_id, GSEnvelope.DISCONNECT, payload)
 
 
 func _disconnect_peer(peer_id: int) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
 
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session != null and session.local:
 		return
 	# Deferred so a rejection message sent in the same frame actually goes out;

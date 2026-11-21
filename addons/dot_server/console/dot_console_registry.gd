@@ -1,7 +1,7 @@
 @tool
 extends Node
 
-## Registry half of [DotConsole]: cvars, commands, sources, typed accessors, the suggestion helper.
+## Registry half of [GSConsole]: cvars, commands, sources, typed accessors, the suggestion helper.
 
 const CHANNEL := "console"
 
@@ -9,18 +9,18 @@ const CHANNEL := "console"
 const SERVICE := &"dot_console"
 
 ## Emitted for every command executed, after permission checks pass.
-signal command_executed(ctx: DotCmdContext)
+signal command_executed(ctx: GSCmdContext)
 
 ## Emitted when a command is refused. For audit logging and abuse detection.
-signal command_refused(ctx: DotCmdContext, reason: String)
+signal command_refused(ctx: GSCmdContext, reason: String)
 
 ## Emitted whenever any cvar changes, so replication and notification can hook in
 ## without connecting to each cvar.
-signal cvar_changed(cvar: DotConVar, old_value: String)
+signal cvar_changed(cvar: GSConVar, old_value: String)
 
 ## Emitted when a cvar is registered, so a replicated one a module adds while players are
 ## already in reaches them without waiting for its first change.
-signal cvar_registered(cvar: DotConVar)
+signal cvar_registered(cvar: GSConVar)
 
 @export_group("Behaviour")
 
@@ -40,18 +40,18 @@ signal cvar_registered(cvar: DotConVar)
 @export_range(1, 32, 1) var max_exec_depth: int = 8
 
 ## Whether a chat line that opens with a command prefix reaches commands that said nothing either way.
-## On: [member DotConCommand.permission] decides who may do what on every source; this decides only whether typing is a way in. Off: only [code]with_chat()[/code] commands.
-## [method DotConCommand.no_chat] always wins. [DotServer] binds [member chat_commands_cvar] over this.
+## On: [member GSConCommand.permission] decides who may do what on every source; this decides only whether typing is a way in. Off: only [code]with_chat()[/code] commands.
+## [method GSConCommand.no_chat] always wins. [GSServer] binds [member chat_commands_cvar] over this.
 @export var chat_commands_open: bool = true
 
 ## Log every executed command at INFO.
 ## On for a dedicated server: it is how an operator reconstructs what an admin did, and the evidence for moderation.
 @export var log_commands: bool = true
 
-## name -> DotConVar
+## name -> GSConVar
 var _cvars: Dictionary = {}
 
-## name -> DotConCommand
+## name -> GSConCommand
 var _commands: Dictionary = {}
 
 ## alias -> command string
@@ -66,22 +66,22 @@ var _wait_frames: int = 0
 var _exec_depth: int = 0
 var _server_running: bool = false
 
-## Set by [DotServer] so cheat gating can be evaluated without a hard dependency.
-var cheats_cvar: DotConVar = null
+## Set by [GSServer] so cheat gating can be evaluated without a hard dependency.
+var cheats_cvar: GSConVar = null
 
-## `sv_chat_commands`, bound by [DotServer]. Null on a console with no server, which is
+## `sv_chat_commands`, bound by [GSServer]. Null on a console with no server, which is
 ## when [member chat_commands_open] answers instead.
-var chat_commands_cvar: DotConVar = null
+var chat_commands_cvar: GSConVar = null
 
 
 
 
 ## Registers a cvar. Returns it so definitions can be kept inline.
-func register_cvar(cvar: DotConVar) -> DotConVar:
+func register_cvar(cvar: GSConVar) -> GSConVar:
 	var key := cvar.name.to_lower()
 
 	if _cvars.has(key):
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL, "cvar registered twice", {"cvar": cvar.name}
 		)
 		return _cvars[key]
@@ -90,7 +90,7 @@ func register_cvar(cvar: DotConVar) -> DotConVar:
 		# Those consoles allow a cvar and a command to share a name and resolve it
 		# inconsistently. Refusing is better than a console where `exec` sometimes
 		# means a variable.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"a command already uses this name; cvar not registered",
 			{"name": cvar.name}
@@ -109,21 +109,21 @@ func cvar(
 	default_value: String,
 	description: String = "",
 	flags: int = 0
-) -> DotConVar:
-	return register_cvar(DotConVar.new(name, default_value, description, flags))
+) -> GSConVar:
+	return register_cvar(GSConVar.new(name, default_value, description, flags))
 
 
-func register_command(command: DotConCommand) -> DotConCommand:
+func register_command(command: GSConCommand) -> GSConCommand:
 	var key := command.name.to_lower()
 
 	if _commands.has(key):
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL, "command registered twice", {"command": command.name}
 		)
 		return _commands[key]
 
 	if _cvars.has(key):
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"a cvar already uses this name; command not registered",
 			{"name": command.name}
@@ -140,29 +140,29 @@ func command(
 	handler: Callable,
 	description: String = "",
 	permission: String = ""
-) -> DotConCommand:
+) -> GSConCommand:
 	return register_command(
-		DotConCommand.new(name, handler, description, permission)
+		GSConCommand.new(name, handler, description, permission)
 	)
 
 
 ## Registers everything a duck-typed command source claims, as ordinary commands. Not a second dispatch path:
-## wrapping each name in a [DotConCommand] keeps permissions, the RCON and chat gates, audit, `cmdlist`, `help`, aliases and completion. Duck-typed because a mandatory addon may not name an optional addon's class (it would fail to parse).
+## wrapping each name in a [GSConCommand] keeps permissions, the RCON and chat gates, audit, `cmdlist`, `help`, aliases and completion. Duck-typed because a mandatory addon may not name an optional addon's class (it would fail to parse).
 ## [param source] needs [code]names()[/code] and [code]execute(line)[/code]; [code]help_for(name)[/code] and [code]complete(partial, limit)[/code] are optional. Returns the names actually registered (collisions are refused), so read it.
 func add_source(
 	source: Object,
 	permission: String = "",
 	chat: bool = false
-) -> DotResult:
+) -> GSResult:
 	if source == null or not is_instance_valid(source):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "A console source cannot be null."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "A console source cannot be null."
 		)
 
 	for required in ["names", "execute"]:
 		if not source.has_method(required):
-			return DotResult.fail(
-				DotError.CODE_INVALID,
+			return GSResult.fail(
+				GSError.CODE_INVALID,
 				"A console source needs a %s() method." % required,
 				"got a %s" % source.get_class()
 			)
@@ -170,8 +170,8 @@ func add_source(
 	var claimed: Variant = source.call("names")
 
 	if not (claimed is PackedStringArray or claimed is Array):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"A console source's names() must return an array of names."
 		)
 
@@ -180,11 +180,11 @@ func add_source(
 	if wanted.is_empty():
 		# Not an error. A source that claims nothing is a source whose feature is off,
 		# and refusing here would make an optional subsystem fatal to the boot.
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL, "a console source claimed no commands",
 			{"source": source.get_class()}
 		)
-		return DotResult.success(PackedStringArray())
+		return GSResult.success(PackedStringArray())
 
 	var has_help: bool = source.has_method("help_for")
 	var has_complete: bool = source.has_method("complete")
@@ -197,7 +197,7 @@ func add_source(
 			continue
 
 		if has_name(name):
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"a console source claimed a name that is already taken",
 				{"name": name, "source": source.get_class()}
@@ -212,7 +212,7 @@ func add_source(
 		if description == "":
 			description = "Provided by %s." % source.get_class()
 
-		var cmd := DotConCommand.new(
+		var cmd := GSConCommand.new(
 			name,
 			_source_handler(source, name),
 			description,
@@ -231,19 +231,19 @@ func add_source(
 		if register_command(cmd) == cmd:
 			registered.append(name)
 
-	DotLog.debug(
+	GSLog.debug(
 		CHANNEL,
 		"console source registered",
 		{"source": source.get_class(), "commands": " ".join(Array(registered))}
 	)
 
-	return DotResult.success(registered)
+	return GSResult.success(registered)
 
 
 ## One command's forwarder. Bound per name so the source sees the line it expects.
 ## The whole line, command word included: every source parses its own first word, so handing only the arguments makes it answer "not a log command".
 func _source_handler(source: Object, name: String) -> Callable:
-	return func(ctx: DotCmdContext) -> void:
+	return func(ctx: GSCmdContext) -> void:
 		if not is_instance_valid(source):
 			# A source outlives nothing here by design, but a module that shipped one
 			# and then unloaded without removing it is a crash otherwise, on the first
@@ -258,8 +258,8 @@ func _source_handler(source: Object, name: String) -> Callable:
 
 		var out: Variant = source.call("execute", line)
 
-		if out is DotResult:
-			var res := out as DotResult
+		if out is GSResult:
+			var res := out as GSResult
 			if not res.ok:
 				ctx.reply_error(res)
 				return
@@ -271,7 +271,7 @@ func _source_handler(source: Object, name: String) -> Callable:
 
 ## Puts whatever a source returned on the caller's console.
 ## A source may answer a string, a multi-line string or an array of lines; handling only one makes the rest look like a command that ran silently.
-func _reply_value(ctx: DotCmdContext, value: Variant) -> void:
+func _reply_value(ctx: GSCmdContext, value: Variant) -> void:
 	if value == null:
 		return
 
@@ -291,7 +291,7 @@ func _reply_value(ctx: DotCmdContext, value: Variant) -> void:
 	ctx.reply_lines(text.split("\n"))
 
 
-## A source's own completion, in the shape [member DotConCommand.completer] is called in.
+## A source's own completion, in the shape [member GSConCommand.completer] is called in.
 ## The source gets the whole line and answers whole lines (GameSpice Console's panel replaces the input box);
 ## [method complete] reassembles the line from the pieces the completer contract hands over.
 func _source_completer(source: Object, name: String) -> Callable:
@@ -346,34 +346,34 @@ func unregister_command(name: String) -> void:
 func unregister_cvar(name: String) -> void:
 	var key := name.to_lower()
 	if _cvars.has(key):
-		var c: DotConVar = _cvars[key]
+		var c: GSConVar = _cvars[key]
 		if c.changed.is_connected(_on_cvar_changed):
 			c.changed.disconnect(_on_cvar_changed)
 		_cvars.erase(key)
 
 
-## Every [constant DotConVar.FLAG_REPLICATED] cvar's value, by its registered name: what a
+## Every [constant GSConVar.FLAG_REPLICATED] cvar's value, by its registered name: what a
 ## client is told so it predicts under the server's rules. A protected cvar is never in it,
 ## replicated or not: a value a client is sent is a value every player can read.
 func replicated_values() -> Dictionary:
 	var out := {}
 	for key in _cvars:
-		var c: DotConVar = _cvars[key]
+		var c: GSConVar = _cvars[key]
 		if is_replicated(c):
 			out[c.name] = c.get_string()
 	return out
 
 
 ## Whether [param c] is one [method replicated_values] would send.
-static func is_replicated(c: DotConVar) -> bool:
-	return c != null and c.has_flag(DotConVar.FLAG_REPLICATED) and not c.has_flag(DotConVar.FLAG_PROTECTED)
+static func is_replicated(c: GSConVar) -> bool:
+	return c != null and c.has_flag(GSConVar.FLAG_REPLICATED) and not c.has_flag(GSConVar.FLAG_PROTECTED)
 
 
-func find_cvar(name: String) -> DotConVar:
+func find_cvar(name: String) -> GSConVar:
 	return _cvars.get(name.to_lower())
 
 
-func find_command(name: String) -> DotConCommand:
+func find_command(name: String) -> GSConCommand:
 	return _commands.get(name.to_lower())
 
 
@@ -421,19 +421,19 @@ func get_bool(name: String, default: bool = false) -> bool:
 func set_cvar(
 	name: String,
 	value: String,
-	ctx: DotCmdContext = null
-) -> DotResult:
+	ctx: GSCmdContext = null
+) -> GSResult:
 	var c := find_cvar(name)
 	if c == null:
-		return DotResult.fail(
-			DotError.CODE_INVALID, "Unknown variable '%s'." % name
+		return GSResult.fail(
+			GSError.CODE_INVALID, "Unknown variable '%s'." % name
 		)
 
 	return c.set_value(value, _context_dict(c, ctx))
 
 
-## Builds the context dictionary [method DotConVar.set_value] expects.
-func _context_dict(c: DotConVar, ctx: DotCmdContext) -> Dictionary:
+## Builds the context dictionary [method GSConVar.set_value] expects.
+func _context_dict(c: GSConVar, ctx: GSCmdContext) -> Dictionary:
 	var cheats := cheats_cvar.get_bool() if cheats_cvar != null else false
 
 	# The local console and config files may set cheat cvars regardless of
@@ -444,7 +444,7 @@ func _context_dict(c: DotConVar, ctx: DotCmdContext) -> Dictionary:
 
 	var has_perm := true
 	if ctx != null:
-		var needed := DotAdminFlags.CHEATS if c.has_flag(DotConVar.FLAG_CHEAT) else DotAdminFlags.CVAR
+		var needed := GSAdminFlags.CHEATS if c.has_flag(GSConVar.FLAG_CHEAT) else GSAdminFlags.CVAR
 		has_perm = ctx.has_permission(needed)
 
 	return {
@@ -467,7 +467,7 @@ func set_server_running(running: bool) -> void:
 	_server_running = running
 
 
-func _on_cvar_changed(old_value: String, _new_value: String, c: DotConVar) -> void:
+func _on_cvar_changed(old_value: String, _new_value: String, c: GSConVar) -> void:
 	cvar_changed.emit(c, old_value)
 
 

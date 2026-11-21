@@ -1,7 +1,7 @@
 @tool
 extends "res://addons/dot_server/client/dot_client_link_state.gd"
 
-## Loading the game scene, the early heartbeats and the round-trip estimate of [DotClientLink].
+## Loading the game scene, the early heartbeats and the round-trip estimate of [GSClientLink].
 
 
 ## Runs [code]cloud.warm_content[/code] and returns its loader, or null if the cloud is freed
@@ -53,16 +53,16 @@ func _checked_scene(scene_path: String, info: Dictionary) -> String:
 	var resolved := _resolve_scene(scene_path, info)
 
 	if resolved == "":
-		_fail(DotError.make(
-			DotError.CODE_INVALID,
+		_fail(GSError.make(
+			GSError.CODE_INVALID,
 			"The server asked for a scene this client will not load.",
 			scene_path
 		))
 		return ""
 
 	if not ResourceLoader.exists(resolved):
-		_fail(DotError.make(
-			DotError.CODE_IO,
+		_fail(GSError.make(
+			GSError.CODE_IO,
 			"The game scene is missing from the downloaded content.",
 			resolved
 		))
@@ -119,7 +119,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 	if scene_path == "":
 		# A lobby has no scene but must complete the join like any game, or the client sits in
 		# LOADING sending no heartbeats until it is timed out.
-		send_kind(DotEnvelope.LOADED)
+		send_kind(GSEnvelope.LOADED)
 		_enter_playing()
 		return
 
@@ -133,7 +133,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 	# browser); GameSpice Cloud compiles it a slice per frame first. `warmed` holds it until we are done.
 	var w0 := Time.get_ticks_usec()
 	var warmed: Variant = null
-	var cloud := DotRegistry.get_service(cloud_service)
+	var cloud := GSRegistry.get_service(cloud_service)
 	if content_key != "" and cloud != null and cloud.has_method("warm_content") and is_inside_tree():
 		warmed = await _warm(cloud, PackedStringArray([content_key]) + content_extra, gen)
 		if gen != _load_gen or not is_inside_tree():
@@ -145,8 +145,8 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 		return
 	var t1 := Time.get_ticks_usec()
 	if not (packed is PackedScene):
-		_fail(DotError.make(
-			DotError.CODE_INVALID, "The game scene is not loadable.", resolved
+		_fail(GSError.make(
+			GSError.CODE_INVALID, "The game scene is not loadable.", resolved
 		))
 		return
 
@@ -154,7 +154,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 	if timing == null:
 		return
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL, "game loaded", {
 			"scene": resolved, "content": content_key,
 			"warm_ms": (t0 - w0) / 1000.0,
@@ -165,7 +165,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 		}
 	)
 
-	send_kind(DotEnvelope.LOADED)
+	send_kind(GSEnvelope.LOADED)
 	_enter_playing()
 
 
@@ -173,7 +173,7 @@ func _on_load_game(_peer_id: int, info: Dictionary) -> void:
 ## reporting progress. Returns the resource (null if it failed), or [code]false[/code] when
 ## the load was superseded or the link left the tree.
 func _load_scene_resource(resolved: String, gen: int) -> Variant:
-	if not (is_inside_tree() and DotPlatform.has_threads()
+	if not (is_inside_tree() and GSPlatform.has_threads()
 			and ResourceLoader.load_threaded_request(resolved) == OK):
 		return load(resolved)
 	var packed: Resource = null
@@ -212,9 +212,9 @@ func _enter_playing() -> void:
 ## only when already inside one; otherwise a hostile server could load res://addons/… or any shipped scene.
 func _resolve_scene(scene_path: String, info: Dictionary) -> String:
 	if not scene_path.contains("://"):
-		var safe := DotPaths.safe_relative(scene_path)
+		var safe := GSPaths.safe_relative(scene_path)
 		if not safe.ok:
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"refusing an unsafe scene path from the server",
 				{"path": scene_path}
@@ -235,7 +235,7 @@ func _resolve_scene(scene_path: String, info: Dictionary) -> String:
 	if scene_path.begins_with("res://dot_cloud/"):
 		return scene_path
 
-	DotLog.warn(
+	GSLog.warn(
 		CHANNEL,
 		"refusing an absolute scene path outside the content mount",
 		{"path": scene_path}
@@ -276,7 +276,7 @@ func _free_game_children() -> void:
 	if retired.is_empty() or not is_inside_tree():
 		return
 
-	DotLog.debug(CHANNEL, "retired what the game left under the link", {
+	GSLog.debug(CHANNEL, "retired what the game left under the link", {
 		"nodes": retired.size(),
 	})
 
@@ -300,7 +300,7 @@ func _send_heartbeat() -> void:
 	var meter := net_meter()
 	if meter != null:
 		meter.request_flush_stamp()
-	send_kind(DotEnvelope.HEARTBEAT, {"t": _ping_sent_ms}, DotEnvelope.Lane.UNRELIABLE)
+	send_kind(GSEnvelope.HEARTBEAT, {"t": _ping_sent_ms}, GSEnvelope.Lane.UNRELIABLE)
 
 	if _early_heartbeats > 0:
 		_early_heartbeats -= 1
@@ -312,7 +312,7 @@ func _send_heartbeat() -> void:
 func _on_heartbeat_ack(_peer_id: int, payload: Dictionary) -> void:
 	# Round trip measured from our own timestamp echoed back, so no clock
 	# synchronisation is needed.
-	var sent_ms := int(DotEnvelope.number(payload, "t", -1))
+	var sent_ms := int(GSEnvelope.number(payload, "t", -1))
 	if sent_ms < 0:
 		return
 	# Wall clock in microseconds from where the packet left (the transport flush), not the frame that queued it.
@@ -325,7 +325,7 @@ func _on_heartbeat_ack(_peer_id: int, payload: Dictionary) -> void:
 			from_usec = meter.flush_usec
 		rtt = float(now_usec - from_usec) / 1000.0
 	_ping_ms = roundi(rtt)
-	send_kind(DotEnvelope.PING, {"ms": _ping_ms}, DotEnvelope.Lane.UNRELIABLE)
+	send_kind(GSEnvelope.PING, {"ms": _ping_ms}, GSEnvelope.Lane.UNRELIABLE)
 
 	if meter != null:
 		meter.note_rtt(rtt)
@@ -358,8 +358,8 @@ func rtt_ms() -> float:
 
 
 ## The meter the connection runs through, or null when there is no connection. What
-## net_stat reads; see [DotMeteredPeer].
-func net_meter() -> DotMeteredPeer:
+## net_stat reads; see [GSMeteredPeer].
+func net_meter() -> GSMeteredPeer:
 	if multiplayer == null:
 		return null
-	return DotMeteredPeer.of(multiplayer.multiplayer_peer)
+	return GSMeteredPeer.of(multiplayer.multiplayer_peer)

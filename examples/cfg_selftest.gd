@@ -15,7 +15,7 @@ var _sections := 0
 
 
 func _ready() -> void:
-	DotLog.set_level(DotLog.Level.ERROR)
+	GSLog.set_level(GSLog.Level.ERROR)
 	_run.call_deferred()
 
 
@@ -24,34 +24,34 @@ func _run() -> void:
 	var addon_dir := "user://cfg/addons/" + FOLDER
 	var server_dir := "user://cfg/server/addons/" + FOLDER
 	_clean(addon_dir, server_dir)
-	DotCfgLegacy.reset()
+	GSCfgLegacy.reset()
 
 	_write(LEGACY.path_join("groups.yml"), "groups:\n  old:\n    immunity: 1\n")
-	var res := DotAdminCfg.load_groups(LEGACY)
+	var res := GSAdminCfg.load_groups(LEGACY)
 	_check(res.ok and (res.value as Dictionary).has("old"), "only the flat file: it is still read")
-	_check(DotCfgLegacy.warned_count() == 1, "and warned once")
-	DotAdminCfg.load_groups(LEGACY)
-	_check(DotCfgLegacy.warned_count() == 1, "a second load does not warn again")
+	_check(GSCfgLegacy.warned_count() == 1, "and warned once")
+	GSAdminCfg.load_groups(LEGACY)
+	_check(GSCfgLegacy.warned_count() == 1, "a second load does not warn again")
 
 	_write(addon_dir.path_join("groups.yml"), "groups:\n  mod:\n    immunity: 50\n  admin:\n    immunity: 80\n")
-	res = DotAdminCfg.load_groups(LEGACY)
+	res = GSAdminCfg.load_groups(LEGACY)
 	var groups: Dictionary = res.value
 	_check(res.ok and groups.has("mod") and not groups.has("old"), "the new path wins whole over the flat file")
 
 	_write(server_dir.path_join("groups.yml"), "groups:\n  mod:\n    immunity: 60\n")
-	groups = DotAdminCfg.load_groups(LEGACY).value
+	groups = GSAdminCfg.load_groups(LEGACY).value
 	_check(int(groups["mod"]["immunity"]) == 60, "the operator's server layer wins")
 	_check(groups.has("admin"), "and keeps the groups it does not mention")
 
 	_write(addon_dir.path_join("permissions.yml"), "users:\n  steam_1:\n    groups: [mod]\n")
-	var users: Dictionary = DotAdminCfg.load_users(LEGACY).value
+	var users: Dictionary = GSAdminCfg.load_users(LEGACY).value
 	_check(users.has("steam_1"), "permissions.yml is read from the same folder")
 
 	_write(server_dir.path_join("permissions.yml"), "users: [broken\n")
-	_check(not DotAdminCfg.load_users(LEGACY).ok, "a bad file fails and names itself")
+	_check(not GSAdminCfg.load_users(LEGACY).ok, "a bad file fails and names itself")
 
 	_clean(addon_dir, server_dir)
-	DotCfgLegacy.reset()
+	GSCfgLegacy.reset()
 	_sections += 1
 	print("%d sections, %d passed, %d failed" % [_sections, _passed, _failed])
 	if _sections != SECTIONS or _passed + _failed != CHECKS:
@@ -62,9 +62,9 @@ func _run() -> void:
 
 
 func _clean(addon_dir: String, server_dir: String) -> void:
-	DotPaths.remove_tree(addon_dir)
-	DotPaths.remove_tree(server_dir)
-	DotPaths.remove_tree(LEGACY)
+	GSPaths.remove_tree(addon_dir)
+	GSPaths.remove_tree(server_dir)
+	GSPaths.remove_tree(LEGACY)
 
 
 func _write(path: String, text: String) -> void:

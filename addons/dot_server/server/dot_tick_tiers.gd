@@ -1,4 +1,4 @@
-class_name DotTickTiers
+class_name GSTickTiers
 extends RefCounted
 
 ## A table mapping a player count to a tick rate, from one string:
@@ -24,8 +24,8 @@ var error: String = ""
 
 
 ## The table [param spec] names. [member error] is empty when it parsed; an empty [param spec] is a valid, empty table.
-static func parse(spec: String) -> DotTickTiers:
-	var table := DotTickTiers.new()
+static func parse(spec: String) -> GSTickTiers:
+	var table := GSTickTiers.new()
 	var text := spec.strip_edges()
 	if text == "":
 		return table
@@ -64,7 +64,7 @@ static func parse(spec: String) -> DotTickTiers:
 	return table
 
 
-static func _fail(table: DotTickTiers, why: String) -> DotTickTiers:
+static func _fail(table: GSTickTiers, why: String) -> GSTickTiers:
 	table.tiers.clear()
 	table.fallback = 0
 	table.error = why

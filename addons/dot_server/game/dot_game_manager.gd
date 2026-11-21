@@ -1,18 +1,18 @@
 @tool
-class_name DotGameManager
+class_name GSGameManager
 extends "res://addons/dot_server/game/dot_game_manager_switch.gd"
 
 ## Loads and switches the running game while clients stay connected.
 ## A changelevel is announce, clients download and mount, swap, re-spawn; a client that cannot get the content is dropped.
-## GameSpice Cloud is found through [DotRegistry]. Godot cannot unmount a pack, so unload frees the scene (docs/game-switching.md).
+## GameSpice Cloud is found through [GSRegistry]. Godot cannot unmount a pack, so unload frees the scene (docs/game-switching.md).
 
 
 func setup(p_server: Node) -> void:
 	server = p_server
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	if game_root_ref == null:
-		game_root_ref = DotNodeRef.of_created(&"GameRoot", Node)
+		game_root_ref = GSNodeRef.of_created(&"GameRoot", Node)
 	_game_root = game_root_ref.resolve_or_null(self, CHANNEL)
 
 	server.client_state_changed.connect(_on_client_state_changed)
@@ -20,7 +20,7 @@ func setup(p_server: Node) -> void:
 	if initial_game != "":
 		var res := await change_game(initial_game, "boot")
 		if not res.ok:
-			DotLog.error(
+			GSLog.error(
 				CHANNEL,
 				"could not load the initial game",
 				{"game": initial_game, "why": res.error.message}
@@ -28,15 +28,15 @@ func setup(p_server: Node) -> void:
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 ## Switches to a game, syncing clients first.
 ## A failed change leaves the previous game running, never no game.
-func change_game(game_id: String, by: String = "console") -> DotResult:
+func change_game(game_id: String, by: String = "console") -> GSResult:
 	if phase != Phase.IDLE:
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"A game change is already in progress.",
 			_pending.game_id if _pending != null else ""
 		)
@@ -45,13 +45,13 @@ func change_game(game_id: String, by: String = "console") -> DotResult:
 	if not resolved.ok:
 		return resolved
 
-	var descriptor := resolved.value as DotGameDescriptor
+	var descriptor := resolved.value as GSGameDescriptor
 	# Canonical id from here on, whichever spelling was typed.
 	game_id = descriptor.game_id
 
 	if _current != null and _current.game_id == game_id:
-		return DotResult.fail(
-			DotError.CODE_STATE, "'%s' is already running." % game_id
+		return GSResult.fail(
+			GSError.CODE_STATE, "'%s' is already running." % game_id
 		)
 
 	var validated := descriptor.validate()
@@ -59,21 +59,21 @@ func change_game(game_id: String, by: String = "console") -> DotResult:
 		return validated
 
 	if server.events != null:
-		var event: DotEvent = server.events.fire("game_changing", {
+		var event: GSEvent = server.events.fire("game_changing", {
 			"from": current_content_key(),
 			"to": descriptor.content_key(),
 			"by": by,
 		})
 		if event.cancelled:
-			return DotResult.fail(
-				DotError.CODE_FORBIDDEN,
+			return GSResult.fail(
+				GSError.CODE_FORBIDDEN,
 				"The game change was blocked.",
 				event.cancel_reason
 			)
 
 	_pending = descriptor
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"changing game",
 		{"to": descriptor.game_id, "by": by, "clients": server.player_count()}
@@ -108,12 +108,12 @@ func change_game(game_id: String, by: String = "console") -> DotResult:
 
 
 ## Switches to the next game in the rotation.
-func next_game(by: String = "console") -> DotResult:
+func next_game(by: String = "console") -> GSResult:
 	var order := rotation if not rotation.is_empty() else game_ids()
 
 	if order.is_empty():
-		return DotResult.fail(
-			DotError.CODE_STATE, "No games are configured."
+		return GSResult.fail(
+			GSError.CODE_STATE, "No games are configured."
 		)
 
 	# Start from the current game's position so the rotation is stable across a
@@ -127,14 +127,14 @@ func next_game(by: String = "console") -> DotResult:
 
 	return await change_game(order[_rotation_index], by)
 
-func _on_client_state_changed(session: DotClientSession) -> void:
+func _on_client_state_changed(session: GSClientSession) -> void:
 	if phase != Phase.SYNCING:
 		return
-	if session.state != DotClientSession.State.LOADING:
+	if session.state != GSClientSession.State.LOADING:
 		return
 
 	# A client that reached LOADING during a sync has the content. The waiting loop
 	# reads content_key, so nothing more is needed here than the log line.
-	DotLog.debug(
+	GSLog.debug(
 		CHANNEL, "client synced during change", {"user": session.label()}
 	)

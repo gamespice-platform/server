@@ -1,15 +1,15 @@
-class_name DotClientChat
+class_name GSClientChat
 extends Node
 
-## The client's half of chat: a node named `Chat` under [DotClientLink].
+## The client's half of chat: a node named `Chat` under [GSClientLink].
 ## Chat is two envelope kinds (`chat.submit` up, `chat.line` down), so the node declares no RPC.
 ## It stays because games reach chat through it; [method send] is its whole job.
 
-# No log channel: a message is logged, filtered and rate-limited by DotChatManager on the
-# server, and what arrives is handed to DotClientLink.chat_received for the game to show.
+# No log channel: a message is logged, filtered and rate-limited by GSChatManager on the
+# server, and what arrives is handed to GSClientLink.chat_received for the game to show.
 
-## The link this reports to. Set by [DotClientLink] when it creates this node.
-var link: Node = null  # a DotClientLink, held as Node so this file and the link do not keep each other's parsers alive
+## The link this reports to. Set by [GSClientLink] when it creates this node.
+var link: Node = null  # a GSClientLink, held as Node so this file and the link do not keep each other's parsers alive
 
 
 ## Sends a chat message to the server. False when it was not sent -- not connected, or a
@@ -18,5 +18,5 @@ func send(text: String, team_only: bool = false) -> bool:
 	if link == null:
 		return false
 	return link.send_kind(
-		DotEnvelope.CHAT_SUBMIT, {"text": text, "team": team_only}, DotEnvelope.Lane.EVENT
+		GSEnvelope.CHAT_SUBMIT, {"text": text, "team": team_only}, GSEnvelope.Lane.EVENT
 	)

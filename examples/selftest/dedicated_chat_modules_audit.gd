@@ -2,7 +2,7 @@ extends "res://examples/selftest/dedicated_scoreboard_targeting.gd"
 
 ## dedicated_server selftest sections: chat, events, identity, bot quota, modules, audit and chat commands.
 
-## `DotChatManager.sanitise` against the definition it replaced, as written before it was
+## `GSChatManager.sanitise` against the definition it replaced, as written before it was
 ## made linear: filter, collapse, strip, cut. Empty when every case agrees.
 func _sanitise_mismatch() -> String:
 	var alphabet := ["a", "b", " ", "\n", "\t", "\u007F", "\u200B", "\u202E", "\u0001", "é",
@@ -17,7 +17,7 @@ func _sanitise_mismatch() -> String:
 		cases.append("".join(one))
 	for raw in cases:
 		for limit in [0, 1, 2, 3, 5, 160]:
-			var got := DotChatManager.sanitise(raw, limit)
+			var got := GSChatManager.sanitise(raw, limit)
 			var want := _sanitise_reference(raw, limit)
 			if got != want:
 				return "%s at %d: got %s, want %s" % [raw.c_escape(), limit, got.c_escape(), want.c_escape()]
@@ -64,12 +64,12 @@ func _test_chat_state() -> void:
 	_check("and the payload carries it", bool(chat.chat_state().get("relay", false)))
 
 	# A seam that answers with something that is not a bool must read as "no" rather
-	# than as truthy: a host wiring this to a method that returns a DotResult would
+	# than as truthy: a host wiring this to a method that returns a GSResult would
 	# otherwise tell every client the conversation is carried when it is not.
 	chat.relay_fn = func() -> Variant: return "yes"
 	_check("a non-boolean answer is no", not chat.is_relayed())
 
-	# `watch_relay` is duck-typed because dot-server cannot name DotChatRelay. Held in a variable:
+	# `watch_relay` is duck-typed because dot-server cannot name GSChatRelay. Held in a variable:
 	# a [Callable] does not keep a [RefCounted] alive, so an inline `FakeRelay.new()` is freed at
 	# once and the seam reads "no relay".
 	var fake := FakeRelay.new()
@@ -90,21 +90,21 @@ func _test_events() -> void:
 	var events := server.events
 
 	var fired := [0]
-	events.hook_post("example_event", func(_e: DotEvent) -> void: fired[0] += 1)
+	events.hook_post("example_event", func(_e: GSEvent) -> void: fired[0] += 1)
 	events.fire("example_event", {})
 	_check("post hook ran", fired[0] == 1)
 
 	# A pre-hook that cancels must stop the event and skip post hooks.
 	var post_ran := [false]
-	events.hook_pre("cancel_me", func(e: DotEvent) -> void: e.cancel("nope"))
-	events.hook_post("cancel_me", func(_e: DotEvent) -> void: post_ran[0] = true)
+	events.hook_pre("cancel_me", func(e: GSEvent) -> void: e.cancel("nope"))
+	events.hook_post("cancel_me", func(_e: GSEvent) -> void: post_ran[0] = true)
 
 	var event := events.fire("cancel_me", {})
 	_check("pre hook cancelled", event.cancelled and event.cancel_reason == "nope")
 	_check("post hook skipped after cancel", not post_ran[0])
 
 	# A pre-hook rewriting data is how a chat filter works without rejecting.
-	events.hook_pre("rewrite_me", func(e: DotEvent) -> void:
+	events.hook_pre("rewrite_me", func(e: GSEvent) -> void:
 		e.set_value("text", "clean"))
 	var rewritten := events.fire("rewrite_me", {"text": "dirty"})
 	_check("pre hook rewrote data", rewritten.get_string("text") == "clean")
@@ -117,10 +117,10 @@ func _test_events() -> void:
 	_check("missing key returns default", typed.get_int("absent", 7) == 7)
 
 	# Past max_events_per_frame the rest are dropped and counted; 0 = unlimited.
-	var flood := DotEventBus.new()
+	var flood := GSEventBus.new()
 	flood.max_events_per_frame = 16
 	var ran := [0]
-	flood.hook_post("loop", func(_e: DotEvent) -> void: ran[0] += 1)
+	flood.hook_post("loop", func(_e: GSEvent) -> void: ran[0] += 1)
 	for i in 20:
 		flood.fire("loop", {})
 	_check("past max_events_per_frame events are dropped and counted", ran[0] == 16 and flood.dropped_events == 4)
@@ -136,7 +136,7 @@ func _test_guest_identity() -> void:
 	print("")
 	_section("[guest identity]")
 
-	var guest := DotGuestIdentity.from_device("device-abc", "Ada")
+	var guest := GSGuestIdentity.from_device("device-abc", "Ada")
 
 	_check("valid", guest.is_valid())
 	_check("uid namespaced", guest.uid.begins_with("guest:"))
@@ -148,20 +148,20 @@ func _test_guest_identity() -> void:
 	_check("device id not stored raw", not guest.uid.contains("device-abc"))
 
 	# Stable, so a mute or kick lasts across a reconnect within the session.
-	var again := DotGuestIdentity.from_device("device-abc")
+	var again := GSGuestIdentity.from_device("device-abc")
 	_check("same device gives the same uid", again.uid == guest.uid)
 
-	var other := DotGuestIdentity.from_device("device-xyz")
+	var other := GSGuestIdentity.from_device("device-xyz")
 	_check("different device gives a different uid", other.uid != guest.uid)
 
 	# No device id at all must not make every anonymous client the same person.
-	var anon_a := DotGuestIdentity.from_device("")
-	var anon_b := DotGuestIdentity.from_device("")
+	var anon_a := GSGuestIdentity.from_device("")
+	var anon_b := GSGuestIdentity.from_device("")
 	_check("missing device id yields distinct ids", anon_a.uid != anon_b.uid)
 	_check("generated name when none given", anon_a.display_name.begins_with("Guest-"))
 
 	# The session reads identity through this surface, so it must satisfy it.
-	var session := DotClientSession.new(99, 99)
+	var session := GSClientSession.new(99, 99)
 	session.identity = guest
 	_check("session accepts it", session.is_authenticated())
 	_check("session reads the uid", session.uid() == guest.uid)
@@ -176,57 +176,57 @@ func _test_bot_quota() -> void:
 	print("")
 	_section("[bot quota]")
 
-	var F := DotBotQuota.Mode.FILL
+	var F := GSBotQuota.Mode.FILL
 	# fill: people take bots' places, and a bot comes back when they leave.
-	_check("fill: nobody here, the quota is bots", DotBotQuota.compute(F, 4, 0) == 4)
-	_check("fill: a person replaces a bot", DotBotQuota.compute(F, 4, 1) == 3)
-	_check("fill: a full quota of people, no bots", DotBotQuota.compute(F, 4, 4) == 0)
-	_check("fill: more people than the quota, still none", DotBotQuota.compute(F, 4, 9) == 0)
-	_check("fixed: the quota whoever is here", DotBotQuota.compute(DotBotQuota.Mode.FIXED, 3, 5) == 3)
-	_check("per_player: per person", DotBotQuota.compute(DotBotQuota.Mode.PER_PLAYER, 2, 3) == 6)
-	_check("off: none", DotBotQuota.compute(DotBotQuota.Mode.OFF, 8, 0) == 0)
-	_check("a bot never takes a person's seat", DotBotQuota.compute(DotBotQuota.Mode.FIXED, 10, 6, 8) == 2)
-	_check("a full server has no bots", DotBotQuota.compute(F, 16, 8, 8) == 0)
-	_check("empty and told not to keep them: none", DotBotQuota.compute(F, 4, 0, -1, false) == 0)
-	_check("but a person brings them back", DotBotQuota.compute(F, 4, 1, -1, false) == 3)
+	_check("fill: nobody here, the quota is bots", GSBotQuota.compute(F, 4, 0) == 4)
+	_check("fill: a person replaces a bot", GSBotQuota.compute(F, 4, 1) == 3)
+	_check("fill: a full quota of people, no bots", GSBotQuota.compute(F, 4, 4) == 0)
+	_check("fill: more people than the quota, still none", GSBotQuota.compute(F, 4, 9) == 0)
+	_check("fixed: the quota whoever is here", GSBotQuota.compute(GSBotQuota.Mode.FIXED, 3, 5) == 3)
+	_check("per_player: per person", GSBotQuota.compute(GSBotQuota.Mode.PER_PLAYER, 2, 3) == 6)
+	_check("off: none", GSBotQuota.compute(GSBotQuota.Mode.OFF, 8, 0) == 0)
+	_check("a bot never takes a person's seat", GSBotQuota.compute(GSBotQuota.Mode.FIXED, 10, 6, 8) == 2)
+	_check("a full server has no bots", GSBotQuota.compute(F, 16, 8, 8) == 0)
+	_check("empty and told not to keep them: none", GSBotQuota.compute(F, 4, 0, -1, false) == 0)
+	_check("but a person brings them back", GSBotQuota.compute(F, 4, 1, -1, false) == 3)
 
 	var source := """
-extends DotModule
+extends GSModule
 
-var quota: DotBotQuota
+var quota: GSBotQuota
 
 func _module_name() -> String: return "quota_probe"
 
-func _module_load() -> DotResult:
-	quota = DotBotQuota.install(self, 5)
-	return DotResult.success(null)
+func _module_load() -> GSResult:
+	quota = GSBotQuota.install(self, 5)
+	return GSResult.success(null)
 """
-	DotPaths.write_text("user://example/modules/quota_probe.gd", source)
-	var loaded: DotResult = await server.modules.load_module("user://example/modules/quota_probe.gd")
+	GSPaths.write_text("user://example/modules/quota_probe.gd", source)
+	var loaded: GSResult = await server.modules.load_module("user://example/modules/quota_probe.gd")
 	_check("a module installs the quota", loaded.ok)
 
 	if not loaded.ok:
 		return
 
 	var module: Object = server.modules.get_module("quota_probe")
-	var q: DotBotQuota = module.get("quota") if module != null else null
+	var q: GSBotQuota = module.get("quota") if module != null else null
 	_check("and holds it", q != null)
 
 	if q == null:
 		return
 
-	_check("default mode is fill", q.mode() == DotBotQuota.Mode.FILL)
+	_check("default mode is fill", q.mode() == GSBotQuota.Mode.FILL)
 	_check("the game's default quota", q.wanted(0) == 5 and q.wanted(2) == 3)
 	_run("bot_quota_mode fixed")
 	_check("the mode is a cvar", q.wanted(2) == 5)
 	_run("bot_quota_mode nonsense")
-	_check("a mode that is not one is refused", q.mode() == DotBotQuota.Mode.FIXED)
+	_check("a mode that is not one is refused", q.mode() == GSBotQuota.Mode.FIXED)
 	_run("bot_quota_mode fill")
 	for n in [32, 64, 128, 1000]:
 		_run("bot_quota %d" % n)
 		_check("bot_quota %d is not clamped" % n, q.quota() == n and q.wanted(0) == n)
 		_check("bot_quota %d with 0 slots (unlimited) wants %d" % [n, n - 1], q.wanted(1, 0) == n - 1)
-	_check("a real slot count still caps", DotBotQuota.compute(DotBotQuota.Mode.FILL, 128, 1, 32) == 31)
+	_check("a real slot count still caps", GSBotQuota.compute(GSBotQuota.Mode.FILL, 128, 1, 32) == 31)
 	_run("bot_quota 5")
 	_run("bot_quota_empty 0")
 	_check("bot_quota_empty 0 empties an empty server", q.wanted(0) == 0 and q.wanted(1) == 4)
@@ -240,28 +240,28 @@ func _test_modules() -> void:
 	_section("[modules]")
 
 	var module_source := """
-extends DotModule
+extends GSModule
 
 func _module_name() -> String: return "example"
 func _module_version() -> String: return "1.2.3"
 func _module_description() -> String: return "A test module."
 
-func _module_load() -> DotResult:
+func _module_load() -> GSResult:
 	add_command("example_hello", _hello, "Say hello", "")
 	add_cvar("example_mod_cvar", "7", "A module variable.")
 	hook_post("client_spawn", _on_spawn)
-	return DotResult.success(null)
+	return GSResult.success(null)
 
-func _hello(ctx: DotCmdContext) -> void:
+func _hello(ctx: GSCmdContext) -> void:
 	ctx.reply("hello from the module")
 
-func _on_spawn(_e: DotEvent) -> void:
+func _on_spawn(_e: GSEvent) -> void:
 	pass
 """
 
-	DotPaths.write_text("user://example/modules/example.gd", module_source)
+	GSPaths.write_text("user://example/modules/example.gd", module_source)
 
-	var loaded: DotResult = await server.modules.load_module(
+	var loaded: GSResult = await server.modules.load_module(
 		"user://example/modules/example.gd"
 	)
 	_check("module loaded", loaded.ok)
@@ -292,8 +292,8 @@ func _on_spawn(_e: DotEvent) -> void:
 			server.events.hook_count("client_spawn") < hooks_before
 		)
 
-	# A script that is not a DotModule must be refused rather than half-loaded.
-	DotPaths.write_text(
+	# A script that is not a GSModule must be refused rather than half-loaded.
+	GSPaths.write_text(
 		"user://example/bad_module.gd",
 		"extends Node\nfunc _ready() -> void: pass\n"
 	)
@@ -309,50 +309,50 @@ func _on_spawn(_e: DotEvent) -> void:
 	# which dot-ci fails a suite for, so the file on disk compiles (the host re-parses it to name
 	# the error; examples/module_load_error_check.sh covers a real parse error). The
 	# `can_instantiate()` guard stays armed.
-	DotPaths.write_text(
+	GSPaths.write_text(
 		"user://example/unlinked_module.gd",
-		"extends DotModule\n"
+		"extends GSModule\n"
 	)
 	var uncompiled := GDScript.new()
-	uncompiled.source_code = "extends DotNoSuchModuleBase\n"
+	uncompiled.source_code = "extends GSNoSuchModuleBase\n"
 	uncompiled.take_over_path("user://example/unlinked_module.gd")
 	var unlinked: Variant = await server.modules.load_module(
 		"user://example/unlinked_module.gd"
 	)
 	_check(
 		"uncompilable module refused with a result",
-		unlinked is DotResult and not (unlinked as DotResult).ok
+		unlinked is GSResult and not (unlinked as GSResult).ok
 	)
 	_check(
 		"uncompilable module's result names the script",
-		unlinked is DotResult and str((unlinked as DotResult).error).contains("unlinked_module.gd does not compile")
+		unlinked is GSResult and str((unlinked as GSResult).error).contains("unlinked_module.gd does not compile")
 	)
 	_done()
 
 # An export ships x.gd as x.gd.remap (plus x.gdc), so the .gd path is not a file but still loads.
 func _test_module_export_layout() -> void:
 	var dir := "user://example/modules_export"
-	DotPaths.write_text(
+	GSPaths.write_text(
 		"user://example/remap_target/remapped.gd",
-		"extends DotModule\nfunc _module_name() -> String: return \"remapped\"\n"
+		"extends GSModule\nfunc _module_name() -> String: return \"remapped\"\n"
 	)
-	DotPaths.write_text(
+	GSPaths.write_text(
 		dir + "/remapped.gd.remap",
 		"[remap]\n\npath=\"user://example/remap_target/remapped.gd\"\n"
 	)
-	DotPaths.write_text(dir + "/remapped.gdc", "")
+	GSPaths.write_text(dir + "/remapped.gdc", "")
 	var path := dir + "/remapped.gd"
 	_check("export layout: no .gd file on disk", not FileAccess.file_exists(path))
-	_check("export layout: script found", DotModuleHost.module_script_exists(path))
+	_check("export layout: script found", GSModuleHost.module_script_exists(path))
 	_check(
 		"export layout: listed names map to the .gd path",
-		DotModuleHost.module_script_of("a/x.gd.remap") == "a/x.gd"
-		and DotModuleHost.module_script_of("x.gdc") == "x.gd"
-		and DotModuleHost.module_script_of("x.gd") == "x.gd"
-		and DotModuleHost.module_script_of("x.gd.uid") == ""
+		GSModuleHost.module_script_of("a/x.gd.remap") == "a/x.gd"
+		and GSModuleHost.module_script_of("x.gdc") == "x.gd"
+		and GSModuleHost.module_script_of("x.gd") == "x.gd"
+		and GSModuleHost.module_script_of("x.gd.uid") == ""
 	)
 
-	var loaded: DotResult = await server.modules.load_module(path)
+	var loaded: GSResult = await server.modules.load_module(path)
 	_check("export layout: module loads by its .gd path", loaded.ok)
 	server.modules.unload_module("remapped")
 
@@ -386,7 +386,7 @@ func _test_audit() -> void:
 
 	var console := server.console
 	console.execute("admin_reload", _client_context(
-		PackedStringArray([DotAdminFlags.ROOT])
+		PackedStringArray([GSAdminFlags.ROOT])
 	))
 	_check("permissioned command audited", audit.recent(200).size() > before)
 
@@ -409,17 +409,17 @@ func _test_chat_commands() -> void:
 	# A session the manager will accept: SPAWNED, with a peer id no transport knows. The
 	# replies really are sent — this is the whole path, not a stubbed one — and the
 	# multiplayer layer drops them, which is what it does for a player who left mid-command.
-	var session := DotClientSession.new()
+	var session := GSClientSession.new()
 	session.userid = 9001
 	session.peer_id = 424242
 	session.display_name = "operator"
 	session.address = "203.0.113.9"
-	session.state = DotClientSession.State.SPAWNED
+	session.state = GSClientSession.State.SPAWNED
 	session.immunity = 50
-	session.permissions = PackedStringArray([DotAdminFlags.RCON])
+	session.permissions = PackedStringArray([GSAdminFlags.RCON])
 
 	var ran: Array[String] = []
-	var on_run := func(c: DotCmdContext) -> void: ran.append(c.command)
+	var on_run := func(c: GSCmdContext) -> void: ran.append(c.command)
 	console.command_executed.connect(on_run)
 
 	# `/` and `!`, both of dot-server's default prefixes, on a command that never marked
@@ -437,11 +437,11 @@ func _test_chat_commands() -> void:
 	var denied := chat.handle_message(session, "/rcon_status")
 	_check(
 		"the flag is what refuses, not the prefix",
-		not denied.ok and denied.code() == DotError.CODE_FORBIDDEN and ran.is_empty()
+		not denied.ok and denied.code() == GSError.CODE_FORBIDDEN and ran.is_empty()
 	)
 
 	# A command that refuses chat outright stays refused for somebody holding ROOT.
-	session.permissions = PackedStringArray([DotAdminFlags.ROOT])
+	session.permissions = PackedStringArray([GSAdminFlags.ROOT])
 	var quit_res := chat.handle_message(session, "/quit")
 	_check(
 		"and `no_chat()` refuses even root, because it is about the operation",
@@ -461,18 +461,18 @@ func _test_chat_commands() -> void:
 ## exact text and no packet may exceed the protocol's bound.
 func _test_rcon_long_responses(peer: StreamPeerTCP) -> void:
 	# A command whose output is long, but built from short lines.
-	server.console.register_command(DotConCommand.new(
+	server.console.register_command(GSConCommand.new(
 		"selftest_long",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			for i in 400:
 				ctx.reply("line %03d: %s" % [i, "x".repeat(20)]),
 		"Long output, for the response splitter."
 	))
 	# A command whose output is one very long line of multi-byte text. Characters
 	# are not bytes, and the packet limit is in bytes.
-	server.console.register_command(DotConCommand.new(
+	server.console.register_command(GSConCommand.new(
 		"selftest_wide",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			ctx.reply("é".repeat(2400)),
 		"One long multi-byte line, for the response splitter."
 	))

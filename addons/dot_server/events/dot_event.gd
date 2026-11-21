@@ -1,4 +1,4 @@
-class_name DotEvent
+class_name GSEvent
 extends RefCounted
 
 ## One fired event, carrying its data and whether a hook cancelled it.
@@ -81,9 +81,9 @@ func get_object(key: String) -> Object:
 
 
 ## The session this event is about, when it carries one.
-func get_session() -> DotClientSession:
+func get_session() -> GSClientSession:
 	var v: Variant = data.get("session")
-	return v as DotClientSession if v is DotClientSession else null
+	return v as GSClientSession if v is GSClientSession else null
 
 
 func set_value(key: String, value: Variant) -> void:
@@ -95,7 +95,7 @@ func has(key: String) -> bool:
 
 
 func _to_string() -> String:
-	var s := "DotEvent(%s" % name
+	var s := "GSEvent(%s" % name
 	if cancelled:
 		s += ", cancelled: %s" % cancel_reason
 	return s + ")"

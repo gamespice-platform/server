@@ -12,7 +12,7 @@ const PORT := 27717
 const CHECKS := 160
 
 
-var _link: DotClientLink = null
+var _link: GSClientLink = null
 var _client_side: Node = null
 
 # Captured through an Array: a lambda captures locals by value, so a plain flag stays false.
@@ -25,13 +25,13 @@ var _playing_before_refusals: int = 0
 ## A client in a subtree of its own, with its own MultiplayerAPI: one socket per link, as
 ## one process per client would have. [param configure] edits its envelope before it
 ## connects -- that is how it stands in for an older or a newer build.
-func _new_link(label: String, configure: Callable) -> DotClientLink:
+func _new_link(label: String, configure: Callable) -> GSClientLink:
 	var root := Node.new()
 	root.name = label
 	add_child(root)
 	get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), root.get_path())
 
-	var link := DotClientLink.new()
+	var link := GSClientLink.new()
 	link.name = "Server"
 	link.player_name = label
 	root.add_child(link)
@@ -47,15 +47,15 @@ func _new_link(label: String, configure: Callable) -> DotClientLink:
 	return link
 
 ## Connects and waits for either end of the join. "" when it spawned; the reason when not.
-func _join(link: DotClientLink) -> String:
+func _join(link: GSClientLink) -> String:
 	var outcome: Array = _outcomes[link.player_name]
 	_playing_before_refusals = _server.sessions().size()
-	var connecting: DotResult = await link.connect_to_server("127.0.0.1:%d" % PORT)
+	var connecting: GSResult = await link.connect_to_server("127.0.0.1:%d" % PORT)
 	if not connecting.ok:
 		return "could not connect: %s" % str(connecting.error)
 	var ended := await _until(func() -> bool: return outcome[0] or outcome[1] != "", 8.0)
 	if not ended:
-		return "timed out in %s" % DotClientLink.phase_name(link.phase)
+		return "timed out in %s" % GSClientLink.phase_name(link.phase)
 	if outcome[0]:
 		# The client's `spawned` is not the server's; wait for the server to agree.
 		await _until(func() -> bool: return _server.playing_sessions().size() > _playing_before_refusals - 1, 3.0)
@@ -73,7 +73,7 @@ func _first_peer() -> int:
 		return session.peer_id
 	return 0
 
-func _drop_link(link: DotClientLink) -> void:
+func _drop_link(link: GSClientLink) -> void:
 	if link == null:
 		return
 	link.disconnect_from_server()
@@ -106,7 +106,7 @@ func _teardown() -> void:
 	for label in _links:
 		var l: Variant = _links[label]
 		if is_instance_valid(l):
-			(l as DotClientLink).disconnect_from_server()
+			(l as GSClientLink).disconnect_from_server()
 	if _link != null:
 		_link.disconnect_from_server()
 	if _server != null:

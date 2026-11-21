@@ -1,5 +1,5 @@
 @tool
-class_name DotRconServer
+class_name GSRconServer
 extends Node
 
 ## Remote console speaking the classic RCON protocol (and WebSocket for browser panels).
@@ -29,7 +29,7 @@ signal authenticated(address: String)
 signal auth_failed(address: String, attempts: int)
 signal command_received(address: String, command: String)
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var _tcp: TCPServer = null
 var _ws: TCPServer = null
@@ -44,32 +44,32 @@ var _failures: Dictionary = {}
 ## RCON port a handful of times in a row; a line per attempt buries the console, and the
 ## count of the ones left out is on the next line instead.
 const REFUSAL_LOG_SEC := 300.0
-var _refusal_log := DotRateLimiter.new(1.0 / REFUSAL_LOG_SEC, 1.0)
+var _refusal_log := GSRateLimiter.new(1.0 / REFUSAL_LOG_SEC, 1.0)
 ## address -> refusals not logged since that address's last WARN
 var _refusals_quiet: Dictionary = {}
 
 ## address -> unix seconds when the lockout lifts
 var _lockouts: Dictionary = {}
 
-var _limiter: DotRateLimiter = null
+var _limiter: GSRateLimiter = null
 var _next_client_id: int = 1
 
 
 func setup(p_server: Node) -> void:
 	server = p_server
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	if server.config.rcon_password == "":
-		DotLog.info(CHANNEL, "RCON disabled (no password)")
+		GSLog.info(CHANNEL, "RCON disabled (no password)")
 		return
 
 	# Commands per address per minute. Generous for a human, and enough to stop a
 	# script from using RCON to make the server do work.
-	_limiter = DotRateLimiter.new(2.0, 20.0)
+	_limiter = GSRateLimiter.new(2.0, 20.0)
 
 	var started := _start()
 	if not started.ok:
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"could not start RCON",
 			{"detail": started.error.message}
@@ -81,13 +81,13 @@ func setup(p_server: Node) -> void:
 
 func _exit_tree() -> void:
 	_close_all()
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
-func _start() -> DotResult:
-	if not DotPlatform.can_listen():
-		return DotResult.fail(
-			DotError.CODE_UNSUPPORTED,
+func _start() -> GSResult:
+	if not GSPlatform.can_listen():
+		return GSResult.fail(
+			GSError.CODE_UNSUPPORTED,
 			"This platform cannot listen for connections."
 		)
 
@@ -96,11 +96,11 @@ func _start() -> DotResult:
 	_tcp = TCPServer.new()
 	var err: Error = _tcp.listen(port, server.config.bind_address)
 	if err != OK:
-		return DotResult.failure(
-			DotError.from_engine(err, "listening for RCON on port %d" % port)
+		return GSResult.failure(
+			GSError.from_engine(err, "listening for RCON on port %d" % port)
 		)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"RCON listening",
 		{
@@ -115,16 +115,16 @@ func _start() -> DotResult:
 		_ws = TCPServer.new()
 		var ws_err: Error = _ws.listen(ws_port, server.config.bind_address)
 		if ws_err != OK:
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"could not open the RCON WebSocket port",
 				{"port": ws_port, "detail": error_string(ws_err)}
 			)
 			_ws = null
 		else:
-			DotLog.info(CHANNEL, "RCON WebSocket listening", {"port": ws_port})
+			GSLog.info(CHANNEL, "RCON WebSocket listening", {"port": ws_port})
 
-	return DotResult.success(port)
+	return GSResult.success(port)
 
 
 func is_listening() -> bool:
@@ -155,7 +155,7 @@ func _log_refusal(address: String, what: String) -> void:
 		var fields := {"from": address}
 		if quiet > 0:
 			fields["also_refused"] = quiet
-		DotLog.warn(CHANNEL, what, fields)
+		GSLog.warn(CHANNEL, what, fields)
 	else:
 		_refusals_quiet[address] = int(_refusals_quiet.get(address, 0)) + 1
 
@@ -190,7 +190,7 @@ func _accept_from(listener: TCPServer, websocket: bool) -> void:
 			ws = WebSocketPeer.new()
 			var ws_err := ws.accept_stream(peer)
 			if ws_err != OK:
-				DotLog.warn(
+				GSLog.warn(
 					CHANNEL,
 					"WebSocket upgrade failed",
 					{"from": address, "detail": error_string(ws_err)}
@@ -210,7 +210,7 @@ func _accept_from(listener: TCPServer, websocket: bool) -> void:
 		})
 		_next_client_id += 1
 
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL,
 			"RCON client connected",
 			{"from": address, "websocket": websocket}
@@ -237,7 +237,7 @@ func _poll_client(client: Dictionary) -> bool:
 	# handshake that never completes, on a port meant to be reachable from a browser.
 	if not bool(client["authed"]) \
 		and Time.get_ticks_msec() - int(client["connected_at"]) > 30_000:
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL,
 			"dropping an RCON client that never authenticated",
 			{"from": client["address"]}
@@ -285,7 +285,7 @@ func _poll_client(client: Dictionary) -> bool:
 	if packet_limit > 0 and buffer.size() > packet_limit * 4:
 		# Well past any legitimate command. Either a broken client or an attempt to
 		# make the server buffer indefinitely.
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"dropping an RCON client that sent too much data",
 			{"from": client["address"], "bytes": buffer.size(),
@@ -309,7 +309,7 @@ func _consume_packets(
 
 		var packet_limit := packet_limit_bytes()
 		if size < 10 or (packet_limit > 0 and size > packet_limit):
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"malformed RCON packet size (sv_rcon_max_packet_bytes %d)" % packet_limit,
 				{"from": client["address"], "size": size}
@@ -356,7 +356,7 @@ func _handle_packet(
 		_execute(client, packet_id, body)
 		return
 
-	DotLog.debug(
+	GSLog.debug(
 		CHANNEL,
 		"ignoring an unknown RCON packet type",
 		{"from": address, "type": packet_type}
@@ -378,7 +378,7 @@ func _handle_auth(
 
 	# Constant time: comparing with == leaks how many leading characters matched,
 	# which turns guessing a password into guessing it one character at a time.
-	var ok := DotHash.constant_time_equal(
+	var ok := GSHash.constant_time_equal(
 		password.to_utf8_buffer(), expected.to_utf8_buffer()
 	)
 
@@ -386,7 +386,7 @@ func _handle_auth(
 		var attempts := int(_failures.get(address, 0)) + 1
 		_failures[address] = attempts
 
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"RCON authentication failed",
 			{"from": address, "attempts": attempts}
@@ -403,7 +403,7 @@ func _handle_auth(
 			_lockouts[address] = int(Time.get_unix_time_from_system()) + int(
 				server.config.rcon_lockout_sec
 			)
-			DotLog.warn(
+			GSLog.warn(
 				CHANNEL,
 				"RCON address locked out",
 				{
@@ -422,7 +422,7 @@ func _handle_auth(
 	client["authed"] = true
 	_failures.erase(address)
 
-	DotLog.info(CHANNEL, "RCON authenticated", {"from": address})
+	GSLog.info(CHANNEL, "RCON authenticated", {"from": address})
 	authenticated.emit(address)
 
 	if server.audit != null:
@@ -449,19 +449,19 @@ func _execute(
 		_send_response(client, packet_id, "")
 		return
 
-	DotLog.info(CHANNEL, "rcon command", {"from": address, "cmd": trimmed})
+	GSLog.info(CHANNEL, "rcon command", {"from": address, "cmd": trimmed})
 	command_received.emit(address, trimmed)
 
 	var lines := PackedStringArray()
 
-	var ctx := DotCmdContext.new()
-	ctx.source = DotCmdContext.Source.RCON
+	var ctx := GSCmdContext.new()
+	ctx.source = GSCmdContext.Source.RCON
 	ctx.address = address
 	# An authenticated RCON session holds the RCON flag and everything else the
 	# password implies. Whoever has the password can already do anything the
 	# console can, so pretending to a finer granularity here would be theatre.
-	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.root_immunity()
+	ctx.permissions = PackedStringArray([GSAdminFlags.ROOT])
+	ctx.immunity = GSAdminFlags.root_immunity()
 	ctx.reply_sink = func(line: String) -> void: lines.append(line)
 
 	server.console.execute(trimmed, ctx)
@@ -613,7 +613,7 @@ func _address_allowed(address: String) -> bool:
 
 ## Whether [param address] is covered by [param allow]. Static so a self-test can drive it.
 ## Wrongly admitting is a hole, wrongly refusing locks an operator out. An empty list allows
-## everything; [method DotServerConfig.warn_about_risky_settings] says so.
+## everything; [method GSServerConfig.warn_about_risky_settings] says so.
 static func address_matches(address: String, allow: PackedStringArray) -> bool:
 	if allow.is_empty():
 		return true
@@ -624,7 +624,7 @@ static func address_matches(address: String, allow: PackedStringArray) -> bool:
 		# Normalised on both sides. The exact comparison always was; the prefix
 		# comparison used the raw entry, so an entry carrying a scheme, a port or
 		# stray whitespace silently matched nothing at all.
-		var candidate := DotBanManager.normalise_address(entry)
+		var candidate := GSBanManager.normalise_address(entry)
 		if candidate == "":
 			continue
 
@@ -648,7 +648,7 @@ const V4_MAPPED_PREFIX := "::ffff:"
 
 ## Every spelling of [param address] an allow-list entry could reasonably use.
 static func _address_forms(address: String) -> PackedStringArray:
-	var host := DotBanManager.normalise_address(address)
+	var host := GSBanManager.normalise_address(address)
 	var forms := PackedStringArray([host])
 
 	if host.to_lower().begins_with(V4_MAPPED_PREFIX):
@@ -662,7 +662,7 @@ static func _address_forms(address: String) -> PackedStringArray:
 
 
 func _is_locked_out(address: String) -> bool:
-	var host := DotBanManager.normalise_address(address)
+	var host := GSBanManager.normalise_address(address)
 	if not _lockouts.has(host):
 		return false
 
@@ -676,7 +676,7 @@ func _is_locked_out(address: String) -> bool:
 
 ## Clears a lockout, for an operator who locked themselves out.
 func clear_lockout(address: String) -> void:
-	var host := DotBanManager.normalise_address(address)
+	var host := GSBanManager.normalise_address(address)
 	_lockouts.erase(host)
 	_failures.erase(host)
 

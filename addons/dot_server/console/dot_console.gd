@@ -1,20 +1,20 @@
 @tool
-class_name DotConsole
+class_name GSConsole
 extends "res://addons/dot_server/console/dot_console_cfg.gd"
 
 ## The command and variable registry, and the one place every command is executed.
-## Every path in (terminal, RCON, chat, config files, modules) arrives with a [DotCmdContext], so one permission check covers all.
-## A child of [DotServer], registered as [code]dot_console[/code] in [DotRegistry].
+## Every path in (terminal, RCON, chat, config files, modules) arrives with a [GSCmdContext], so one permission check covers all.
+## A child of [GSServer], registered as [code]dot_console[/code] in [GSRegistry].
 
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 ## Completions for what is in the input box, as whole command lines, because GameSpice Console's panel
@@ -33,15 +33,15 @@ func complete(partial: String, limit: int = 24) -> PackedStringArray:
 	var out := PackedStringArray()
 
 	for name in command_names():
-		var cmd: DotConCommand = _commands[name]
+		var cmd: GSConCommand = _commands[name]
 		if cmd.hidden:
 			continue
 		if name.begins_with(prefix):
 			out.append(name)
 
 	for name in cvar_names():
-		var c: DotConVar = _cvars[name]
-		if c.has_flag(DotConVar.FLAG_HIDDEN):
+		var c: GSConVar = _cvars[name]
+		if c.has_flag(GSConVar.FLAG_HIDDEN):
 			continue
 		if name.begins_with(prefix):
 			out.append(name)

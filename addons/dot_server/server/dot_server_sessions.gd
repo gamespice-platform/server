@@ -1,15 +1,15 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_signon.gd"
 
-## Peer connect and disconnect, session adoption and target lookup of [DotServer].
+## Peer connect and disconnect, session adoption and target lookup of [GSServer].
 
 func _on_peer_connected(peer_id: int) -> void:
 	var address := _address_of(peer_id)
 
 	# Rate-limited before a session object exists, so a connect flood costs the
 	# server a dictionary lookup rather than allocations and an auth timeout each.
-	if not _connect_limiter.allow(DotBanManager.normalise_address(address)):
-		DotLog.warn(
+	if not _connect_limiter.allow(GSBanManager.normalise_address(address)):
+		GSLog.warn(
 			CHANNEL, "connection refused: too many attempts", {"from": address}
 		)
 		_disconnect_peer(peer_id)
@@ -17,7 +17,7 @@ func _on_peer_connected(peer_id: int) -> void:
 
 	var admitted := check_address_admission(address)
 	if not admitted.ok:
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"connection refused",
 			{"from": address, "why": admitted.error.detail}
@@ -25,16 +25,16 @@ func _on_peer_connected(peer_id: int) -> void:
 		_reject_peer(peer_id, admitted.error.message)
 		return
 
-	var session := DotClientSession.new(_next_userid, peer_id)
+	var session := GSClientSession.new(_next_userid, peer_id)
 	_next_userid += 1
 	session.address = address
 
 	_sessions[peer_id] = session
 	_by_userid[session.userid] = peer_id
 
-	session.transition_to(DotClientSession.State.AUTHENTICATING)
+	session.transition_to(GSClientSession.State.AUTHENTICATING)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"client connecting",
 		{"userid": session.userid, "from": address}
@@ -52,21 +52,21 @@ func _on_peer_connected(peer_id: int) -> void:
 
 	# Ask the client to identify itself. Everything from here is driven by the
 	# client's reply or by the auth timeout.
-	send_kind(peer_id, DotEnvelope.CHALLENGE, _handshake_challenge(session))
+	send_kind(peer_id, GSEnvelope.CHALLENGE, _handshake_challenge(session))
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	envelope.forget(peer_id)
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
-	session.transition_to(DotClientSession.State.DISCONNECTED)
+	session.transition_to(GSClientSession.State.DISCONNECTED)
 
 	_sessions.erase(peer_id)
 	_by_userid.erase(session.userid)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"client disconnected",
 		{
@@ -130,7 +130,7 @@ func _address_of(peer_id: int) -> String:
 		return ""
 
 	# WebSocket and ENet expose the remote address through different methods, and
-	# neither is on the MultiplayerPeer base class. DotDualPeer answers for both.
+	# neither is on the MultiplayerPeer base class. GSDualPeer answers for both.
 	if _peer.has_method("get_peer_address"):
 		var address: Variant = _peer.call("get_peer_address", peer_id)
 		if address != null and str(address) != "":
@@ -149,13 +149,13 @@ func _address_of(peer_id: int) -> String:
 ## Adds a session this server did not create from a socket (a bot, a local player, a test).
 ## Everything that counts players counts sessions, so a participant without one is invisible.
 ## Refuses a peer id already in use.
-func adopt_session(session: DotClientSession) -> DotResult:
+func adopt_session(session: GSClientSession) -> GSResult:
 	if session == null:
-		return DotResult.fail(DotError.CODE_INVALID, "No session.")
+		return GSResult.fail(GSError.CODE_INVALID, "No session.")
 
 	if _sessions.has(session.peer_id):
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"That peer id already has a session.",
 			"peer %d" % session.peer_id
 		)
@@ -171,31 +171,31 @@ func adopt_session(session: DotClientSession) -> DotResult:
 
 	client_state_changed.emit(session)
 
-	return DotResult.success(session)
+	return GSResult.success(session)
 
 
 ## Removes a session without touching the transport. The counterpart to
 ## [method adopt_session]; use [method kick] for a real client.
-func release_session(peer_id: int) -> DotResult:
-	var session: DotClientSession = _sessions.get(peer_id)
+func release_session(peer_id: int) -> GSResult:
+	var session: GSClientSession = _sessions.get(peer_id)
 
 	if session == null:
-		return DotResult.fail(DotError.CODE_INVALID, "No session on that peer id.")
+		return GSResult.fail(GSError.CODE_INVALID, "No session on that peer id.")
 
 	_sessions.erase(peer_id)
 	_by_userid.erase(session.userid)
 
-	return DotResult.success(session)
+	return GSResult.success(session)
 
 
 ## Runs a console command as the person a uid names, and returns the reply lines.
 ## For a relay with no game connection. Permissions are the uid's own from the admin file, not ROOT's;
-## [param source] defaults to [code]CHAT[/code], so [method DotConCommand.no_chat] commands stay withheld.
+## [param source] defaults to [code]CHAT[/code], so [method GSConCommand.no_chat] commands stay withheld.
 func run_command_as_uid(
 	uid: String,
 	command: String,
 	args: PackedStringArray,
-	source: DotCmdContext.Source = DotCmdContext.Source.CHAT
+	source: GSCmdContext.Source = GSCmdContext.Source.CHAT
 ) -> PackedStringArray:
 	var lines := PackedStringArray()
 
@@ -204,7 +204,7 @@ func run_command_as_uid(
 
 	var held: Dictionary = admins.uid_permissions(uid)
 
-	var ctx := DotCmdContext.new()
+	var ctx := GSCmdContext.new()
 	ctx.source = source
 	ctx.command_name = command
 	ctx.arguments = args
@@ -231,8 +231,8 @@ func run_command_as_uid(
 ## Finds sessions by userid, name, username, account id or address; every match, so a command can refuse an ambiguous one.
 ## Precedence: `#12`/`12` userid, `@me`, `ip:ADDR` (several on purpose), exact name, exact username, `backbone:<id>`, then substring.
 ## Exact forms win, or a name that is another's prefix is unbannable.
-func find_sessions(target: String, caller: DotClientSession = null) -> Array[DotClientSession]:
-	var out: Array[DotClientSession] = []
+func find_sessions(target: String, caller: GSClientSession = null) -> Array[GSClientSession]:
+	var out: Array[GSClientSession] = []
 	var query := target.strip_edges()
 
 	if query == "":
@@ -292,22 +292,22 @@ func find_sessions(target: String, caller: DotClientSession = null) -> Array[Dot
 ##
 ## Fails with a showable message when nobody matched, several matched, or the target outranks the caller.
 func resolve_target(
-	ctx: DotCmdContext,
+	ctx: GSCmdContext,
 	target: String
-) -> DotResult:
+) -> GSResult:
 	var matches := find_sessions(target, ctx.session)
 
 	if matches.is_empty():
-		return DotResult.fail(
-			DotError.CODE_INVALID, "No player matching '%s'." % target
+		return GSResult.fail(
+			GSError.CODE_INVALID, "No player matching '%s'." % target
 		)
 
 	if matches.size() > 1:
 		var names := PackedStringArray()
 		for session in matches:
 			names.append("#%d %s" % [session.userid, session.display_name])
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"'%s' matches several players." % target,
 			", ".join(Array(names))
 		)
@@ -315,10 +315,10 @@ func resolve_target(
 	var session := matches[0]
 
 	if not ctx.outranks(session.immunity):
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN,
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN,
 			"%s has equal or higher immunity than you." % session.display_name,
 			"their immunity %d, yours %d" % [session.immunity, ctx.immunity]
 		)
 
-	return DotResult.success(session)
+	return GSResult.success(session)

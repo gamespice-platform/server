@@ -1,13 +1,13 @@
 @tool
 extends "res://addons/dot_server/console/dot_console_registry.gd"
 
-## Execution half of [DotConsole]: statements, the command buffer, aliases, tokenizing.
+## Execution half of [GSConsole]: statements, the command buffer, aliases, tokenizing.
 
 
 ## Parses and runs a command line immediately.
 ## Semicolons separate commands; quotes group arguments containing spaces.
-func execute(line: String, ctx_template: DotCmdContext = null) -> DotResult:
-	var last := DotResult.success(null)
+func execute(line: String, ctx_template: GSCmdContext = null) -> GSResult:
+	var last := GSResult.success(null)
 
 	for part in split_statements(line):
 		last = _execute_one(part, ctx_template)
@@ -22,14 +22,14 @@ func enqueue(line: String) -> void:
 		_buffer.append(part)
 
 
-func _execute_one(statement: String, ctx_template: DotCmdContext) -> DotResult:
+func _execute_one(statement: String, ctx_template: GSCmdContext) -> GSResult:
 	var trimmed := statement.strip_edges()
 	if trimmed == "" or trimmed.begins_with("//") or trimmed.begins_with("#"):
-		return DotResult.success(null)
+		return GSResult.success(null)
 
 	var tokens := tokenize(trimmed)
 	if tokens.is_empty():
-		return DotResult.success(null)
+		return GSResult.success(null)
 
 	var name := tokens[0].to_lower()
 	var args := PackedStringArray(Array(tokens).slice(1))
@@ -61,23 +61,23 @@ func _execute_one(statement: String, ctx_template: DotCmdContext) -> DotResult:
 		ctx.reply("Did you mean: %s" % ", ".join(Array(near)))
 
 	command_refused.emit(ctx, "unknown command")
-	return DotResult.fail(
-		DotError.CODE_INVALID, "Unknown command '%s'." % tokens[0]
+	return GSResult.fail(
+		GSError.CODE_INVALID, "Unknown command '%s'." % tokens[0]
 	)
 
 
 func _build_context(
 	name: String,
 	args: PackedStringArray,
-	template: DotCmdContext
-) -> DotCmdContext:
+	template: GSCmdContext
+) -> GSCmdContext:
 	if template == null:
-		return DotCmdContext.console(name, args)
+		return GSCmdContext.console(name, args)
 
 	# Copy rather than mutate: the caller's template is reused across statements in
 	# one line, and overwriting its args would make `a; b` run `b` twice with a's
 	# arguments.
-	var ctx := DotCmdContext.new()
+	var ctx := GSCmdContext.new()
 	ctx.source = template.source
 	ctx.command = name
 	ctx.args = args
@@ -90,21 +90,21 @@ func _build_context(
 	return ctx
 
 
-## Every command a caller arriving on [param source] could reach, as plain documents, for [code]DotChatRelay.commands_fn[/code].
-## The source gate is the one [method _run_command] applies (RCON reaches all, CHAT what chat takes, per [member chat_commands_open] and [method DotConCommand.no_chat]),
+## Every command a caller arriving on [param source] could reach, as plain documents, for [code]GSChatRelay.commands_fn[/code].
+## The source gate is the one [method _run_command] applies (RCON reaches all, CHAT what chat takes, per [member chat_commands_open] and [method GSConCommand.no_chat]),
 ## so a menu built from a flag alone would hide or wrongly offer commands. It answers no permission question: the admin manager decides per line. Hidden commands are left out.
 func command_document(
-	source: DotCmdContext.Source = DotCmdContext.Source.CHAT
+	source: GSCmdContext.Source = GSCmdContext.Source.CHAT
 ) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 
 	for name in command_names():
-		var cmd: DotConCommand = _commands.get(name)
+		var cmd: GSConCommand = _commands.get(name)
 		if cmd == null or cmd.hidden:
 			continue
-		if source == DotCmdContext.Source.RCON and not cmd.rcon_allowed:
+		if source == GSCmdContext.Source.RCON and not cmd.rcon_allowed:
 			continue
-		if source == DotCmdContext.Source.CHAT and not cmd.allows_chat(
+		if source == GSCmdContext.Source.CHAT and not cmd.allows_chat(
 			chat_commands_are_open()
 		):
 			continue
@@ -123,33 +123,33 @@ func command_document(
 	return out
 
 
-func _run_command(cmd: DotConCommand, ctx: DotCmdContext) -> DotResult:
-	if ctx.source == DotCmdContext.Source.RCON and not cmd.rcon_allowed:
+func _run_command(cmd: GSConCommand, ctx: GSCmdContext) -> GSResult:
+	if ctx.source == GSCmdContext.Source.RCON and not cmd.rcon_allowed:
 		ctx.reply("'%s' cannot be run remotely." % cmd.name)
 		command_refused.emit(ctx, "not allowed over rcon")
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN, "Not allowed over RCON."
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN, "Not allowed over RCON."
 		)
 
-	if ctx.source == DotCmdContext.Source.CHAT and not cmd.allows_chat(
+	if ctx.source == GSCmdContext.Source.CHAT and not cmd.allows_chat(
 		chat_commands_are_open()
 	):
 		# Two refusals, because they are two conversations: "not this command, ever" and "not this server, by a setting";
 		# the second tells the operator there is a cvar to look for.
 		var why := (
 			"'%s' cannot be run from chat." % cmd.name
-			if cmd.chat_policy == DotConCommand.ChatPolicy.REFUSED
+			if cmd.chat_policy == GSConCommand.ChatPolicy.REFUSED
 			else "This server does not take commands from chat."
 		)
 		ctx.reply(why)
 		command_refused.emit(ctx, "not allowed from chat")
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN, "Not allowed from chat."
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN, "Not allowed from chat."
 		)
 
 	if not ctx.has_permission(cmd.permission):
 		ctx.reply("You do not have permission to use '%s'." % cmd.name)
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"command refused",
 			{
@@ -159,8 +159,8 @@ func _run_command(cmd: DotConCommand, ctx: DotCmdContext) -> DotResult:
 			}
 		)
 		command_refused.emit(ctx, "missing permission " + cmd.permission)
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN,
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN,
 			"Missing permission '%s'." % cmd.permission
 		)
 
@@ -170,8 +170,8 @@ func _run_command(cmd: DotConCommand, ctx: DotCmdContext) -> DotResult:
 		ctx.reply("Usage: %s" % cmd.usage_line())
 		return arg_check
 
-	if log_commands and ctx.source != DotCmdContext.Source.CONFIG:
-		DotLog.info(
+	if log_commands and ctx.source != GSCmdContext.Source.CONFIG:
+		GSLog.info(
 			CHANNEL,
 			"command",
 			{
@@ -185,14 +185,14 @@ func _run_command(cmd: DotConCommand, ctx: DotCmdContext) -> DotResult:
 	cmd.handler.call(ctx)
 	command_executed.emit(ctx)
 
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
 ## Reads or writes a cvar typed bare at the console.
-func _run_cvar(c: DotConVar, ctx: DotCmdContext) -> DotResult:
+func _run_cvar(c: GSConVar, ctx: GSCmdContext) -> GSResult:
 	if ctx.argc() == 0:
 		ctx.reply_lines(c.describe_help())
-		return DotResult.success(c.get_string())
+		return GSResult.success(c.get_string())
 
 	# Everything after the name, so `hostname My Cool Server` works without quotes.
 	var value := ctx.rest(0)
@@ -205,7 +205,7 @@ func _run_cvar(c: DotConVar, ctx: DotCmdContext) -> DotResult:
 		return res
 
 	if log_commands:
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"cvar set",
 			{

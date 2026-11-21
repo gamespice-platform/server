@@ -6,23 +6,23 @@ func _test_scoreboard_own_row() -> void:
 	print("")
 	_section("[scoreboard keeps the recipient's own row]")
 
-	var made: Array[DotClientSession] = []
-	for i in DotServer.SCOREBOARD_MAX_ROWS + 6:
+	var made: Array[GSClientSession] = []
+	for i in GSServer.SCOREBOARD_MAX_ROWS + 6:
 		var s := _adopt(5000 + i, "198.51.100.1:%d" % i, "P%d" % i)
-		s.state = DotClientSession.State.SPAWNED
+		s.state = GSClientSession.State.SPAWNED
 		made.append(s)
-	var last: DotClientSession = made[-1]
+	var last: GSClientSession = made[-1]
 	var snap: Dictionary = server.scoreboard_snapshot(last)
 	var ids: Array = snap.players.map(func(r: Dictionary) -> int: return int(r.id))
-	_check("past the row cap the board stays within it (the byte budget trims further)", snap.players.size() <= DotServer.SCOREBOARD_MAX_ROWS)
+	_check("past the row cap the board stays within it (the byte budget trims further)", snap.players.size() <= GSServer.SCOREBOARD_MAX_ROWS)
 	_check("the recipient last in session order still has their row", ids.has(last.userid))
 	server.console.set_cvar("sv_scoreboard_max_rows", "0")
 	server.console.set_cvar("sv_scoreboard_max_bytes", "0")
 	_check("sv_scoreboard_max_rows 0 and max_bytes 0 send every row", (server.scoreboard_snapshot(last).players as Array).size() == made.size())
 	server.console.set_cvar("sv_scoreboard_max_rows", "10")
 	_check("sv_scoreboard_max_rows 10 sends ten, the recipient's among them", (server.scoreboard_snapshot(last).players as Array).size() == 10)
-	server.console.set_cvar("sv_scoreboard_max_rows", str(DotServer.SCOREBOARD_MAX_ROWS))
-	server.console.set_cvar("sv_scoreboard_max_bytes", str(DotServer.SCOREBOARD_MAX_BYTES))
+	server.console.set_cvar("sv_scoreboard_max_rows", str(GSServer.SCOREBOARD_MAX_ROWS))
+	server.console.set_cvar("sv_scoreboard_max_bytes", str(GSServer.SCOREBOARD_MAX_BYTES))
 
 	for s in made:
 		server.release_session(s.peer_id)
@@ -31,12 +31,12 @@ func _test_scoreboard_own_row() -> void:
 	# scoreboard_fields may overwrite "id"; the own row must still be matched by position.
 	for i in 40:
 		var s := _adopt(6000 + i, "198.51.100.2:%d" % i, "Q%d" % i)
-		s.state = DotClientSession.State.SPAWNED
+		s.state = GSClientSession.State.SPAWNED
 		s.score = 1000 + i
 		made.append(s)
-	var me: DotClientSession = made[0]
+	var me: GSClientSession = made[0]
 	me.score = -5
-	server.scoreboard_fields = func(s: DotClientSession) -> Dictionary:
+	server.scoreboard_fields = func(s: GSClientSession) -> Dictionary:
 		return {"id": 0, "pad": "x".repeat(900)}
 	snap = server.scoreboard_snapshot(me)
 	var kept: Array = snap.players.filter(func(r: Dictionary) -> bool: return int(r.get("score", 0)) == -5)
@@ -44,7 +44,7 @@ func _test_scoreboard_own_row() -> void:
 	_check("the lowest-scored recipient survives although every id was overwritten", kept.size() == 1)
 
 	# An own row too big for the whole budget is cut to id, name and score, not dropped.
-	server.scoreboard_fields = func(s: DotClientSession) -> Dictionary:
+	server.scoreboard_fields = func(s: GSClientSession) -> Dictionary:
 		return {"blob": "y".repeat(20000)} if s == me else {}
 	snap = server.scoreboard_snapshot(me)
 	kept = snap.players.filter(func(r: Dictionary) -> bool: return int(r.get("score", 0)) == -5)
@@ -61,15 +61,15 @@ func _test_scoreboard_pages() -> void:
 	print("")
 	_section("[scoreboard pages: 128 players, none over the datagram]")
 
-	var made: Array[DotClientSession] = []
+	var made: Array[GSClientSession] = []
 	for i in 128:
 		var s := _adopt(7000 + i, "198.51.100.3:%d" % i, "Pager%d" % i)
-		s.state = DotClientSession.State.SPAWNED
+		s.state = GSClientSession.State.SPAWNED
 		s.score = i
 		made.append(s)
-	server.scoreboard_fields = func(s: DotClientSession) -> Dictionary:
+	server.scoreboard_fields = func(s: GSClientSession) -> Dictionary:
 		return {"team": 2, "kills": s.score, "note": "n".repeat(60)}
-	var me: DotClientSession = made[0]
+	var me: GSClientSession = made[0]
 	var pages := server.scoreboard_pages(me, 5)
 	var worst := 0
 	var rows := 0
@@ -81,7 +81,7 @@ func _test_scoreboard_pages() -> void:
 	_check("no row is lost across the pages (%d)" % rows, rows == 128)
 	_check("pages carry the wire version and count", int(pages[0]["v"]) == 2 and int(pages[-1]["pages"]) == pages.size())
 
-	var link := DotClientLink.new()
+	var link := GSClientLink.new()
 	var got: Array[Dictionary] = []
 	link.scoreboard_received.connect(func(b: Dictionary) -> void: got.append(b))
 	var order: Array = range(pages.size())
@@ -109,7 +109,7 @@ func _test_scoreboard_pages() -> void:
 	_done()
 
 
-func _scoreboard_pages_budget(me: DotClientSession, made: Array[DotClientSession]) -> void:
+func _scoreboard_pages_budget(me: GSClientSession, made: Array[GSClientSession]) -> void:
 	# Long names, fat rows and a fat header: every page, serialized, stays inside the datagram budget.
 	for s in made:
 		s.display_name = "LongName%d_" % s.userid + "x".repeat(40)
@@ -122,7 +122,7 @@ func _scoreboard_pages_budget(me: DotClientSession, made: Array[DotClientSession
 		rows += (p["players"] as Array).size()
 	_check("long names and a 900 B header: no serialized page over the MTU budget (worst %d)" % worst, worst + 64 <= 1392)
 	_check("no row is lost across them (%d)" % rows, rows == 128)
-	var link := DotClientLink.new()
+	var link := GSClientLink.new()
 	var got: Array[Dictionary] = []
 	link.scoreboard_received.connect(func(b: Dictionary) -> void: got.append(b))
 	for i in pages.size():
@@ -133,7 +133,7 @@ func _scoreboard_pages_budget(me: DotClientSession, made: Array[DotClientSession
 	server.scoreboard_extra = Callable()
 
 
-func _scoreboard_pages_reorder(me: DotClientSession, made: Array[DotClientSession], link: DotClientLink, pages: Array, got: Array[Dictionary]) -> void:
+func _scoreboard_pages_reorder(me: GSClientSession, made: Array[GSClientSession], link: GSClientLink, pages: Array, got: Array[Dictionary]) -> void:
 	# Rows that differ between seqs, delivered last page first, must never mix.
 	for s in made:
 		s.score = 5000 + s.score
@@ -199,7 +199,7 @@ func _test_input_caps() -> void:
 	_check("default keeps the old ceiling (60000 ms)", server.console.get_int("sv_max_ping_report", -1) == 60000)
 
 	var p := _adopt(9100, "198.51.100.9:1", "Pinger")
-	p.state = DotClientSession.State.SPAWNED
+	p.state = GSClientSession.State.SPAWNED
 	server._on_ping(9100, {"ms": 5000})
 	_check("a report inside the limit is kept", p.ping_ms == 5000)
 	server._on_ping(9100, {"ms": 70000})
@@ -225,43 +225,43 @@ func _test_hard_caps() -> void:
 	var c := server.console
 
 	# Defaults keep the old values.
-	_check("default sv_envelope_max_kinds 512", c.get_int("sv_envelope_max_kinds", -1) == 512 and DotEnvelope.max_kinds == 512)
-	_check("default sv_envelope_max_kind_bytes 64", c.get_int("sv_envelope_max_kind_bytes", -1) == 64 and DotEnvelope.max_kind_bytes == 64)
+	_check("default sv_envelope_max_kinds 512", c.get_int("sv_envelope_max_kinds", -1) == 512 and GSEnvelope.max_kinds == 512)
+	_check("default sv_envelope_max_kind_bytes 64", c.get_int("sv_envelope_max_kind_bytes", -1) == 64 and GSEnvelope.max_kind_bytes == 64)
 	_check("default rcon packet 4096, response 3500", c.get_int("sv_rcon_max_packet_bytes", -1) == 4096 and c.get_int("sv_rcon_max_response_bytes", -1) == 3500)
-	_check("default notice text 160, id 64, data 8192", DotNotice.max_text == 160 and DotNotice.max_id == 64 and DotNotice.max_data_bytes == 8192)
-	_check("default sv_max_immunity 100", c.get_int("sv_max_immunity", -1) == 100 and DotAdminFlags.max_immunity == 100)
+	_check("default notice text 160, id 64, data 8192", GSNotice.max_text == 160 and GSNotice.max_id == 64 and GSNotice.max_data_bytes == 8192)
+	_check("default sv_max_immunity 100", c.get_int("sv_max_immunity", -1) == 100 and GSAdminFlags.max_immunity == 100)
 
 	_check_envelope_caps(c)
 	_check_rcon_caps(c)
 
 	# Notice.
-	_check("text of exactly the limit is kept", DotNotice.make(&"", "y".repeat(160)).text.length() == 160)
-	_check("text over the limit is cut", DotNotice.make(&"", "y".repeat(161)).text.length() == 160)
+	_check("text of exactly the limit is kept", GSNotice.make(&"", "y".repeat(160)).text.length() == 160)
+	_check("text over the limit is cut", GSNotice.make(&"", "y".repeat(161)).text.length() == 160)
 	c.execute("sv_notice_max_text 0")
-	_check("0 lifts the notice text limit", DotNotice.make(&"", "y".repeat(500)).text.length() == 500)
+	_check("0 lifts the notice text limit", GSNotice.make(&"", "y".repeat(500)).text.length() == 500)
 	c.execute("sv_notice_max_text -1")
-	_check("a negative notice limit is refused", DotNotice.max_text == 0)
+	_check("a negative notice limit is refused", GSNotice.max_text == 0)
 	c.execute("sv_notice_max_id 4")
-	_check("a shorter cue limit cuts the cue", String(DotNotice.make(&"abcdefgh", "t").cue) == "abcd")
+	_check("a shorter cue limit cuts the cue", String(GSNotice.make(&"abcdefgh", "t").cue) == "abcd")
 	c.execute("sv_notice_max_id 0")
-	_check("0 lifts the cue limit", String(DotNotice.make(&"abcdefgh", "t").cue) == "abcdefgh")
-	var big := {"big": "x".repeat(DotNotice.MAX_DATA_BYTES)}
-	_check("data over the limit is dropped", DotNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
+	_check("0 lifts the cue limit", String(GSNotice.make(&"abcdefgh", "t").cue) == "abcdefgh")
+	var big := {"big": "x".repeat(GSNotice.MAX_DATA_BYTES)}
+	_check("data over the limit is dropped", GSNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
 	c.execute("sv_notice_max_data_bytes 0")
-	_check("0 lifts the data limit", not DotNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
-	_check("set_limits refuses a negative", not DotNotice.set_limits(1, 1, -1) and DotNotice.max_data_bytes == 0)
+	_check("0 lifts the data limit", not GSNotice.make(&"", "", -1.0, &"x", big).data.is_empty())
+	_check("set_limits refuses a negative", not GSNotice.set_limits(1, 1, -1) and GSNotice.max_data_bytes == 0)
 	c.execute("sv_notice_max_text 160")
 	c.execute("sv_notice_max_id 64")
 	c.execute("sv_notice_max_data_bytes 8192")
 
 	# Immunity.
 	var admins := server.admins
-	_check("immunity 100 is inside the limit", admins.set_admin("caps:a", DotAdminFlags.parse("kick"), 100).ok)
-	_check("immunity 101 is refused, not clamped", not admins.set_admin("caps:b", DotAdminFlags.parse("kick"), 101).ok)
-	_check("a negative immunity is refused", not admins.set_group("caps_g", DotAdminFlags.parse("kick"), -1).ok)
+	_check("immunity 100 is inside the limit", admins.set_admin("caps:a", GSAdminFlags.parse("kick"), 100).ok)
+	_check("immunity 101 is refused, not clamped", not admins.set_admin("caps:b", GSAdminFlags.parse("kick"), 101).ok)
+	_check("a negative immunity is refused", not admins.set_group("caps_g", GSAdminFlags.parse("kick"), -1).ok)
 	c.execute("sv_max_immunity 0")
-	_check("0 lifts the immunity limit", admins.set_admin("caps:c", DotAdminFlags.parse("kick"), 5000).ok)
-	_check("root then outranks any immunity", DotAdminFlags.root_immunity() > 5000)
+	_check("0 lifts the immunity limit", admins.set_admin("caps:c", GSAdminFlags.parse("kick"), 5000).ok)
+	_check("root then outranks any immunity", GSAdminFlags.root_immunity() > 5000)
 	c.execute("sv_max_immunity -1")
 	_check("a negative immunity limit is refused", c.get_int("sv_max_immunity", -1) == 0)
 	c.execute("sv_max_immunity 100")
@@ -270,40 +270,40 @@ func _test_hard_caps() -> void:
 	_done()
 
 
-func _check_envelope_caps(c: DotConsole) -> void:
+func _check_envelope_caps(c: GSConsole) -> void:
 	# Envelope.
 	var names := []
 	for i in 512:
 		names.append("k%d" % i)
-	var env := DotEnvelope.new()
+	var env := GSEnvelope.new()
 	_check("512 kinds is inside the limit", env.adopt(9200, {"kinds": names, "required": []}, true).ok)
 	names.append("one_more")
 	_check("513 kinds is refused", not env.adopt(9201, {"kinds": names, "required": []}, true).ok)
 	c.execute("sv_envelope_max_kinds 0")
 	_check("0 lifts the kind count limit", env.adopt(9202, {"kinds": names, "required": []}, true).ok)
 	c.execute("sv_envelope_max_kinds 600")
-	_check("a raised kind limit takes effect", DotEnvelope.max_kinds == 600)
+	_check("a raised kind limit takes effect", GSEnvelope.max_kinds == 600)
 	c.execute("sv_envelope_max_kinds -1")
-	_check("a negative kind limit is refused, the old one stays", c.get_int("sv_envelope_max_kinds", -1) == 600 and DotEnvelope.max_kinds == 600)
-	_check("set_limits refuses a negative", not DotEnvelope.set_limits(-1, 64) and DotEnvelope.max_kinds == 600)
+	_check("a negative kind limit is refused, the old one stays", c.get_int("sv_envelope_max_kinds", -1) == 600 and GSEnvelope.max_kinds == 600)
+	_check("set_limits refuses a negative", not GSEnvelope.set_limits(-1, 64) and GSEnvelope.max_kinds == 600)
 	var long_kind := "x".repeat(65)
-	_check("a 64-byte kind name is kept", DotEnvelope._names(["x".repeat(64)]).size() == 1)
-	_check("a 65-byte kind name is skipped", DotEnvelope._names([long_kind]).is_empty())
+	_check("a 64-byte kind name is kept", GSEnvelope._names(["x".repeat(64)]).size() == 1)
+	_check("a 65-byte kind name is skipped", GSEnvelope._names([long_kind]).is_empty())
 	c.execute("sv_envelope_max_kind_bytes 0")
-	_check("0 lifts the kind name limit", DotEnvelope._names([long_kind]).size() == 1)
+	_check("0 lifts the kind name limit", GSEnvelope._names([long_kind]).size() == 1)
 	c.execute("sv_envelope_max_kinds 512")
 	c.execute("sv_envelope_max_kind_bytes 64")
 
 
-func _check_rcon_caps(c: DotConsole) -> void:
+func _check_rcon_caps(c: GSConsole) -> void:
 	# RCON.
-	var rcon := DotRconServer.new()
+	var rcon := GSRconServer.new()
 	rcon.server = server
 	_check("rcon limits read the cvars", rcon.packet_limit_bytes() == 4096 and rcon.response_limit_bytes() == 3500)
 	c.execute("sv_rcon_max_response_bytes 10")
 	_check("a lowered response limit is read", rcon.response_limit_bytes() == 10)
-	_check("a long line is cut at the limit", DotRconServer._split_to_byte_limit("x".repeat(25), 10).size() == 3)
-	_check("0 response limit never cuts", DotRconServer._split_to_byte_limit("x".repeat(9000), 0).size() == 1)
+	_check("a long line is cut at the limit", GSRconServer._split_to_byte_limit("x".repeat(25), 10).size() == 3)
+	_check("0 response limit never cuts", GSRconServer._split_to_byte_limit("x".repeat(9000), 0).size() == 1)
 	c.execute("sv_rcon_max_packet_bytes 0")
 	_check("0 lifts the packet limit", rcon.packet_limit_bytes() == 0)
 	c.execute("sv_rcon_max_packet_bytes -5")
@@ -352,8 +352,8 @@ func _test_targeting() -> void:
 	_check("nothing matches nothing", server.find_sessions("nobody-here").is_empty())
 
 	# Immunity is checked on the way through resolve_target, from chat as well as here.
-	var ctx := DotCmdContext.new()
-	ctx.permissions = PackedStringArray([DotAdminFlags.KICK])
+	var ctx := GSCmdContext.new()
+	ctx.permissions = PackedStringArray([GSAdminFlags.KICK])
 	ctx.immunity = 10
 	alphabet.immunity = 50
 

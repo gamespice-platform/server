@@ -1,13 +1,13 @@
 extends "res://examples/selftest/signon_revision_sections.gd"
 
 ## Whether this client and this server can finish a join. Godot refuses an RPC unless both ends declare the same @rpc set,
-## and the failure reads "timed out during join", never "version" (docs/design-notes.md). Covers the RPC names, [DotSignon],
-## a real join, a mismatch failing with a sentence, the six envelope names, differing kinds, and [DotNotice] over the socket.
+## and the failure reads "timed out during join", never "version" (docs/design-notes.md). Covers the RPC names, [GSSignon],
+## a real join, a mismatch failing with a sentence, the six envelope names, differing kinds, and [GSNotice] over the socket.
 
 func _ready() -> void:
-	DotLog.set_level(
-		DotLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
-		else DotLog.Level.ERROR
+	GSLog.set_level(
+		GSLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
+		else GSLog.Level.ERROR
 	)
 	_run.call_deferred()
 
@@ -62,7 +62,7 @@ func _run() -> void:
 func _boot() -> bool:
 	_section("a server boots")
 
-	var config := DotServerConfig.new()
+	var config := GSServerConfig.new()
 	config.hostname = "Signon Test"
 	config.port = PORT
 	config.max_players = 4
@@ -91,7 +91,7 @@ func _boot() -> bool:
 		MultiplayerAPI.create_default_interface(), _client_side.get_path()
 	)
 
-	_server = DotServer.new()
+	_server = GSServer.new()
 	_server.name = "Server"
 	_server.config = config
 	_server.config_file = ""
@@ -107,14 +107,14 @@ func _boot() -> bool:
 		_done()
 		return false
 
-	var game := DotGameDescriptor.new()
+	var game := GSGameDescriptor.new()
 	game.game_id = "lobby"
 	game.display_name = "Lobby"
 	game.version = "1.0.0"
 	game.scene = "res://examples/fixtures/lobby_world.tscn"
 	_server.games.add_game(game)
 
-	var loaded: DotResult = await _server.games.change_game("lobby")
+	var loaded: GSResult = await _server.games.change_game("lobby")
 	_check(loaded.ok, "and loads a game", str(loaded.error))
 
 	_done()
@@ -125,16 +125,16 @@ func _boot() -> bool:
 func _test_a_notice_reaches_the_client() -> void:
 	_section("a notice reaches the client over the socket")
 
-	var received: Array[DotNotice] = []
+	var received: Array[GSNotice] = []
 	var sent: Array[int] = []
-	_link.notice_received.connect(func(n: DotNotice) -> void: received.append(n))
-	_server.notice_sent.connect(func(_n: DotNotice, count: int) -> void: sent.append(count))
+	_link.notice_received.connect(func(n: GSNotice) -> void: received.append(n))
+	_server.notice_sent.connect(func(_n: GSNotice, count: int) -> void: sent.append(count))
 
 	# The client's `spawned` is not the server's: the session reaches SPAWNED a poll later, and a
 	# broadcast in between correctly reaches nobody, which reads as a broken RPC.
 	await _until(func() -> bool: return _server.playing_sessions().size() == 1, 5.0)
 
-	var full := DotNotice.make(
+	var full := GSNotice.make(
 		&"vote_warning", "A vote for the next game starts in", 10.0, &"game_vote"
 	)
 	var reached := _server.broadcast_notice(full)
@@ -154,7 +154,7 @@ func _test_a_notice_reaches_the_client() -> void:
 		_done()
 		return
 
-	var got: DotNotice = received[0]
+	var got: GSNotice = received[0]
 	_check(got.cue == &"vote_warning", "with its cue (%s)" % got.cue)
 	_check(
 		got.text == "A vote for the next game starts in",
@@ -166,17 +166,17 @@ func _test_a_notice_reaches_the_client() -> void:
 
 	await _test_notice_shapes(received)
 
-func _test_notice_shapes(received: Array[DotNotice]) -> void:
+func _test_notice_shapes(received: Array[GSNotice]) -> void:
 	# The two shapes that are not "everything": a cue and nothing else, which must come
 	# back with NO countdown rather than a countdown of zero -- a HUD told "0 seconds" draws
 	# a line that has already run out -- and a clear, which is a topic and nothing else.
-	var session: DotClientSession = _server.playing_sessions()[0]
+	var session: GSClientSession = _server.playing_sessions()[0]
 	_check(
-		_server.send_notice(session, DotNotice.make(&"vote_count")),
+		_server.send_notice(session, GSNotice.make(&"vote_count")),
 		"a cue alone can be sent to one session"
 	)
 	_check(
-		_server.send_notice(session, DotNotice.clear(&"game_vote")),
+		_server.send_notice(session, GSNotice.clear(&"game_vote")),
 		"and so can a clear"
 	)
 
@@ -195,12 +195,12 @@ func _test_notice_shapes(received: Array[DotNotice]) -> void:
 
 	await _test_notice_data(received, session)
 
-func _test_notice_data(received: Array[DotNotice], session: DotClientSession) -> void:
+func _test_notice_data(received: Array[GSNotice], session: GSClientSession) -> void:
 	# Structured content rides the same dictionary, which is why it changes no revision: a
 	# ballot goes out with its options and its voters and comes back whole.
 	var ballot := {"open": true, "options": [{"id": "a", "label": "Alpha", "votes": 1.0}], "voters": {"u1": 0}}
 	_check(
-		_server.send_notice(session, DotNotice.make(&"", "", 20.0, &"game_ballot", ballot)),
+		_server.send_notice(session, GSNotice.make(&"", "", 20.0, &"game_ballot", ballot)),
 		"a notice can carry data"
 	)
 	var carried := await _until(func() -> bool: return received.size() >= 4, 5.0)
@@ -215,15 +215,15 @@ func _test_notice_data(received: Array[DotNotice], session: DotClientSession) ->
 		)
 
 	_check(
-		DotNotice.make(&"", "", -1.0, &"x", {"bad": RefCounted.new()}).data.is_empty()
-			and DotNotice.make(&"", "", -1.0, &"x", {"big": "x".repeat(DotNotice.MAX_DATA_BYTES)}).data.is_empty(),
+		GSNotice.make(&"", "", -1.0, &"x", {"bad": RefCounted.new()}).data.is_empty()
+			and GSNotice.make(&"", "", -1.0, &"x", {"big": "x".repeat(GSNotice.MAX_DATA_BYTES)}).data.is_empty(),
 		"data that is not plain, or too big, is dropped whole"
 	)
 
 	# Nothing on it is nothing sent: a HUD that has to decide what an empty notice means
 	# is a HUD with a case nobody wrote.
 	_check(
-		_server.broadcast_notice(DotNotice.new()) == 0,
+		_server.broadcast_notice(GSNotice.new()) == 0,
 		"an empty notice is not sent at all"
 	)
 
@@ -236,11 +236,11 @@ func _test_the_scoreboard_reaches_the_client() -> void:
 
 	var got: Array[Dictionary] = []
 	_link.scoreboard_received.connect(func(snap: Dictionary) -> void: got.append(snap))
-	var session: DotClientSession = _server.playing_sessions()[0]
+	var session: GSClientSession = _server.playing_sessions()[0]
 	# The ping is not planted: the client's early heartbeats report a real one within a
-	# second of joining (DotClientLink._enter_playing), and the row has to match the session.
+	# second of joining (GSClientLink._enter_playing), and the row has to match the session.
 	session.score = 7
-	_server.scoreboard_fields = func(s: DotClientSession) -> Dictionary: return {"team": 2, "kills": s.score * 2}
+	_server.scoreboard_fields = func(s: GSClientSession) -> Dictionary: return {"team": 2, "kills": s.score * 2}
 	_server.scoreboard_extra = func() -> Dictionary:
 		return {"teams": [{"id": 2, "name": "Blue", "score": 3}], "players": "never over a core key"}
 	_server.scoreboard_interval_sec = 0.2
@@ -278,7 +278,7 @@ func _test_the_scoreboard_reaches_the_client() -> void:
 
 	await _test_scoreboard_stale(got, session, row)
 
-func _test_scoreboard_stale(got: Array[Dictionary], session: DotClientSession, row: Dictionary) -> void:
+func _test_scoreboard_stale(got: Array[Dictionary], session: GSClientSession, row: Dictionary) -> void:
 	# Unreliable over ENet arrives in any order: a board older than the one held is dropped.
 	var newest := int(_link.scoreboard.get("seq", 0))
 	var stale := (_link.scoreboard as Dictionary).duplicate(true)
@@ -303,7 +303,7 @@ func _test_scoreboard_stale(got: Array[Dictionary], session: DotClientSession, r
 
 	await _test_scoreboard_one_off(got, session)
 
-func _test_scoreboard_one_off(got: Array[Dictionary], session: DotClientSession) -> void:
+func _test_scoreboard_one_off(got: Array[Dictionary], session: GSClientSession) -> void:
 	# One board on request, without holding it: nothing follows it, and a held board stays held.
 	var before := got.size()
 	_check(_link.request_scoreboard(), "a one-off board is asked for")

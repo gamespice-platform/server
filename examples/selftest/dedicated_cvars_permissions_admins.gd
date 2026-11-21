@@ -20,9 +20,9 @@ func _test_cvar_flags() -> void:
 	_check("a minimum-only cvar names its floor",
 		unbounded != null and not unbounded.set_value("5").ok
 		and unbounded.range_text() == "10 or more")
-	var slow := DotTickTiers.parse("<=8:5,else:66")
+	var slow := GSTickTiers.parse("<=8:5,else:66")
 	_check("a tier rate under 15 Hz is refused, not clamped", slow.is_off() and slow.error.contains("15 or more"))
-	_check("and a tier rate has no ceiling", DotTickTiers.parse("<=8:200,else:66").rate_for(4, 33) == 200)
+	_check("and a tier rate has no ceiling", GSTickTiers.parse("<=8:200,else:66").rate_for(4, 33) == 200)
 	_run("sv_maxplayers 0")
 	_check("sv_maxplayers 0 is accepted (unlimited)", console.get_int("sv_maxplayers") == 0)
 	_check("and leaves every slot public", server.config.public_slots() > 100000)
@@ -36,7 +36,7 @@ func _test_cvar_flags() -> void:
 
 	# Startup-only cvars lock once the server is listening. No real cvar is left with the
 	# flag, so this one has its own: an unexercised flag is one that can break.
-	var startup := console.cvar("test_startup_only", "1", "", DotConVar.FLAG_STARTUP_ONLY)
+	var startup := console.cvar("test_startup_only", "1", "", GSConVar.FLAG_STARTUP_ONLY)
 	var refused := _run("test_startup_only 2")
 	_check(
 		"startup-only refused while running",
@@ -101,9 +101,9 @@ func _test_cvar_tickrate() -> void:
 
 	# A cheat cvar set from an untrusted context must be refused.
 	var cheat := console.cvar(
-		"sv_example_cheat", "0", "Test cheat variable.", DotConVar.FLAG_CHEAT
+		"sv_example_cheat", "0", "Test cheat variable.", GSConVar.FLAG_CHEAT
 	)
-	var ctx := _client_context(PackedStringArray([DotAdminFlags.CVAR]))
+	var ctx := _client_context(PackedStringArray([GSAdminFlags.CVAR]))
 	ctx.command = "sv_example_cheat"
 	ctx.args = PackedStringArray(["1"])
 	console.execute("sv_example_cheat 1", ctx)
@@ -111,7 +111,7 @@ func _test_cvar_tickrate() -> void:
 
 	_run("sv_cheats 1")
 	console.execute("sv_example_cheat 1", _client_context(
-		PackedStringArray([DotAdminFlags.CVAR, DotAdminFlags.CHEATS])
+		PackedStringArray([GSAdminFlags.CVAR, GSAdminFlags.CHEATS])
 	))
 	_check("cheat cvar allowed with sv_cheats on", cheat.get_bool() == true)
 	_run("sv_cheats 0")
@@ -133,28 +133,28 @@ func _test_permissions() -> void:
 	var res := console.execute("kick someone", nobody)
 	_check(
 		"command refused without permission",
-		not res.ok and res.code() == DotError.CODE_FORBIDDEN
+		not res.ok and res.code() == GSError.CODE_FORBIDDEN
 	)
 
 	# With the flag it gets past the permission check and fails on the target
 	# instead, which is the next check in line.
-	var kicker := _client_context(PackedStringArray([DotAdminFlags.KICK]))
+	var kicker := _client_context(PackedStringArray([GSAdminFlags.KICK]))
 	var res2 := console.execute("kick someone", kicker)
 	_check(
 		"command allowed with permission",
-		res2.ok or res2.code() != DotError.CODE_FORBIDDEN
+		res2.ok or res2.code() != GSError.CODE_FORBIDDEN
 	)
 
 	# ROOT satisfies every flag.
-	var root := _client_context(PackedStringArray([DotAdminFlags.ROOT]))
-	_check("root satisfies any flag", root.has_permission(DotAdminFlags.BAN))
+	var root := _client_context(PackedStringArray([GSAdminFlags.ROOT]))
+	_check("root satisfies any flag", root.has_permission(GSAdminFlags.BAN))
 
 	# Immunity: equal cannot act on equal.
-	var mid := _client_context(PackedStringArray([DotAdminFlags.KICK]))
+	var mid := _client_context(PackedStringArray([GSAdminFlags.KICK]))
 	mid.immunity = 50
 	_check("equal immunity does not outrank", not mid.outranks(50))
 	_check("higher immunity outranks", mid.outranks(20))
-	_check("root bypasses immunity", root.outranks(DotAdminFlags.MAX_IMMUNITY))
+	_check("root bypasses immunity", root.outranks(GSAdminFlags.MAX_IMMUNITY))
 
 	_test_permissions_chat()
 
@@ -163,19 +163,19 @@ func _test_permissions_chat() -> void:
 	# Chat reaches the console, and the permission check is what decides. `rcon_status`
 	# has never been marked `with_chat()` and is reachable anyway, because this holder has
 	# ROOT -- that reversal is the whole point of `sv_chat_commands`.
-	var chat_ctx := _client_context(PackedStringArray([DotAdminFlags.ROOT]))
-	chat_ctx.source = DotCmdContext.Source.CHAT
+	var chat_ctx := _client_context(PackedStringArray([GSAdminFlags.ROOT]))
+	chat_ctx.source = GSCmdContext.Source.CHAT
 	var chat_res := console.execute("rcon_status", chat_ctx)
 	_check("an unmarked command runs from chat with the flag", chat_res.ok)
 
 	# The same line without the flag stops at the permission check, not before it: what
 	# refuses a player is the flag they do not hold, on every source alike.
 	var chat_nobody := _client_context(PackedStringArray())
-	chat_nobody.source = DotCmdContext.Source.CHAT
+	chat_nobody.source = GSCmdContext.Source.CHAT
 	var chat_denied := console.execute("rcon_status", chat_nobody)
 	_check(
 		"and is refused without it",
-		not chat_denied.ok and chat_denied.code() == DotError.CODE_FORBIDDEN
+		not chat_denied.ok and chat_denied.code() == GSError.CODE_FORBIDDEN
 	)
 
 	# A command that refuses chat outright is refused for ROOT too. That is the difference
@@ -183,7 +183,7 @@ func _test_permissions_chat() -> void:
 	var quit_res := console.execute("quit", chat_ctx)
 	_check(
 		"a no_chat() command is refused from chat even for root",
-		not quit_res.ok and quit_res.code() == DotError.CODE_FORBIDDEN
+		not quit_res.ok and quit_res.code() == GSError.CODE_FORBIDDEN
 	)
 
 	# And one that opted in must be reachable.
@@ -200,7 +200,7 @@ func _test_permissions_chat() -> void:
 		var closed := console.execute("rcon_status", chat_ctx)
 		_check(
 			"closing it puts the unmarked command back out of reach",
-			not closed.ok and closed.code() == DotError.CODE_FORBIDDEN
+			not closed.ok and closed.code() == GSError.CODE_FORBIDDEN
 		)
 		_check(
 			"while a with_chat() command still answers",
@@ -213,7 +213,7 @@ func _test_connection_limits() -> void:
 	print("")
 	_section("[per-address connection limit]")
 
-	var guard := DotAddressGuard.new(2)
+	var guard := GSAddressGuard.new(2)
 	var in_use := PackedStringArray(["203.0.113.7:51000", "203.0.113.7:51001"])
 
 	_check("the port is not part of the address", guard.count_for("203.0.113.7", in_use) == 2)
@@ -251,7 +251,7 @@ func _test_connection_limits() -> void:
 
 	_check(
 		"0 means no limit",
-		DotAddressGuard.new(0).check("203.0.113.7", in_use).ok
+		GSAddressGuard.new(0).check("203.0.113.7", in_use).ok
 	)
 	_check("refusals are counted", guard.refused > 0)
 
@@ -301,7 +301,7 @@ func _test_ban_source() -> void:
 	print("")
 	_section("[an external ban list: dot-moderation]")
 
-	# Loaded by path and called by duck typing: naming DotModerationManager would fail to
+	# Loaded by path and called by duck typing: naming GSModerationManager would fail to
 	# parse in a checkout without the addon.
 	var manager_path := "res://addons/dot_moderation/runtime/dot_moderation_manager.gd"
 	var store_path := "res://addons/dot_moderation/store/dot_punishment_store_file.gd"
@@ -318,7 +318,7 @@ func _test_ban_source() -> void:
 	# A fresh file each run. A suite whose result depends on what a previous run left
 	# behind is a suite that passes until the day it is read.
 	var store_file := "user://example/punishments.json"
-	DotPaths.remove_tree(store_file)
+	GSPaths.remove_tree(store_file)
 
 	var manager: Node = (load(manager_path) as GDScript).new()
 	manager.name = "Moderation"
@@ -328,18 +328,18 @@ func _test_ban_source() -> void:
 	await get_tree().process_frame
 
 	var loaded: Variant = await manager.call("load_all")
-	_check("the punishment store loads", loaded is DotResult)
+	_check("the punishment store loads", loaded is GSResult)
 
 	# One registry name, and neither addon names the other.
 	_check(
 		"it publishes itself where dot-server looks",
-		DotRegistry.get_service(DotServer.BAN_SOURCE) == manager
+		GSRegistry.get_service(GSServer.BAN_SOURCE) == manager
 	)
 
 	var banned: Variant = await manager.call(
 		"ban_address", "203.0.113.55", "smurfing", "admin:sarah", 0, 0
 	)
-	_check("an address ban is recorded", banned is DotResult and (banned as DotResult).ok)
+	_check("an address ban is recorded", banned is GSResult and (banned as GSResult).ok)
 	# A ban filed against 1.2.3.4 and checked as ip:1.2.3.4:51000 is two strings that
 	# never meet, and nothing errors when they do not.
 	_check(
@@ -364,7 +364,7 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	var uid_banned: Variant = await manager.call(
 		"ban_uid", "backbone:evil", "cheating", "admin:sarah", 0, 0
 	)
-	_check("an account ban is recorded", uid_banned is DotResult and (uid_banned as DotResult).ok)
+	_check("an account ban is recorded", uid_banned is GSResult and (uid_banned as GSResult).ok)
 
 	var evil := _adopt(921, "198.51.100.91:1", "Evil")
 	_named(evil, "backbone:evil", "evil")
@@ -381,13 +381,13 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	_named(xa, "backbone:viasource", "viasource")
 	xa.identity.is_guest = false
 	var xg := _adopt(932, "198.51.100.93:2", "Guest")
-	xg.identity = DotGuestIdentity.new()
+	xg.identity = GSGuestIdentity.new()
 	xg.identity.uid = "guest:zz"
 	xg.identity.is_guest = true
 	_check("guest admitted before a source ban", server.check_identity_admission(xg).ok)
 	var xb: Variant = await manager.call("ban_uid", "backbone:viasource", "cheating", "admin:sarah", 0, 0)
 	_check("a dot_ban_source account ban refuses a guest at its address", not server.bans.check_session(xg).ok)
-	await manager.call("revoke", str((xb as DotResult).value.get("id")), "admin:sarah", "appealed", 0)
+	await manager.call("revoke", str((xb as GSResult).value.get("id")), "admin:sarah", "appealed", 0)
 	_check("revoking it lifts the guest address ban", server.bans.check_session(xg).ok)
 	server.release_session(931)
 	server.release_session(932)
@@ -405,14 +405,14 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 	)
 	_check(
 		"loopback cannot be banned",
-		loopback is DotResult and not (loopback as DotResult).ok
+		loopback is GSResult and not (loopback as GSResult).ok
 	)
 
-	var record: Object = (banned as DotResult).value
+	var record: Object = (banned as GSResult).value
 	var lifted: Variant = await manager.call(
 		"revoke", str(record.get("id")), "admin:sarah", "appealed", 0
 	)
-	_check("the ban is lifted", lifted is DotResult and (lifted as DotResult).ok)
+	_check("the ban is lifted", lifted is GSResult and (lifted as GSResult).ok)
 	_check(
 		"and the address is admitted again",
 		server.check_address_admission("203.0.113.55:51000").ok
@@ -420,7 +420,7 @@ func _test_ban_source_admission(manager: Object, banned: Variant) -> void:
 
 	await _test_ban_source_broken(manager, good)
 
-func _test_ban_source_broken(manager: Object, good: DotClientSession) -> void:
+func _test_ban_source_broken(manager: Object, good: GSClientSession) -> void:
 	# A source that cannot answer must not be trusted to have answered. It is reported
 	# once and ignored, because refusing every connection would take the server down.
 	manager.queue_free()
@@ -428,12 +428,12 @@ func _test_ban_source_broken(manager: Object, good: DotClientSession) -> void:
 
 	var broken := Node.new()
 	add_child(broken)
-	DotRegistry.register(DotServer.BAN_SOURCE, broken)
+	GSRegistry.register(GSServer.BAN_SOURCE, broken)
 	_check(
 		"a ban source that cannot answer does not refuse everybody",
 		server.check_address_admission("203.0.113.55:51000").ok
 	)
-	DotRegistry.unregister_instance(DotServer.BAN_SOURCE, broken)
+	GSRegistry.unregister_instance(GSServer.BAN_SOURCE, broken)
 	broken.queue_free()
 
 	server.release_session(good.peer_id)
@@ -448,7 +448,7 @@ func _test_admins() -> void:
 		"admin_add",
 		admins.set_admin(
 			"backbone:alice",
-			DotAdminFlags.parse("kick,ban"),
+			GSAdminFlags.parse("kick,ban"),
 			50,
 			PackedStringArray(),
 			"Alice"
@@ -457,38 +457,38 @@ func _test_admins() -> void:
 
 	_check(
 		"granted flag recognised",
-		admins.uid_has_permission("backbone:alice", DotAdminFlags.KICK)
+		admins.uid_has_permission("backbone:alice", GSAdminFlags.KICK)
 	)
 	_check(
 		"ungranted flag refused",
-		not admins.uid_has_permission("backbone:alice", DotAdminFlags.ROOT)
+		not admins.uid_has_permission("backbone:alice", GSAdminFlags.ROOT)
 	)
 
 	# A uid answered by a SOURCE rather than the admin file: a table keyed by uid needs no
 	# connection, and a deployment whose admins live in config depends on it for relayed commands.
 	var table := UidTableSource.new()
-	table.rows["backbone:bob"] = PackedStringArray([DotAdminFlags.CHANGEMAP])
+	table.rows["backbone:bob"] = PackedStringArray([GSAdminFlags.CHANGEMAP])
 	admins.add_source(table)
 
 	_check(
 		"a source answers for a uid with no file entry",
-		admins.uid_has_permission("backbone:bob", DotAdminFlags.CHANGEMAP)
+		admins.uid_has_permission("backbone:bob", GSAdminFlags.CHANGEMAP)
 	)
 	_check(
 		"and grants only what it said",
-		not admins.uid_has_permission("backbone:bob", DotAdminFlags.BAN)
+		not admins.uid_has_permission("backbone:bob", GSAdminFlags.BAN)
 	)
 	_check(
 		"a uid nothing knows still holds nothing",
-		not admins.uid_has_permission("backbone:nobody", DotAdminFlags.CHANGEMAP)
+		not admins.uid_has_permission("backbone:nobody", GSAdminFlags.CHANGEMAP)
 	)
 	# The name the site would have sent is deliberately NOT tried: it is a string the
 	# person can edit on their own profile page, and an admin entry keyed on one is a
 	# permission anybody can take by renaming themselves.
-	table.rows["Alice"] = PackedStringArray([DotAdminFlags.ROOT])
+	table.rows["Alice"] = PackedStringArray([GSAdminFlags.ROOT])
 	_check(
 		"a display name is never a key",
-		not admins.uid_has_permission("Alice", DotAdminFlags.ROOT)
+		not admins.uid_has_permission("Alice", GSAdminFlags.ROOT)
 			or table.asked_with_display_name == false
 	)
 
@@ -505,16 +505,16 @@ func _test_admins_groups() -> void:
 		Array(admins.uid_permissions("backbone:carol").get("groups", [])).has("vip")
 	)
 
-	_check("flag parse: comma", DotAdminFlags.parse("kick,ban").size() == 2)
-	_check("flag parse: space", DotAdminFlags.parse("kick ban").size() == 2)
-	_check("flag parse: mixed", DotAdminFlags.parse("kick, ban").size() == 2)
+	_check("flag parse: comma", GSAdminFlags.parse("kick,ban").size() == 2)
+	_check("flag parse: space", GSAdminFlags.parse("kick ban").size() == 2)
+	_check("flag parse: mixed", GSAdminFlags.parse("kick, ban").size() == 2)
 	_check(
 		"unknown flag detected",
-		DotAdminFlags.unknown(PackedStringArray(["kcik"])).size() == 1
+		GSAdminFlags.unknown(PackedStringArray(["kcik"])).size() == 1
 	)
 	_check(
 		"custom flag reported but not refused",
-		DotAdminFlags.granted(PackedStringArray(["slay"]), "slay")
+		GSAdminFlags.granted(PackedStringArray(["slay"]), "slay")
 	)
 
 	_check("admins listed", _run("admins").contains("backbone:alice"))

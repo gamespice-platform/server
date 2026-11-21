@@ -1,9 +1,9 @@
 @tool
-class_name DotAdminManager
+class_name GSAdminManager
 extends Node
 
 ## Resolves a connected player to permission flags and immunity, from a JSON file of admins and
-## groups plus duck-typed sources ([code]lookup(identity) -> DotResult[/code] of {flags, immunity,
+## groups plus duck-typed sources ([code]lookup(identity) -> GSResult[/code] of {flags, immunity,
 ## source}, and [code]source_name()[/code]). Results merge: union of flags, higher immunity.
 
 const CHANNEL := "admin"
@@ -13,9 +13,9 @@ const SERVICE := &"dot_admin_manager"
 signal admins_loaded(count: int)
 
 ## Emitted when a player's permissions are resolved, for audit logging.
-signal permissions_resolved(session: DotClientSession, flags: PackedStringArray)
+signal permissions_resolved(session: GSClientSession, flags: PackedStringArray)
 
-@export var config: DotServerConfig = null
+@export var config: GSServerConfig = null
 
 ## Additional permission sources, in consultation order.
 var sources: Array = []
@@ -34,7 +34,7 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	if config != null:
 		load_admins()
@@ -48,33 +48,33 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 
 ## Adds a permission source, validating the contract at registration so a mistyped source is a
 ## startup error, not silently absent permissions.
-func add_source(source: Object) -> DotResult:
+func add_source(source: Object) -> GSResult:
 	if source == null:
-		return DotResult.fail(DotError.CODE_INVALID, "Null source.")
+		return GSResult.fail(GSError.CODE_INVALID, "Null source.")
 
 	for method in ["lookup", "source_name"]:
 		if not source.has_method(method):
-			return DotResult.fail(
-				DotError.CODE_INVALID,
+			return GSResult.fail(
+				GSError.CODE_INVALID,
 				"An admin source must implement %s()." % method,
 				source.get_class()
 			)
 
 	sources.append(source)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"admin source added",
 		{"source": str(source.call("source_name"))}
 	)
 
-	return DotResult.success(source)
+	return GSResult.success(source)
 
 
 func remove_source(source: Object) -> void:
@@ -84,15 +84,15 @@ func remove_source(source: Object) -> void:
 
 ## Resolves and caches permissions onto a session, once per client at authentication: a lookup
 ## can hit a file or remote source, and per-message lookups would let chat make the server work.
-func resolve(session: DotClientSession) -> DotResult:
+func resolve(session: GSClientSession) -> GSResult:
 	session.permissions = PackedStringArray()
-	session.immunity = DotAdminFlags.NO_IMMUNITY
+	session.immunity = GSAdminFlags.NO_IMMUNITY
 	session.groups = PackedStringArray()
 
 	if not session.is_authenticated():
 		# An unauthenticated or guest session gets nothing. A guest uid is a random
 		# per-device string, so granting anything would grant it to anyone.
-		return DotResult.success(session.permissions)
+		return GSResult.success(session.permissions)
 
 	var uid := session.uid()
 	var reasons := PackedStringArray()
@@ -101,25 +101,25 @@ func resolve(session: DotClientSession) -> DotResult:
 	_merge_sources(session, reasons)
 
 	if not session.permissions.is_empty():
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"admin recognised",
 			{
 				"user": session.label(),
-				"flags": DotAdminFlags.format(session.permissions),
+				"flags": GSAdminFlags.format(session.permissions),
 				"immunity": session.immunity,
 				"via": ", ".join(reasons),
 			}
 		)
 
 	permissions_resolved.emit(session, session.permissions)
-	return DotResult.success(session.permissions)
+	return GSResult.success(session.permissions)
 
 
-func _merge_file_entry(session: DotClientSession, uid: String, reasons: PackedStringArray) -> void:
+func _merge_file_entry(session: GSClientSession, uid: String, reasons: PackedStringArray) -> void:
 	if _admins.has(uid):
 		var entry: Dictionary = _admins[uid]
-		session.permissions = DotAdminFlags.merge(
+		session.permissions = GSAdminFlags.merge(
 			session.permissions, _flags_of(entry)
 		)
 		session.immunity = maxi(session.immunity, int(entry.get("immunity", 0)))
@@ -131,7 +131,7 @@ func _merge_file_entry(session: DotClientSession, uid: String, reasons: PackedSt
 				session.groups.append(group_name)
 			if _groups.has(group_name):
 				var g: Dictionary = _groups[group_name]
-				session.permissions = DotAdminFlags.merge(
+				session.permissions = GSAdminFlags.merge(
 					session.permissions, _flags_of(g)
 				)
 				session.immunity = maxi(
@@ -139,26 +139,26 @@ func _merge_file_entry(session: DotClientSession, uid: String, reasons: PackedSt
 				)
 				reasons.append("group:%s" % group_name)
 			else:
-				DotLog.warn(
+				GSLog.warn(
 					CHANNEL,
 					"admin entry references an unknown group",
 					{"uid": uid, "group": group_name}
 				)
 
 
-func _merge_sources(session: DotClientSession, reasons: PackedStringArray) -> void:
+func _merge_sources(session: GSClientSession, reasons: PackedStringArray) -> void:
 	for source in sources:
 		var res: Variant = source.call("lookup", session.identity)
 
-		if not (res is DotResult):
-			DotLog.warn(
+		if not (res is GSResult):
+			GSLog.warn(
 				CHANNEL,
-				"admin source returned something other than a DotResult",
+				"admin source returned something other than a GSResult",
 				{"source": str(source.call("source_name"))}
 			)
 			continue
 
-		var result := res as DotResult
+		var result := res as GSResult
 		if not result.ok:
 			# Not an error: a source saying "nothing for this player" is the normal
 			# case for most players and most sources.
@@ -169,7 +169,7 @@ func _merge_sources(session: DotClientSession, reasons: PackedStringArray) -> vo
 			continue
 
 		var d := payload as Dictionary
-		session.permissions = DotAdminFlags.merge(
+		session.permissions = GSAdminFlags.merge(
 			session.permissions, _as_flags(d.get("flags", []))
 		)
 		session.immunity = maxi(session.immunity, int(d.get("immunity", 0)))
@@ -214,7 +214,7 @@ func uid_permissions(uid: String) -> Dictionary:
 				groups.append(str(group))
 			if _groups.has(str(group)):
 				var g: Dictionary = _groups[str(group)]
-				flags = DotAdminFlags.merge(flags, _flags_of(g))
+				flags = GSAdminFlags.merge(flags, _flags_of(g))
 
 				# The HIGHER of the two, matching how `resolve` merges sources. A group is
 				# a floor a member cannot be demoted below by having their own entry, and
@@ -231,10 +231,10 @@ func uid_permissions(uid: String) -> Dictionary:
 	for source in sources:
 		var res: Variant = source.call("lookup", identity)
 
-		if not (res is DotResult):
+		if not (res is GSResult):
 			continue
 
-		var result := res as DotResult
+		var result := res as GSResult
 		if not result.ok:
 			continue
 
@@ -243,7 +243,7 @@ func uid_permissions(uid: String) -> Dictionary:
 			continue
 
 		var d := payload as Dictionary
-		flags = DotAdminFlags.merge(flags, _as_flags(d.get("flags", [])))
+		flags = GSAdminFlags.merge(flags, _as_flags(d.get("flags", [])))
 		immunity = maxi(immunity, int(d.get("immunity", 0)))
 
 		for group in d.get("groups", []):
@@ -257,20 +257,20 @@ func uid_permissions(uid: String) -> Dictionary:
 ## Reads [method uid_permissions] so the group merge exists once.
 func uid_has_permission(uid: String, flag: String) -> bool:
 	var held: Dictionary = uid_permissions(uid)
-	return DotAdminFlags.granted(held["flags"] as PackedStringArray, flag)
+	return GSAdminFlags.granted(held["flags"] as PackedStringArray, flag)
 
 
 
 
 ## Loads the admin file. A missing file is not an error.
-func load_admins() -> DotResult:
+func load_admins() -> GSResult:
 	_admins.clear()
 	_groups.clear()
 
 	var path := config.admins_path
 
 	if not FileAccess.file_exists(path):
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"no admin file; nobody has permissions yet",
 			{"path": path}
@@ -278,14 +278,14 @@ func load_admins() -> DotResult:
 		# Written so an operator has something to edit rather than having to
 		# discover the format.
 		_write_template(path)
-		return DotResult.success(0)
+		return GSResult.success(0)
 
-	var read := DotPaths.read_json(path)
+	var read := GSPaths.read_json(path)
 	if not read.ok:
 		# A malformed admin file must not silently mean "no admins" — that turns a
 		# typo into an unmoderated server. Report loudly and keep whatever was
 		# loaded before.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"the admin file is malformed; permissions were NOT loaded",
 			{"path": path, "detail": read.error.detail}
@@ -294,8 +294,8 @@ func load_admins() -> DotResult:
 
 	var data: Variant = read.value
 	if not (data is Dictionary):
-		return DotResult.fail(
-			DotError.CODE_PARSE, "The admin file must be a JSON object."
+		return GSResult.fail(
+			GSError.CODE_PARSE, "The admin file must be a JSON object."
 		)
 
 	var d := data as Dictionary
@@ -316,23 +316,23 @@ func load_admins() -> DotResult:
 
 	_warn_about_unknown_flags()
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"admins loaded",
 		{"admins": _admins.size(), "groups": _groups.size()}
 	)
 
 	admins_loaded.emit(_admins.size())
-	return DotResult.success(_admins.size())
+	return GSResult.success(_admins.size())
 
 
-func save_admins() -> DotResult:
+func save_admins() -> GSResult:
 	var payload := {"groups": _groups, "admins": _admins}
-	var written := DotPaths.write_json(config.admins_path, payload)
+	var written := GSPaths.write_json(config.admins_path, payload)
 
 	if written.ok:
 		_file_modified_time = FileAccess.get_modified_time(config.admins_path)
-		DotLog.info(CHANNEL, "admins saved", {"count": _admins.size()})
+		GSLog.info(CHANNEL, "admins saved", {"count": _admins.size()})
 
 	return written
 
@@ -346,7 +346,7 @@ func _check_for_changes() -> void:
 	if modified == _file_modified_time:
 		return
 
-	DotLog.info(CHANNEL, "admin file changed; reloading")
+	GSLog.info(CHANNEL, "admin file changed; reloading")
 	load_admins()
 
 
@@ -376,9 +376,9 @@ func _write_template(path: String) -> void:
 		},
 	}
 
-	var written := DotPaths.write_json(path, template)
+	var written := GSPaths.write_json(path, template)
 	if written.ok:
-		DotLog.info(CHANNEL, "wrote an admin file template", {"path": path})
+		GSLog.info(CHANNEL, "wrote an admin file template", {"path": path})
 
 
 ## Reports flags that are not standard, without refusing them: a game defines its own, but a
@@ -387,15 +387,15 @@ func _warn_about_unknown_flags() -> void:
 	var seen := {}
 
 	for uid in _admins:
-		for flag in DotAdminFlags.unknown(_flags_of(_admins[uid])):
+		for flag in GSAdminFlags.unknown(_flags_of(_admins[uid])):
 			seen[flag] = true
 
 	for name in _groups:
-		for flag in DotAdminFlags.unknown(_flags_of(_groups[name])):
+		for flag in GSAdminFlags.unknown(_flags_of(_groups[name])):
 			seen[flag] = true
 
 	if not seen.is_empty():
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"admin file uses non-standard flags (fine if your game defines them)",
 			{"flags": seen.keys()}
@@ -410,13 +410,13 @@ func set_admin(
 	immunity: int,
 	groups: PackedStringArray = PackedStringArray(),
 	name: String = ""
-) -> DotResult:
+) -> GSResult:
 	if uid.strip_edges() == "":
-		return DotResult.fail(DotError.CODE_INVALID, "No uid given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No uid given.")
 
-	if not DotAdminFlags.immunity_allowed(immunity):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, DotAdminFlags.max_immunity])
+	if not GSAdminFlags.immunity_allowed(immunity):
+		return GSResult.fail(
+			GSError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, GSAdminFlags.max_immunity])
 
 	_admins[uid] = {
 		"name": name,
@@ -425,22 +425,22 @@ func set_admin(
 		"groups": Array(groups),
 	}
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"admin entry set",
-		{"uid": uid, "flags": DotAdminFlags.format(flags)}
+		{"uid": uid, "flags": GSAdminFlags.format(flags)}
 	)
 
 	return save_admins()
 
 
-func remove_admin(uid: String) -> DotResult:
+func remove_admin(uid: String) -> GSResult:
 	if not _admins.erase(uid):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "No admin entry for '%s'." % uid
+		return GSResult.fail(
+			GSError.CODE_INVALID, "No admin entry for '%s'." % uid
 		)
 
-	DotLog.info(CHANNEL, "admin entry removed", {"uid": uid})
+	GSLog.info(CHANNEL, "admin entry removed", {"uid": uid})
 	return save_admins()
 
 
@@ -448,10 +448,10 @@ func set_group(
 	name: String,
 	flags: PackedStringArray,
 	immunity: int
-) -> DotResult:
-	if not DotAdminFlags.immunity_allowed(immunity):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, DotAdminFlags.max_immunity])
+) -> GSResult:
+	if not GSAdminFlags.immunity_allowed(immunity):
+		return GSResult.fail(
+			GSError.CODE_INVALID, "Immunity %d is outside 0 to sv_max_immunity (%d)." % [immunity, GSAdminFlags.max_immunity])
 	_groups[name] = {
 		"flags": Array(flags),
 		"immunity": immunity,
@@ -489,7 +489,7 @@ func _as_flags(value: Variant) -> PackedStringArray:
 			out.append(str(v).to_lower())
 		return out
 	if value is String:
-		return DotAdminFlags.parse(value as String)
+		return GSAdminFlags.parse(value as String)
 	return PackedStringArray()
 
 
@@ -502,7 +502,7 @@ func describe_lines() -> PackedStringArray:
 		out.append("  %-16s immunity %-4d %s" % [
 			name,
 			int(g.get("immunity", 0)),
-			DotAdminFlags.format(_flags_of(g)),
+			GSAdminFlags.format(_flags_of(g)),
 		])
 
 	out.append("admins: %d" % _admins.size())
@@ -511,7 +511,7 @@ func describe_lines() -> PackedStringArray:
 		out.append("  %-32s %s" % [
 			uid,
 			", ".join(Array(a.get("groups", []))) if not (a.get("groups", []) as Array).is_empty()
-				else DotAdminFlags.format(_flags_of(a)),
+				else GSAdminFlags.format(_flags_of(a)),
 		])
 
 	out.append("sources:")

@@ -1,15 +1,15 @@
 @tool
-class_name DotModuleHost
+class_name GSModuleHost
 extends Node
 
-## Loads, unloads and reloads [DotModule]s at runtime from [code]res://[/code] or [code]user://[/code].
+## Loads, unloads and reloads [GSModule]s at runtime from [code]res://[/code] or [code]user://[/code].
 ## Reload re-instantiates; it cannot reclaim a mounted resource pack or undo changes a module made to the world.
 
 const CHANNEL := "modules"
 const SERVICE := &"dot_module_host"
 const NOT_COMPILED := "Module script did not compile."
 
-signal module_loaded(module: Node)  # a DotModule, typed Node so the host (reached from dot_server.gd) does not hold the module parser, which names DotServer
+signal module_loaded(module: Node)  # a GSModule, typed Node so the host (reached from dot_server.gd) does not hold the module parser, which names GSServer
 signal module_unloaded(module_name: String)
 
 ## Directories scanned by [method load_all], in order.
@@ -23,32 +23,32 @@ signal module_unloaded(module_name: String)
 ## Modules that must not be loaded, by name: disable a broken module without deleting its file and config.
 @export var blocklist: PackedStringArray = PackedStringArray()
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
-## name -> DotModule
+## name -> GSModule
 var _modules: Dictionary = {}
 
 ## name -> script path, so reload can find the source again.
 var _paths: Dictionary = {}
 
 
-## Wires the host to its server. Called by [DotServer].
+## Wires the host to its server. Called by [GSServer].
 func setup(p_server: Node) -> void:
 	server = p_server
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	if server.games != null:
 		server.games.game_loaded.connect(_on_game_changed)
 
 	if auto_load:
-		# Not awaited, and cannot be: `setup` runs from [DotServer]'s boot coroutine. A module that
+		# Not awaited, and cannot be: `setup` runs from [GSServer]'s boot coroutine. A module that
 		# suspends during a scan-load finishes on a later frame; `load_module` itself awaits the module.
 		load_all()
 
 
 func _exit_tree() -> void:
 	unload_all()
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 
@@ -61,18 +61,18 @@ func load_all() -> int:
 			continue
 
 		var seen := {}
-		for rel in DotPaths.list_files_recursive(dir):
+		for rel in GSPaths.list_files_recursive(dir):
 			var script_rel := module_script_of(rel)
 			if script_rel == "" or seen.has(script_rel):
 				continue
 			seen[script_rel] = true
 
-			var res: DotResult = await load_module(dir.path_join(script_rel))
+			var res: GSResult = await load_module(dir.path_join(script_rel))
 			if res.ok:
 				loaded_count += 1
 
 	if loaded_count > 0:
-		DotLog.info(CHANNEL, "modules loaded", {"count": loaded_count})
+		GSLog.info(CHANNEL, "modules loaded", {"count": loaded_count})
 
 	return loaded_count
 
@@ -92,23 +92,23 @@ static func module_script_exists(path: String) -> bool:
 	return FileAccess.file_exists(path) or ResourceLoader.exists(path)
 
 
-## Loads the script at [param path] and makes the [DotModule] it declares.
-func _instantiate_module(path: String) -> DotResult:
+## Loads the script at [param path] and makes the [GSModule] it declares.
+func _instantiate_module(path: String) -> GSResult:
 	if not module_script_exists(path):
-		return DotResult.fail(
-			DotError.CODE_IO, "Module script not found.", path
+		return GSResult.fail(
+			GSError.CODE_IO, "Module script not found.", path
 		)
 
 	var script := load(path)
 	if not (script is GDScript):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "Not a GDScript file.", path
+		return GSResult.fail(
+			GSError.CODE_INVALID, "Not a GDScript file.", path
 		)
 
 	# `load()` returns a GDScript even when it did not parse, and `.new()` on it aborts this coroutine.
 	if not (script as GDScript).can_instantiate():
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			NOT_COMPILED,
 			path
 		)
@@ -119,13 +119,13 @@ func _instantiate_module(path: String) -> DotResult:
 		# A Node never added to the tree leaks until the process ends.
 		if instance is Node:
 			(instance as Node).queue_free()
-		return DotResult.fail(
-			DotError.CODE_INVALID,
-			"A module script must extend DotModule.",
+		return GSResult.fail(
+			GSError.CODE_INVALID,
+			"A module script must extend GSModule.",
 			path
 		)
 
-	return DotResult.success(instance)
+	return GSResult.success(instance)
 
 
 ## Where a module's scripts live: the nearest directory up holding a game.yml (a game pack's root), not climbing out
@@ -158,24 +158,24 @@ static func module_root_of(path: String) -> String:
 ## module script itself did not compile, so a broken script is the cause; for a module that refused
 ## on its own the broken scripts are listed as found, not as the cause (a client-only or tool
 ## script may be broken without being why the module refused).
-static func with_script_errors(failed: DotResult, path: String, known_cause := true) -> DotResult:
+static func with_script_errors(failed: GSResult, path: String, known_cause := true) -> GSResult:
 	if failed.ok:
 		return failed
 	var errors := script_errors_under(module_root_of(path))
 	if errors.is_empty():
 		return failed
-	var code := failed.error.code if failed.error != null else DotError.CODE_INTERNAL
+	var code := failed.error.code if failed.error != null else GSError.CODE_INTERNAL
 	var message := failed.error.message if failed.error != null else "The module did not load."
 	var detail := failed.error.detail if failed.error != null else path
 	var what := "a script that does not compile" if errors.size() == 1 else "%d scripts that do not compile" % errors.size()
-	var e := DotError.make(
+	var e := GSError.make(
 		code,
 		("%s Caused by %s: %s" if known_cause else "%s The game has %s: %s") % [message, what, " | ".join(errors)],
 		detail
 	)
 	if failed.error != null:
 		e.context = failed.error.context
-	return DotResult.failure(e)
+	return GSResult.failure(e)
 
 
 ## One line per script under [param root] that does not compile, naming its first own error as
@@ -184,7 +184,7 @@ static func with_script_errors(failed: DotResult, path: String, known_cause := t
 static func script_errors_under(root: String) -> PackedStringArray:
 	var base := root if root.ends_with("/") else root + "/"
 	var files := PackedStringArray()
-	for rel in DotPaths.list_files_recursive(root):
+	for rel in GSPaths.list_files_recursive(root):
 		var found := module_script_of(rel)
 		if found == "" or rel.begins_with("."):
 			continue
@@ -278,28 +278,28 @@ class _ScriptErrorCapture extends Logger:
 
 
 ## Loads one module from a script path.
-func load_module(path: String) -> DotResult:
+func load_module(path: String) -> GSResult:
 	var made := _instantiate_module(path)
 	if not made.ok:
-		# Only a compile failure has a cause worth the scan; "must extend DotModule" says it all.
+		# Only a compile failure has a cause worth the scan; "must extend GSModule" says it all.
 		if made.error != null and made.error.message == NOT_COMPILED:
 			return with_script_errors(made, path)
 		return made
 
-	var module: Node = made.value  # a DotModule (see _is_module)
+	var module: Node = made.value  # a GSModule (see _is_module)
 	var module_name: String = module._module_name()
 
 	if blocklist.has(module_name):
 		module.queue_free()
-		DotLog.info(CHANNEL, "module blocked", {"module": module_name})
-		return DotResult.fail(
-			DotError.CODE_FORBIDDEN, "Module is blocklisted.", module_name
+		GSLog.info(CHANNEL, "module blocked", {"module": module_name})
+		return GSResult.fail(
+			GSError.CODE_FORBIDDEN, "Module is blocklisted.", module_name
 		)
 
 	if _modules.has(module_name):
 		module.queue_free()
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"A module named '%s' is already loaded." % module_name
 		)
 
@@ -313,16 +313,16 @@ func load_module(path: String) -> DotResult:
 	# Awaited: `_module_load` may suspend, and an un-awaited coroutine hands back null at its first
 	# suspension. `await` passes a synchronous module's value straight through.
 	# Typed explicitly, because `await` yields a Variant and `:=` would widen `result`.
-	var result: DotResult = await module._module_load()
+	var result: GSResult = await module._module_load()
 
 	if result == null:
-		result = DotResult.fail(DotError.CODE_INTERNAL, "_module_load() returned no result.", path)
+		result = GSResult.fail(GSError.CODE_INTERNAL, "_module_load() returned no result.", path)
 
 	if not result.ok:
 		result = with_script_errors(result, path, false)
 		# A module that refused to load must not stay half-attached: its partial
 		# registrations would fire into an object that believes it is not running.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"module refused to load",
 			{"module": module_name, "why": str(result.error)}
@@ -335,7 +335,7 @@ func load_module(path: String) -> DotResult:
 	_modules[module_name] = module
 	_paths[module_name] = path
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"module loaded",
 		{
@@ -347,14 +347,14 @@ func load_module(path: String) -> DotResult:
 	)
 
 	module_loaded.emit(module)
-	return DotResult.success(module)
+	return GSResult.success(module)
 
 
 
-func unload_module(module_name: String) -> DotResult:
+func unload_module(module_name: String) -> GSResult:
 	if not _modules.has(module_name):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "No module named '%s'." % module_name
+		return GSResult.fail(
+			GSError.CODE_INVALID, "No module named '%s'." % module_name
 		)
 
 	var module: Node = _modules[module_name]
@@ -382,10 +382,10 @@ func unload_module(module_name: String) -> DotResult:
 
 	module.queue_free()
 
-	DotLog.info(CHANNEL, "module unloaded", {"module": module_name})
+	GSLog.info(CHANNEL, "module unloaded", {"module": module_name})
 	module_unloaded.emit(module_name)
 
-	return DotResult.success(module_name)
+	return GSResult.success(module_name)
 
 
 func unload_all() -> int:
@@ -396,10 +396,10 @@ func unload_all() -> int:
 
 
 ## Unloads and loads a module again from the same path.
-func reload_module(module_name: String) -> DotResult:
+func reload_module(module_name: String) -> GSResult:
 	if not _paths.has(module_name):
-		return DotResult.fail(
-			DotError.CODE_INVALID, "No module named '%s'." % module_name
+		return GSResult.fail(
+			GSError.CODE_INVALID, "No module named '%s'." % module_name
 		)
 
 	var path := str(_paths[module_name])
@@ -420,7 +420,7 @@ func reload_module(module_name: String) -> DotResult:
 
 
 
-func get_module(module_name: String) -> Node:  # a DotModule
+func get_module(module_name: String) -> Node:  # a GSModule
 	return _modules.get(module_name)
 
 
@@ -461,9 +461,9 @@ func describe_lines() -> PackedStringArray:
 	return out
 
 
-# True when [param instance] is a [DotModule]. The module script is loaded here (once per module load) and its
-# instances are held as Node, so this host, which dot_server.gd names, does not keep the DotModule parser (which
-# names DotServer) alive in a cycle.
+# True when [param instance] is a [GSModule]. The module script is loaded here (once per module load) and its
+# instances are held as Node, so this host, which dot_server.gd names, does not keep the GSModule parser (which
+# names GSServer) alive in a cycle.
 static func _is_module(instance: Variant) -> bool:
 	if not (instance is Object):
 		return false

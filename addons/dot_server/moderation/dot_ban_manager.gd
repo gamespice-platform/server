@@ -1,5 +1,5 @@
 @tool
-class_name DotBanManager
+class_name GSBanManager
 extends Node
 
 ## Bans by account (precise, but a guest returns as another guest) and by address (catches
@@ -18,14 +18,14 @@ signal ban_added(ban: Dictionary)
 ## Emitted when a ban is lifted.
 signal ban_removed(key: String)
 
-@export var config: DotServerConfig = null
+@export var config: GSServerConfig = null
 
-## Where bans are persisted; a JSON file by default. Assign a [DotBanStore] subclass to share
+## Where bans are persisted; a JSON file by default. Assign a [GSBanStore] subclass to share
 ## one ban list across several servers.
-@export var store: DotBanStore = null
+@export var store: GSBanStore = null
 
 ## Audit log, if one is attached. Every ban and unban is recorded there too.
-var audit: DotAuditLog = null
+var audit: GSAuditLog = null
 
 var _refresh_timer: Timer = null
 
@@ -40,7 +40,7 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	if config != null:
 		await load_bans()
@@ -58,7 +58,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if _dirty:
 		save_bans()
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 
@@ -78,29 +78,29 @@ static func guest_ip_key(address: String) -> String:
 ## Strips a port and normalises an address, so a ban on [code]1.2.3.4[/code] matches
 ## [code]1.2.3.4:51234[/code] in any IPv6 form.
 static func normalise_address(address: String) -> String:
-	var parts := DotTransport.normalise_address(address, 0)
+	var parts := GSTransport.normalise_address(address, 0)
 	var host := str(parts["host"])
 	return host if host != "" else address
 
 
 
 ## Whether an account is banned. Returns the ban when it is.
-func check_uid(uid: String) -> DotResult:
+func check_uid(uid: String) -> GSResult:
 	if uid == "":
-		return DotResult.success(null)
+		return GSResult.success(null)
 	return _check(uid_key(uid))
 
 
 ## Whether an address is banned.
-func check_address(address: String) -> DotResult:
+func check_address(address: String) -> GSResult:
 	if address == "":
-		return DotResult.success(null)
+		return GSResult.success(null)
 	return _check(ip_key(address))
 
 
 ## Checks both for a session that has just authenticated. A failure carries a player-facing
 ## message, including when a temporary ban lifts.
-func check_session(session: DotClientSession) -> DotResult:
+func check_session(session: GSClientSession) -> GSResult:
 	var by_address := check_address(session.address)
 	if not by_address.ok:
 		return by_address
@@ -113,12 +113,12 @@ func check_session(session: DotClientSession) -> DotResult:
 	if not session.is_account() and session.address != "":
 		return _check(guest_ip_key(session.address))
 
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
-func _check(key: String) -> DotResult:
+func _check(key: String) -> GSResult:
 	if not _bans.has(key):
-		return DotResult.success(null)
+		return GSResult.success(null)
 
 	var ban: Dictionary = _bans[key]
 	var expires := int(ban.get("expires_at", 0))
@@ -128,16 +128,16 @@ func _check(key: String) -> DotResult:
 		# not run.
 		_bans.erase(key)
 		_dirty = true
-		return DotResult.success(null)
+		return GSResult.success(null)
 
-	var err := DotError.make(
-		DotError.CODE_FORBIDDEN,
+	var err := GSError.make(
+		GSError.CODE_FORBIDDEN,
 		_player_message(ban),
 		"ban %s, reason: %s" % [key, str(ban.get("reason", ""))]
 	)
 	err.context = ban
 
-	return DotResult.failure(err)
+	return GSResult.failure(err)
 
 
 ## The message shown to the banned player, with the remaining time for a temporary ban: one
@@ -168,10 +168,10 @@ func ban_uid(
 	duration_sec: int = 0,
 	by: String = "console",
 	name: String = ""
-) -> DotResult:
+) -> GSResult:
 	if uid.strip_edges() == "":
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Cannot ban without an account id.",
 			"the player may be a guest; ban their address instead"
 		)
@@ -195,17 +195,17 @@ func ban_address(
 	duration_sec: int = 0,
 	by: String = "console",
 	name: String = ""
-) -> DotResult:
+) -> GSResult:
 	var host := normalise_address(address)
 
 	if host == "":
-		return DotResult.fail(DotError.CODE_INVALID, "No address given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No address given.")
 
 	# Banning loopback locks the operator out of their own listen server and is
 	# almost always a mistyped argument.
 	if host == "127.0.0.1" or host == "::1" or host == "localhost":
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Refusing to ban the loopback address.",
 			"this would lock out local connections"
 		)
@@ -225,11 +225,11 @@ func ban_address(
 ## Bans a connected session by account, falling back to address; the entry point for a `ban`
 ## command, and says which it did.
 func ban_session(
-	session: DotClientSession,
+	session: GSClientSession,
 	reason: String,
 	duration_sec: int = 0,
 	by: String = "console"
-) -> DotResult:
+) -> GSResult:
 	var uid := session.uid()
 
 	if session.is_account() and uid != "":
@@ -238,7 +238,7 @@ func ban_session(
 			await ban_guests_at(session.address, uid, reason, duration_sec, by, session.display_name)
 		return res
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"no account to ban; banning the address instead",
 		{"user": session.label()}
@@ -250,7 +250,7 @@ func ban_session(
 
 
 ## Refuses guests (not accounts) from the banned account's address, capped by
-## [member DotServerConfig.guest_ban_max_sec] since a NAT shares the address with innocents.
+## [member GSServerConfig.guest_ban_max_sec] since a NAT shares the address with innocents.
 func ban_guests_at(
 	address: String, uid: String, reason: String, duration_sec: int, by: String, name: String
 ) -> void:
@@ -278,7 +278,7 @@ func ban_guests_at(
 	})
 
 
-func _add(key: String, ban: Dictionary) -> DotResult:
+func _add(key: String, ban: Dictionary) -> GSResult:
 	# A read-only store must refuse before anything is recorded, or the ban appears
 	# to work locally and vanishes on the next refresh.
 	var written := await _store().put(key, ban)
@@ -289,7 +289,7 @@ func _add(key: String, ban: Dictionary) -> DotResult:
 	_bans[key] = ban
 	_dirty = true
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"ban updated" if existing else "ban added",
 		{
@@ -311,7 +311,7 @@ func _add(key: String, ban: Dictionary) -> DotResult:
 	save_bans()
 	ban_added.emit(ban)
 
-	return DotResult.success(ban)
+	return GSResult.success(ban)
 
 
 static func _expiry(duration_sec: int) -> int:
@@ -322,7 +322,7 @@ static func _expiry(duration_sec: int) -> int:
 
 
 ## Lifts a ban by its key, or by a bare uid or address (a list shows keys, an appeal has a uid).
-func unban(key_or_target: String, by: String = "console") -> DotResult:
+func unban(key_or_target: String, by: String = "console") -> GSResult:
 	var candidates := PackedStringArray([
 		key_or_target,
 		uid_key(key_or_target),
@@ -341,7 +341,7 @@ func unban(key_or_target: String, by: String = "console") -> DotResult:
 			if key.begins_with("uid:"):
 				await lift_guest_bans(key.substr(4))
 
-			DotLog.info(CHANNEL, "ban lifted", {"key": key, "by": by})
+			GSLog.info(CHANNEL, "ban lifted", {"key": key, "by": by})
 
 			if audit != null:
 				audit.record("unban", by, key, {})
@@ -349,10 +349,10 @@ func unban(key_or_target: String, by: String = "console") -> DotResult:
 			save_bans()
 			ban_removed.emit(key)
 
-			return DotResult.success(key)
+			return GSResult.success(key)
 
-	return DotResult.fail(
-		DotError.CODE_INVALID, "No ban found for '%s'." % key_or_target
+	return GSResult.fail(
+		GSError.CODE_INVALID, "No ban found for '%s'." % key_or_target
 	)
 
 
@@ -365,7 +365,7 @@ func lift_guest_bans(uid: String) -> void:
 				_bans.erase(k)
 
 
-## Removes expired bans from the in-memory set. Local only: a shared [DotBanStore] owns its
+## Removes expired bans from the in-memory set. Local only: a shared [GSBanStore] owns its
 ## expiry. Expired bans are refused on read regardless; see [method _check].
 func _sweep() -> void:
 	var now := int(Time.get_unix_time_from_system())
@@ -385,25 +385,25 @@ func _sweep() -> void:
 	_dirty = true
 	save_bans()
 
-	DotLog.debug(CHANNEL, "expired bans removed", {"count": expired.size()})
+	GSLog.debug(CHANNEL, "expired bans removed", {"count": expired.size()})
 
 
 
 ## The store, creating the default file store if none was assigned.
-func _store() -> DotBanStore:
+func _store() -> GSBanStore:
 	if store == null:
-		store = DotBanStore.FileStore.new(config.bans_path)
+		store = GSBanStore.FileStore.new(config.bans_path)
 	return store
 
 
-func load_bans() -> DotResult:
+func load_bans() -> GSResult:
 	var loaded := await _store().load_bans()
 
 	if not loaded.ok:
 		# A ban list that cannot be read must be loud, and must NOT clear what is
 		# already in force — silently starting with no bans readmits everyone who
 		# was ever removed. Keeping the previous set is the safe failure.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"could not load the ban list; keeping %d ban(s) already in force"
 				% _bans.size(),
@@ -413,21 +413,21 @@ func load_bans() -> DotResult:
 
 	_bans = loaded.value
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"bans loaded",
 		{"count": _bans.size(), "store": _store().store_name()}
 	)
 
-	return DotResult.success(_bans.size())
+	return GSResult.success(_bans.size())
 
 
 ## Re-reads bans changed elsewhere. Only meaningful for a shared store.
-func refresh_bans() -> DotResult:
+func refresh_bans() -> GSResult:
 	var refreshed := await _store().refresh()
 
 	if not refreshed.ok:
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"ban refresh failed; keeping the current list",
 			{"detail": refreshed.error.message}
@@ -438,28 +438,28 @@ func refresh_bans() -> DotResult:
 	_bans = refreshed.value
 
 	if _bans.size() != before:
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"ban list changed",
 			{"was": before, "now": _bans.size()}
 		)
 
-	return DotResult.success(_bans.size())
+	return GSResult.success(_bans.size())
 
 
-func save_bans() -> DotResult:
+func save_bans() -> GSResult:
 	var target := _store()
 
 	# The file store owns the whole document, so it is written wholesale; a custom
 	# store persisted each ban as it was made and has nothing left to do here.
-	if target is DotBanStore.FileStore:
-		var written := (target as DotBanStore.FileStore).write_all(_bans)
+	if target is GSBanStore.FileStore:
+		var written := (target as GSBanStore.FileStore).write_all(_bans)
 		if written.ok:
 			_dirty = false
 		return written
 
 	_dirty = false
-	return DotResult.success(_bans.size())
+	return GSResult.success(_bans.size())
 
 
 

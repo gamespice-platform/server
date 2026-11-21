@@ -1,10 +1,10 @@
 @tool
-class_name DotServerConfig
+class_name GSServerConfig
 extends "res://addons/dot_server/server/dot_server_config_base.gd"
 
-## Everything configurable about the server itself, layered like every [DotConfig].
-## Most fields are also [DotConVar]s on [DotServer]; this is the boot-time source, cvars the live view.
-## Anything not changeable on a running server carries [constant DotConVar.FLAG_STARTUP_ONLY].
+## Everything configurable about the server itself, layered like every [GSConfig].
+## Most fields are also [GSConVar]s on [GSServer]; this is the boot-time source, cvars the live view.
+## Anything not changeable on a running server carries [constant GSConVar.FLAG_STARTUP_ONLY].
 
 
 ## Parses one of the level names this config accepts, or -1.
@@ -12,7 +12,7 @@ static func parse_log_level(name: String) -> int:
 	var trimmed: String = name.strip_edges().to_lower()
 	if trimmed == "warning":
 		trimmed = "warn"
-	return DotLog.parse_level(trimmed)
+	return GSLog.parse_level(trimmed)
 
 
 func env_prefix() -> String:
@@ -27,38 +27,38 @@ func sensitive_keys() -> PackedStringArray:
 	return PackedStringArray(["rcon_password", "password", "query_secret"])
 
 
-func validate() -> DotResult:
+func validate() -> GSResult:
 	for check: Callable in [_validate_logging, _validate_ports, _validate_transport]:
-		var res: DotResult = check.call()
+		var res: GSResult = check.call()
 		if not res.ok:
 			return res
 
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
-func _validate_logging() -> DotResult:
+func _validate_logging() -> GSResult:
 	if worker_threads < -1:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"worker_threads must be -1 (automatic), 0 (main thread only) or a count.",
 			str(worker_threads)
 		)
 	if worker_threads_auto_max < 0:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"worker_threads_auto_max must be 0 (no cap) or a count.",
 			str(worker_threads_auto_max)
 		)
 	if parse_log_level(log_level) < 0:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Unknown log_level '%s'." % log_level,
 			"trace, debug, info, warn, error, fatal or off"
 		)
 
 	if parse_log_level(log_mirror_min_level) < 0:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Unknown log_mirror_min_level '%s'." % log_mirror_min_level,
 			"trace, debug, info, warn, error, fatal or off"
 		)
@@ -66,79 +66,79 @@ func _validate_logging() -> DotResult:
 	for entry: String in log_channel_levels:
 		var parts: PackedStringArray = entry.split("=", false, 1)
 		if parts.size() != 2 or parse_log_level(parts[1]) < 0:
-			return DotResult.fail(
-				DotError.CODE_INVALID,
+			return GSResult.fail(
+				GSError.CODE_INVALID,
 				"A channel level must be written channel=level.",
 				entry
 			)
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
-func _validate_ports() -> DotResult:
+func _validate_ports() -> GSResult:
 	if port < 0 or port > 65535:
-		return DotResult.fail(
-			DotError.CODE_INVALID, "port must be between 0 and 65535."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "port must be between 0 and 65535."
 		)
 
 	# With an ephemeral game port there is nothing to derive an RCON port from, and
 	# port + 1 would be 1 — privileged, and almost certainly not what was meant.
 	if port == 0 and rcon_password != "" and rcon_port <= 0:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"An explicit rcon_port is required when port is 0.",
 			"there is no fixed game port to derive one from"
 		)
 
 	if max_players > 0 and reserved_slots >= max_players:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"reserved_slots must be fewer than max_players.",
 			"otherwise no ordinary player can ever join"
 		)
 
 	if tickrate < 1:
-		return DotResult.fail(
-			DotError.CODE_INVALID, "tickrate must be at least 1."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "tickrate must be at least 1."
 		)
 
 	if rcon_password != "" and rcon_password.length() < 8:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"rcon_password must be at least 8 characters.",
 			"RCON is a remote shell; a short password is guessed in minutes"
 		)
 
 	if effective_rcon_port() == port:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"The RCON port must differ from the game port.",
 			"both are %d" % port
 		)
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
-func _validate_transport() -> DotResult:
+func _validate_transport() -> GSResult:
 	if not ["full", "names", "count", "none"].has(query_player_detail):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"query_player_detail must be full, names, count or none.",
 			"got '%s'" % query_player_detail
 		)
 
 	if not ["dual", "websocket", "enet"].has(transport_mode):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"transport_mode must be dual, websocket or enet.",
 			"got '%s'" % transport_mode
 		)
 
 	if enet_port < 0 or enet_port > 65535:
-		return DotResult.fail(
-			DotError.CODE_INVALID, "enet_port must be between 0 and 65535."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "enet_port must be between 0 and 65535."
 		)
 
 	# Only TCP listeners can collide; query, A2S and ENet ports are UDP. ENet may share the A2S/DQP port
-	# through DotTransportDual's demux (enet_share_udp_port); with sharing off the clash is caught at bind time.
+	# through GSTransportDual's demux (enet_share_udp_port); with sharing off the clash is caught at bind time.
 	if query_enabled and query_websocket:
 		var ws_port := effective_query_websocket_port()
 		for taken in [
@@ -147,17 +147,17 @@ func _validate_transport() -> DotResult:
 			["the RCON WebSocket port", effective_rcon_websocket_port() if rcon_websocket else 0],
 		]:
 			if ws_port > 0 and ws_port == int(taken[1]):
-				return DotResult.fail(
-					DotError.CODE_INVALID,
+				return GSResult.fail(
+					GSError.CODE_INVALID,
 					"The query WebSocket port must differ from %s." % str(taken[0]),
 					"both are %d" % ws_port
 				)
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
 func warn_about_risky_settings() -> void:
 	if rcon_password != "" and rcon_allowed_addresses.is_empty():
-		DotLog.warn(
+		GSLog.warn(
 			"server",
 			"RCON is enabled with no address allow-list — the password is the "
 			+ "only thing protecting it",
@@ -167,9 +167,9 @@ func warn_about_risky_settings() -> void:
 	# An entry that can never match is worse than none: the operator believes they have an allow-list.
 	# "192.168" is the typical case, a subnet prefix without the trailing dot.
 	for raw in rcon_allowed_addresses:
-		var entry: String = (load("uid://cj8tjaegb7y5t") as GDScript).normalise_address(raw)  # DotBanManager, loaded so the two parsers do not hold each other
+		var entry: String = (load("uid://cj8tjaegb7y5t") as GDScript).normalise_address(raw)  # GSBanManager, loaded so the two parsers do not hold each other
 		if entry == "":
-			DotLog.warn(
+			GSLog.warn(
 				"server",
 				"an RCON allow-list entry is empty and matches nothing",
 				{"setting": "rcon_allowed_addresses"}
@@ -192,7 +192,7 @@ func warn_about_risky_settings() -> void:
 				break
 
 		if numeric:
-			DotLog.warn(
+			GSLog.warn(
 				"server",
 				"an RCON allow-list entry looks like a subnet prefix but does "
 				+ "not end in a dot, so it matches nothing",
@@ -200,7 +200,7 @@ func warn_about_risky_settings() -> void:
 			)
 
 	if bind_address == "*" and password == "":
-		DotLog.info(
+		GSLog.info(
 			"server",
 			"listening on every interface with no password (a public server)"
 		)
@@ -209,7 +209,7 @@ func warn_about_risky_settings() -> void:
 		# A2S publishes names, scores and connection times to anyone who asks, and
 		# always has. Worth saying out loud once, because an operator who turned
 		# A2S on to be listed may not have meant to publish a roster.
-		DotLog.info(
+		GSLog.info(
 			"server",
 			"A2S is enabled: player names, scores and connection times are public",
 			{"setting": "query_player_detail"}
@@ -268,7 +268,7 @@ func public_slots() -> int:
 
 ## [member worker_threads] as a count: -1 becomes the processor count less one (at least one),
 ## at most [member worker_threads_auto_max] unless that is 0; 0 and explicit counts pass through.
-## Where [method DotParallel.available] is false DotParallel still runs everything inline.
+## Where [method GSParallel.available] is false GSParallel still runs everything inline.
 func resolved_workers() -> int:
 	if worker_threads >= 0:
 		return worker_threads
@@ -279,7 +279,7 @@ func resolved_workers() -> int:
 
 
 ## The worker count for GameSpice Net's snapshot build: 0 unless [member threads_net] is on, then
-## [method resolved_workers]. Never more than DotParallel allows on this machine.
+## [method resolved_workers]. Never more than GSParallel allows on this machine.
 func net_snapshot_workers() -> int:
 	return resolved_workers() if threads_net else 0
 
@@ -310,23 +310,23 @@ func enet_shares_query_port() -> bool:
 
 
 ## The transport, creating one from [member transport_mode] if none was configured.
-func resolve_transport() -> DotTransport:
+func resolve_transport() -> GSTransport:
 	if transport == null:
 		transport = _build_transport()
 
 	# 0 is unlimited, which ENet can only express as its own ceiling.
-	transport.max_clients = max_players if max_players > 0 else DotTransportENet.ENET_MAX_PEERS
+	transport.max_clients = max_players if max_players > 0 else GSTransportENet.ENET_MAX_PEERS
 	return transport
 
 
-func _build_transport() -> DotTransport:
-	var can_enet := DotPlatform.has_udp() and ClassDB.class_exists("ENetMultiplayerPeer")
+func _build_transport() -> GSTransport:
+	var can_enet := GSPlatform.has_udp() and ClassDB.class_exists("ENetMultiplayerPeer")
 
 	if transport_mode == "enet" and can_enet:
-		return DotTransportENet.new()
+		return GSTransportENet.new()
 
 	if transport_mode == "dual" and can_enet:
-		var dual := DotTransportDual.new()
+		var dual := GSTransportDual.new()
 		dual.enet_port = effective_enet_port()
 		dual.enet_bind_address = effective_enet_bind_address()
 		# The demux costs a relay hop per ENet packet; pay it only when a query
@@ -336,21 +336,21 @@ func _build_transport() -> DotTransport:
 		return dual
 
 	if transport_mode != "websocket":
-		DotLog.warn(
+		GSLog.warn(
 			"server",
 			"transport_mode %s needs ENet, which this build has not got; using WebSocket"
 			% transport_mode
 		)
 
-	var auto := DotTransportAuto.new()
+	var auto := GSTransportAuto.new()
 	auto.require_web_clients = true
 	auto.websocket = configured_websocket()
 	return auto
 
 
 ## A WebSocket transport carrying the [code]ws_*[/code] buffer settings.
-func configured_websocket() -> DotTransportWebSocket:
-	var ws := DotTransportWebSocket.new()
+func configured_websocket() -> GSTransportWebSocket:
+	var ws := GSTransportWebSocket.new()
 	ws.inbound_buffer_exp = ws_inbound_buffer_exp
 	ws.outbound_buffer_exp = ws_outbound_buffer_exp
 	ws.max_queued_packets = ws_max_queued_packets

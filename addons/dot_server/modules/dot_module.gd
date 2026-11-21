@@ -1,16 +1,16 @@
 @tool
-class_name DotModule
+class_name GSModule
 extends Node
 
 ## Base class for a server plugin: a [Node] with a lifecycle the host manages.
 ## Subclass it and override [method _module_load]; register through the helpers here, not directly, so
-## [DotModuleHost] can undo it all on unload. Example: docs/design-notes.md.
+## [GSModuleHost] can undo it all on unload. Example: docs/design-notes.md.
 
 ## The server this module is loaded into. Set by the host before [method _module_load].
-var server: DotServer = null
+var server: GSServer = null
 
-var console: DotConsole = null
-var events: DotEventBus = null
+var console: GSConsole = null
+var events: GSEventBus = null
 
 ## Whether [method _module_load] succeeded.
 var loaded: bool = false
@@ -41,8 +41,8 @@ func _module_author() -> String:
 
 ## Sets everything up. Return a failure to refuse to load.
 ## A module that cannot work (missing dependency, bad config) must fail here rather than load broken.
-func _module_load() -> DotResult:
-	return DotResult.success(null)
+func _module_load() -> GSResult:
+	return GSResult.success(null)
 
 
 ## Tears down anything the helpers below did not cover (timers, files, sockets); commands, cvars and hooks are undone automatically.
@@ -62,9 +62,9 @@ func add_command(
 	handler: Callable,
 	description: String = "",
 	permission: String = ""
-) -> DotConCommand:
+) -> GSConCommand:
 	if console == null:
-		push_error("DotModule.add_command() before the module was set up.")
+		push_error("GSModule.add_command() before the module was set up.")
 		return null
 
 	var cmd := console.command(command_name, handler, description, permission)
@@ -78,9 +78,9 @@ func add_cvar(
 	default_value: String,
 	description: String = "",
 	flags: int = 0
-) -> DotConVar:
+) -> GSConVar:
 	if console == null:
-		push_error("DotModule.add_cvar() before the module was set up.")
+		push_error("GSModule.add_cvar() before the module was set up.")
 		return null
 
 	var c := console.cvar(cvar_name, default_value, description, flags)
@@ -91,7 +91,7 @@ func add_cvar(
 ## Hooks an event, unhooked when this module unloads.
 func hook_pre(event_name: String, callback: Callable) -> void:
 	if events == null:
-		push_error("DotModule.hook_pre() before the module was set up.")
+		push_error("GSModule.hook_pre() before the module was set up.")
 		return
 	events.hook_pre(event_name, callback)
 	_hooks.append([event_name, callback])
@@ -99,7 +99,7 @@ func hook_pre(event_name: String, callback: Callable) -> void:
 
 func hook_post(event_name: String, callback: Callable) -> void:
 	if events == null:
-		push_error("DotModule.hook_post() before the module was set up.")
+		push_error("GSModule.hook_post() before the module was set up.")
 		return
 	events.hook_post(event_name, callback)
 	_hooks.append([event_name, callback])
@@ -107,16 +107,16 @@ func hook_post(event_name: String, callback: Callable) -> void:
 
 ## Registers a query provider, removed when this module unloads.
 ## A provider left behind would be called from a socket anyone can reach, on a freed object.
-func add_query_provider(provider: Object) -> DotResult:
+func add_query_provider(provider: Object) -> GSResult:
 	if server == null or server.query_source == null:
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"No query source: neither query protocol is enabled on this server."
 		)
 
 	# Duck-typed: the query source lives in GameSpice Server Query, which this project
-	# may not have. See DotServer.query_host.
-	var added := server.query_source.call("add_provider", provider) as DotResult
+	# may not have. See GSServer.query_host.
+	var added := server.query_source.call("add_provider", provider) as GSResult
 	if added.ok:
 		_query_providers.append(provider)
 	return added
@@ -145,11 +145,11 @@ func _cleanup_registrations() -> void:
 
 
 func log_info(message: String, fields: Dictionary = {}) -> void:
-	DotLog.info("mod." + _module_name(), message, fields)
+	GSLog.info("mod." + _module_name(), message, fields)
 
 
 func log_warn(message: String, fields: Dictionary = {}) -> void:
-	DotLog.warn("mod." + _module_name(), message, fields)
+	GSLog.warn("mod." + _module_name(), message, fields)
 
 
 func describe() -> Dictionary:

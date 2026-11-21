@@ -12,28 +12,28 @@ extends Node
 const ROOT := "user://module_load_error"
 const NETCODE := "A game has to supply the bridge between itself and the netcode."
 
-const MODULE := """extends DotModule
+const MODULE := """extends GSModule
 
 func _module_name() -> String: return "%s"
 
-func _module_load() -> DotResult:
+func _module_load() -> GSResult:
 	var root := (get_script() as Script).resource_path.get_base_dir().get_base_dir()
 	var bridge_script: Variant = load(root.path_join("net/bridge.gd"))
 	var bridge: Variant = null
 	if bridge_script is GDScript and (bridge_script as GDScript).can_instantiate():
 		bridge = (bridge_script as GDScript).new()
 	if bridge == null:
-		return DotResult.fail(DotError.CODE_INVALID, "the netcode could not start", "%s")
-	return DotResult.success(null)
+		return GSResult.fail(GSError.CODE_INVALID, "the netcode could not start", "%s")
+	return GSResult.success(null)
 """
 
 ## Refuses for a reason of its own; every script of its game compiles.
-const REFUSES := """extends DotModule
+const REFUSES := """extends GSModule
 
 func _module_name() -> String: return "plain"
 
-func _module_load() -> DotResult:
-	return DotResult.fail(DotError.CODE_INVALID, "the netcode could not start", "%s")
+func _module_load() -> GSResult:
+	return GSResult.fail(GSError.CODE_INVALID, "the netcode could not start", "%s")
 """
 
 const BRIDGE_UNTYPED := """extends RefCounted
@@ -75,11 +75,11 @@ var _fails := 0
 
 
 func _ready() -> void:
-	var config := DotServerConfig.new()
+	var config := GSServerConfig.new()
 	config.port = 0
 	config.rcon_port = 0
 	config.startup_config = ""
-	var server := DotServer.new()
+	var server := GSServer.new()
 	server.config = config
 	server.auto_boot = false
 	add_child(server)
@@ -87,7 +87,7 @@ func _ready() -> void:
 
 	# The failure: a delivered-style layout (game.yml at the root, the module and bridge below it).
 	var broken := _write_game("broken", BRIDGE_UNTYPED)
-	var res: DotResult = await server.modules.load_module(broken + "/scripts/module.gd")
+	var res: GSResult = await server.modules.load_module(broken + "/scripts/module.gd")
 	var text := str(res.error) if not res.ok else ""
 	print("module_load_error: broken -> ", text)
 	_check("the broken bridge fails the load", not res.ok)
@@ -109,7 +109,7 @@ func _ready() -> void:
 	# The production path: the same broken game delivered as a pack mounted under res://dot_cloud/. A pack published
 	# without a site claim mounts at res://dot_cloud/<id>/<version> (no owner), and its root is still found by game.yml.
 	var mounted := _mount_game("mod-load-mounted", "0.0.1", BRIDGE_UNTYPED)
-	var m_res: DotResult = await server.modules.load_module(mounted + "/scripts/module.gd")
+	var m_res: GSResult = await server.modules.load_module(mounted + "/scripts/module.gd")
 	var m_text := str(m_res.error) if not m_res.ok else ""
 	print("module_load_error: mounted -> ", m_text)
 	_check(
@@ -120,15 +120,15 @@ func _ready() -> void:
 
 	# The same game with the declaration typed loads.
 	var fixed := _write_game("fixed", BRIDGE_TYPED)
-	var ok: DotResult = await server.modules.load_module(fixed + "/scripts/module.gd")
+	var ok: GSResult = await server.modules.load_module(fixed + "/scripts/module.gd")
 	_check("the typed bridge loads", ok.ok)
 	if ok.ok:
 		server.modules.unload_module("fixed")
 
 	# A refusal in a game whose scripts all compile is reported as the module said, nothing added.
 	var plain := _write_game("plain", BRIDGE_TYPED)
-	DotPaths.write_text(plain + "/scripts/module.gd", REFUSES % NETCODE)
-	var plain_res: DotResult = await server.modules.load_module(plain + "/scripts/module.gd")
+	GSPaths.write_text(plain + "/scripts/module.gd", REFUSES % NETCODE)
+	var plain_res: GSResult = await server.modules.load_module(plain + "/scripts/module.gd")
 	var plain_text := str(plain_res.error) if not plain_res.ok else ""
 	_check(
 		"a refusal with every script compiling names no script",
@@ -137,8 +137,8 @@ func _ready() -> void:
 
 	# A module script that does not compile names its own error rather than "the log above".
 	var bad := _write_game("bad_module", BRIDGE_TYPED)
-	DotPaths.write_text(bad + "/scripts/module.gd", "extends DotModule\n\nfunc _module_name() -> String:\n\treturn undefined_name\n")
-	var bad_res: DotResult = await server.modules.load_module(bad + "/scripts/module.gd")
+	GSPaths.write_text(bad + "/scripts/module.gd", "extends GSModule\n\nfunc _module_name() -> String:\n\treturn undefined_name\n")
+	var bad_res: GSResult = await server.modules.load_module(bad + "/scripts/module.gd")
 	var bad_text := str(bad_res.error) if not bad_res.ok else ""
 	print("module_load_error: bad module -> ", bad_text)
 	_check(
@@ -154,11 +154,11 @@ func _ready() -> void:
 
 func _write_game(name_: String, bridge: String) -> String:
 	var root := ROOT.path_join(name_)
-	DotPaths.write_text(root + "/game.yml", "id: %s\n" % name_)
-	DotPaths.write_text(root + "/scripts/module.gd", MODULE % [name_, NETCODE])
-	DotPaths.write_text(root + "/net/bridge.gd", bridge)
-	DotPaths.write_text(root + "/net/uses_bridge.gd", USES_BRIDGE)
-	DotPaths.write_text(root + "/net/extends_bridge.gd", EXTENDS_BRIDGE)
+	GSPaths.write_text(root + "/game.yml", "id: %s\n" % name_)
+	GSPaths.write_text(root + "/scripts/module.gd", MODULE % [name_, NETCODE])
+	GSPaths.write_text(root + "/net/bridge.gd", bridge)
+	GSPaths.write_text(root + "/net/uses_bridge.gd", USES_BRIDGE)
+	GSPaths.write_text(root + "/net/extends_bridge.gd", EXTENDS_BRIDGE)
 	return root
 
 

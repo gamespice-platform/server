@@ -1,12 +1,12 @@
 extends RefCounted
 
-## Help, status and player commands of [DotBuiltinCommands].
+## Help, status and player commands of [GSBuiltinCommands].
 
 
-static func _register_help(server: Node, console: DotConsole) -> void:
+static func _register_help(server: Node, console: GSConsole) -> void:
 	console.command(
 		"help",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			if ctx.argc() == 0:
 				ctx.reply("Commands (use 'help <name>' for detail):")
 				for name in console.command_names():
@@ -38,7 +38,7 @@ static func _register_help(server: Node, console: DotConsole) -> void:
 
 	console.command(
 		"find",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			var needle := ctx.arg(0).to_lower()
 			var found := 0
 
@@ -52,7 +52,7 @@ static func _register_help(server: Node, console: DotConsole) -> void:
 
 			for name in console.cvar_names():
 				var cvar := console.find_cvar(name)
-				if cvar.has_flag(DotConVar.FLAG_HIDDEN):
+				if cvar.has_flag(GSConVar.FLAG_HIDDEN):
 					continue
 				if name.contains(needle) or cvar.description.to_lower().contains(needle):
 					ctx.reply("  " + cvar.describe_line())
@@ -64,16 +64,16 @@ static func _register_help(server: Node, console: DotConsole) -> void:
 	_register_help_listing(server, console)
 
 
-static func _register_help_listing(server: Node, console: DotConsole) -> void:
+static func _register_help_listing(server: Node, console: GSConsole) -> void:
 	console.command(
 		"cvarlist",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			var filter := ctx.arg(0).to_lower()
 			var shown := 0
 
 			for name in console.cvar_names():
 				var cvar := console.find_cvar(name)
-				if cvar.has_flag(DotConVar.FLAG_HIDDEN):
+				if cvar.has_flag(GSConVar.FLAG_HIDDEN):
 					continue
 				if filter != "" and not name.contains(filter):
 					continue
@@ -86,14 +86,14 @@ static func _register_help_listing(server: Node, console: DotConsole) -> void:
 
 	console.command(
 		"echo",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			ctx.reply(ctx.rest(0)),
 		"Print text."
 	).with_usage("<text>")
 
 	console.command(
 		"alias",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			if ctx.argc() == 0:
 				for name in console.aliases():
 					ctx.reply("%-20s %s" % [name, console.aliases()[name]])
@@ -107,24 +107,24 @@ static func _register_help_listing(server: Node, console: DotConsole) -> void:
 			console.set_alias(ctx.arg(0), ctx.rest(1))
 			ctx.reply("Alias '%s' set." % ctx.arg(0)),
 		"Define a command alias.",
-		DotAdminFlags.CONFIG
+		GSAdminFlags.CONFIG
 	).with_usage("[name] [commands]")
 
 
-static func _register_status(server: Node, console: DotConsole) -> void:
+static func _register_status(server: Node, console: GSConsole) -> void:
 	console.command(
 		"status",
-		func(ctx: DotCmdContext) -> void:
+		func(ctx: GSCmdContext) -> void:
 			ctx.reply_lines(server.status_lines()),
 		"Show server and player status."
 	)
 
 	# An operator cannot read an RPC checksum, but "players on the old build cannot join" is answered by comparing
-	# this line with what the client prints; there is no other way to get it from a running server. See [DotSignon].
+	# this line with what the client prints; there is no other way to get it from a running server. See [GSSignon].
 	console.command(
 		"signon",
-		func(ctx: DotCmdContext) -> void:
-			var d := DotSignon.describe([load("uid://bmmt0ykk31iv0")])  # DotServer, loaded so the two parsers do not hold each other
+		func(ctx: GSCmdContext) -> void:
+			var d := GSSignon.describe([load("uid://bmmt0ykk31iv0")])  # GSServer, loaded so the two parsers do not hold each other
 			ctx.reply("revision   %s" % str(d.get("revision", "")))
 			ctx.reply("protocol   %d" % int(d.get("protocol", 0)))
 			ctx.reply("methods    %d" % int(d.get("rpc_methods", 0)))
@@ -145,11 +145,11 @@ static func _register_status(server: Node, console: DotConsole) -> void:
 	_register_status_services(server, console)
 
 
-static func _register_status_services(server: Node, console: DotConsole) -> void:
+static func _register_status_services(server: Node, console: GSConsole) -> void:
 	console.command(
 		"stats",
-		func(ctx: DotCmdContext) -> void:
-			ctx.reply("uptime     %s" % DotBanManager.format_duration(
+		func(ctx: GSCmdContext) -> void:
+			ctx.reply("uptime     %s" % GSBanManager.format_duration(
 				server.uptime_seconds()
 			))
 			ctx.reply("state      %s" % server.state_name().to_lower())
@@ -158,7 +158,7 @@ static func _register_status_services(server: Node, console: DotConsole) -> void
 			ctx.reply("tickrate   %d" % Engine.physics_ticks_per_second)
 			if server.has_method("pending_tickrate") and server.pending_tickrate() > 0:
 				ctx.reply("tickrate   %d at the next map change" % server.pending_tickrate())
-			ctx.reply("memory     %s" % DotPaths.format_bytes(
+			ctx.reply("memory     %s" % GSPaths.format_bytes(
 				OS.get_static_memory_usage()
 			))
 			ctx.reply("objects    %d" % Performance.get_monitor(
@@ -175,24 +175,24 @@ static func _register_status_services(server: Node, console: DotConsole) -> void
 
 	console.command(
 		"platform",
-		func(ctx: DotCmdContext) -> void:
-			ctx.reply_lines(DotPlatform.describe_lines()),
+		func(ctx: GSCmdContext) -> void:
+			ctx.reply_lines(GSPlatform.describe_lines()),
 		"Show what this build can do."
 	)
 
 	console.command(
 		"services",
-		func(ctx: DotCmdContext) -> void:
-			ctx.reply_lines(DotRegistry.describe_lines()),
+		func(ctx: GSCmdContext) -> void:
+			ctx.reply_lines(GSRegistry.describe_lines()),
 		"List registered services."
 	)
 
 
-static func _register_players(server: Node, console: DotConsole) -> void:
+static func _register_players(server: Node, console: GSConsole) -> void:
 	console.command(
 		"users",
-		func(ctx: DotCmdContext) -> void:
-			var sessions: Array[DotClientSession] = server.sessions()
+		func(ctx: GSCmdContext) -> void:
+			var sessions: Array[GSClientSession] = server.sessions()
 			if sessions.is_empty():
 				ctx.reply("Nobody is connected.")
 				return
@@ -211,13 +211,13 @@ static func _register_players(server: Node, console: DotConsole) -> void:
 
 	console.command(
 		"kick",
-		func(ctx: DotCmdContext) -> void:
-			var resolved: DotResult = server.resolve_target(ctx, ctx.arg(0))
+		func(ctx: GSCmdContext) -> void:
+			var resolved: GSResult = server.resolve_target(ctx, ctx.arg(0))
 			if not resolved.ok:
 				ctx.reply_error(resolved)
 				return
 
-			var session: DotClientSession = resolved.value
+			var session: GSClientSession = resolved.value
 			var reason := ctx.rest(1)
 			if reason == "":
 				reason = "Kicked by an admin"
@@ -235,18 +235,18 @@ static func _register_players(server: Node, console: DotConsole) -> void:
 					"kick", ctx.caller_label(), name, {"reason": reason}
 				),
 		"Remove a player.",
-		DotAdminFlags.KICK
+		GSAdminFlags.KICK
 	).with_usage("<player> [reason]").with_args(1).with_chat().with_completer(
 		_player_completer(server)
 	)
 	_register_players_kick(server, console)
 
 
-static func _register_players_kick(server: Node, console: DotConsole) -> void:
+static func _register_players_kick(server: Node, console: GSConsole) -> void:
 	console.command(
 		"kickid",
-		func(ctx: DotCmdContext) -> void:
-			var session: DotClientSession = server.session_by_userid(ctx.arg_int(0, -1))
+		func(ctx: GSCmdContext) -> void:
+			var session: GSClientSession = server.session_by_userid(ctx.arg_int(0, -1))
 			if session == null:
 				ctx.reply("No player with userid %s." % ctx.arg(0))
 				return
@@ -271,13 +271,13 @@ static func _register_players_kick(server: Node, console: DotConsole) -> void:
 					"kick", ctx.caller_label(), name, {"reason": reason}
 				),
 		"Remove a player by userid.",
-		DotAdminFlags.KICK
+		GSAdminFlags.KICK
 	).with_usage("<userid> [reason]").with_args(1).with_chat()
 
 	console.command(
 		"whois",
-		func(ctx: DotCmdContext) -> void:
-			var matches: Array[DotClientSession] = server.find_sessions(ctx.arg(0), ctx.session)
+		func(ctx: GSCmdContext) -> void:
+			var matches: Array[GSClientSession] = server.find_sessions(ctx.arg(0), ctx.session)
 
 			if matches.is_empty():
 				ctx.reply("No player matching '%s'." % ctx.arg(0))
@@ -303,7 +303,7 @@ static func _register_players_kick(server: Node, console: DotConsole) -> void:
 				])
 			ctx.reply("%d match(es)." % matches.size()),
 		"Show a player's ids, address and status.",
-		DotAdminFlags.KICK
+		GSAdminFlags.KICK
 	).with_usage("<player>").with_args(1, 1).with_chat().with_completer(
 		_player_completer(server)
 	)

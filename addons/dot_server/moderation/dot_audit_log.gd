@@ -1,5 +1,5 @@
 @tool
-class_name DotAuditLog
+class_name GSAuditLog
 extends Node
 
 ## An append-only record of every administrative action, separate from the rotating general log.
@@ -12,12 +12,12 @@ const SERVICE := &"dot_audit_log"
 ## Emitted for every recorded action, so a module can forward it elsewhere.
 signal action_recorded(entry: Dictionary)
 
-@export var config: DotServerConfig = null
+@export var config: GSServerConfig = null
 
-## Path override. Falls back to [member DotServerConfig.audit_log_path].
+## Path override. Falls back to [member GSServerConfig.audit_log_path].
 @export var path_override: String = ""
 
-## Also log every action to [DotLog] at INFO.
+## Also log every action to [GSLog] at INFO.
 @export var mirror_to_log: bool = true
 
 ## Entries kept in memory for the `audit` console command; the file is the record.
@@ -33,16 +33,16 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 	open_log()
 
 
 ## Resolves the path and opens the file. Safe to call again once [member config] is set.
-## Called twice: a created node has run [method Node._ready] before [DotServer] assigns its config, so the first call finds none.
+## Called twice: a created node has run [method Node._ready] before [GSServer] assigns its config, so the first call finds none.
 ## Idempotent: a log already open is left alone, so it is neither reopened nor truncated.
-func open_log() -> DotResult:
+func open_log() -> GSResult:
 	if _file != null:
-		return DotResult.success(_path)
+		return GSResult.success(_path)
 
 	_path = path_override
 
@@ -52,13 +52,13 @@ func open_log() -> DotResult:
 	if _path == "":
 		# Not warned here. `_ready` legitimately runs before a config is assigned, and a
 		# warning on every boot that is then resolved a millisecond later is a warning
-		# people learn to ignore. [DotServer] reports it once, after it has set the config.
-		return DotResult.fail(DotError.CODE_STATE, "No audit log path.")
+		# people learn to ignore. [GSServer] reports it once, after it has set the config.
+		return GSResult.fail(GSError.CODE_STATE, "No audit log path.")
 
 	var opened := _open()
 
 	if not opened.ok:
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"could not open the audit log — administrative actions will NOT be recorded",
 			{"path": _path, "detail": opened.error.detail}
@@ -77,11 +77,11 @@ func _exit_tree() -> void:
 		_file.flush()
 		_file.close()
 		_file = null
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
-func _open() -> DotResult:
-	var parent := DotPaths.ensure_parent_dir(_path)
+func _open() -> GSResult:
+	var parent := GSPaths.ensure_parent_dir(_path)
 	if not parent.ok:
 		return parent
 
@@ -92,14 +92,14 @@ func _open() -> DotResult:
 		_file = FileAccess.open(_path, FileAccess.WRITE)
 
 	if _file == null:
-		return DotResult.failure(
-			DotError.from_engine(
+		return GSResult.failure(
+			GSError.from_engine(
 				FileAccess.get_open_error(), "opening '%s'" % _path
 			)
 		)
 
 	_file.seek_end()
-	return DotResult.success(_path)
+	return GSResult.success(_path)
 
 
 
@@ -134,15 +134,15 @@ func record(
 			fields["target"] = target
 		for k in details:
 			fields[str(k)] = details[k]
-		DotLog.info(CHANNEL, action, fields)
+		GSLog.info(CHANNEL, action, fields)
 
 	_append(entry)
 	action_recorded.emit(entry)
 
 
-## Records a command a caller ran. Wired to [signal DotConsole.command_executed].
+## Records a command a caller ran. Wired to [signal GSConsole.command_executed].
 ## Only commands that carry a permission are recorded, a proxy for "changes something", so `status` does not bury the record.
-func record_command(ctx: DotCmdContext, permission: String) -> void:
+func record_command(ctx: GSCmdContext, permission: String) -> void:
 	if permission == "":
 		return
 
@@ -167,13 +167,13 @@ func _append(entry: Dictionary) -> void:
 	# Flushed per entry. An audit log that loses the last few actions to a crash is
 	# missing exactly the actions somebody is asking about.
 	_file.flush()
-	DotWeb.sync_filesystem()
+	GSWeb.sync_filesystem()
 
 	if _file.get_error() != OK and not _write_failed:
 		# Reported once rather than per line, so a full disk does not produce a log
 		# flood on top of the failure.
 		_write_failed = true
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"the audit log write failed — actions are no longer being recorded",
 			{"path": _path, "error": error_string(_file.get_error())}
@@ -224,7 +224,7 @@ func describe_lines(limit: int = 25) -> PackedStringArray:
 
 		var details: Variant = entry.get("details")
 		if details is Dictionary and not (details as Dictionary).is_empty():
-			line += "  " + DotLog.format_fields(details as Dictionary)
+			line += "  " + GSLog.format_fields(details as Dictionary)
 
 		out.append(line)
 

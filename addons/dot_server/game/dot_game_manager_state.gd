@@ -1,7 +1,7 @@
 @tool
 extends Node
 
-## State, signals and descriptor lookup of [DotGameManager].
+## State, signals and descriptor lookup of [GSGameManager].
 
 const CHANNEL := "games"
 const SERVICE := &"dot_game_manager"
@@ -10,7 +10,7 @@ const SERVICE := &"dot_game_manager"
 signal game_loaded(content_key: String)
 
 ## Emitted when a change fails; the previous game is still running.
-signal game_load_failed(content_key: String, error: DotError)
+signal game_load_failed(content_key: String, error: GSError)
 
 ## Per-client readiness during a change.
 signal change_progress(ready_count: int, total: int)
@@ -26,7 +26,7 @@ enum Phase {
 @export_group("Games")
 
 ## Games this server can run, by id.
-@export var games: Array[DotGameDescriptor] = []
+@export var games: Array[GSGameDescriptor] = []
 
 ## Game loaded at boot. Empty means none.
 @export var initial_game: String = ""
@@ -39,7 +39,7 @@ enum Phase {
 ## Where the game's scene is added; a child of this node by default.
 ##
 ## Point it at the host's own container when the scene must sit somewhere specific.
-@export var game_root_ref: DotNodeRef = null
+@export var game_root_ref: GSNodeRef = null
 
 ## Seconds to wait for every client to have the new content.
 ##
@@ -48,18 +48,18 @@ enum Phase {
 
 ## Drop clients that lack the content when the timeout expires.
 ##
-## Off keeps them in [constant DotClientSession.State.DOWNLOADING]; only sensible while debugging.
+## Off keeps them in [constant GSClientSession.State.DOWNLOADING]; only sensible while debugging.
 @export var kick_on_content_timeout: bool = true
 
 ## Swap as soon as everyone is ready rather than waiting out the timeout.
 @export var swap_when_all_ready: bool = true
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var phase: Phase = Phase.IDLE
 
-var _current: DotGameDescriptor = null
-var _pending: DotGameDescriptor = null
+var _current: GSGameDescriptor = null
+var _pending: GSGameDescriptor = null
 var _scene_instance: Node = null
 var _game_root: Node = null
 var _sync_deadline: int = 0
@@ -79,7 +79,7 @@ var _server_children_before_game: Array[Node] = []
 ## The game an id names: exactly, or by its NAME half when that is unambiguous.
 ## A published id is `<owner>/<name>`, so `changelevel fc` works while one installed game is
 ## called `fc`; [method resolve_game] says which two there are once a second owner arrives.
-func find_game(game_id: String) -> DotGameDescriptor:
+func find_game(game_id: String) -> GSGameDescriptor:
 	for descriptor in games:
 		if descriptor != null and descriptor.game_id == game_id:
 			return descriptor
@@ -97,31 +97,31 @@ func find_game(game_id: String) -> DotGameDescriptor:
 
 
 ## [method find_game], with the reason when it finds nothing.
-func resolve_game(game_id: String) -> DotResult:
+func resolve_game(game_id: String) -> GSResult:
 	var found := find_game(game_id)
 	if found != null:
-		return DotResult.success(found)
+		return GSResult.success(found)
 
 	var matches := _by_short_name(game_id)
 	if matches.size() > 1:
 		var ids := PackedStringArray()
 		for d in matches:
 			ids.append(d.game_id)
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"'%s' is more than one game here; say whose." % game_id,
 			"one of: %s" % ", ".join(ids)
 		)
 
-	return DotResult.fail(
-		DotError.CODE_INVALID,
+	return GSResult.fail(
+		GSError.CODE_INVALID,
 		"No game with id '%s'." % game_id,
 		"known: %s" % ", ".join(Array(game_ids()))
 	)
 
 
-func _by_short_name(name: String) -> Array[DotGameDescriptor]:
-	var out: Array[DotGameDescriptor] = []
+func _by_short_name(name: String) -> Array[GSGameDescriptor]:
+	var out: Array[GSGameDescriptor] = []
 	if name == "" or name.contains("/"):
 		return out
 	for descriptor in games:
@@ -139,25 +139,25 @@ func game_ids() -> PackedStringArray:
 
 
 ## Registers a game at runtime, for modules that add content.
-func add_game(descriptor: DotGameDescriptor) -> DotResult:
+func add_game(descriptor: GSGameDescriptor) -> GSResult:
 	if descriptor == null or descriptor.game_id == "":
-		return DotResult.fail(
-			DotError.CODE_INVALID, "A game descriptor needs a game_id."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "A game descriptor needs a game_id."
 		)
 
 	# Exact, not find_game: a built-in `fc` beside a published `alice/fc` is two
 	# games, and the short-name alias must not make one look like a duplicate.
 	if game_ids().has(descriptor.game_id):
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"A game with id '%s' is already registered." % descriptor.game_id
 		)
 
 	games.append(descriptor)
-	return DotResult.success(descriptor)
+	return GSResult.success(descriptor)
 
 
-func current() -> DotGameDescriptor:
+func current() -> GSGameDescriptor:
 	return _current
 
 
@@ -173,7 +173,7 @@ func pending_content_key() -> String:
 
 
 ## The game being changed to, or null when no change is in progress.
-func pending() -> DotGameDescriptor:
+func pending() -> GSGameDescriptor:
 	return _pending
 
 
@@ -200,7 +200,7 @@ func set_current_map(map_id: String, groups: PackedStringArray = PackedStringArr
 	if map_id == _current_map:
 		return
 	_current_map = map_id
-	DotLog.debug(CHANNEL, "map reported", {"map": map_id, "game": current_content_id()})
+	GSLog.debug(CHANNEL, "map reported", {"map": map_id, "game": current_content_id()})
 
 	if server != null and is_instance_valid(server.query_source) \
 		and server.query_source.has_method("invalidate"):
@@ -222,7 +222,7 @@ func current_manifest_url() -> String:
 
 ## Whether the running game is delivered, and so whether a joining client must sync.
 ##
-## Not "has a manifest_url"; see [method DotGameDescriptor.needs_delivered_content].
+## Not "has a manifest_url"; see [method GSGameDescriptor.needs_delivered_content].
 func current_needs_content() -> bool:
 	return _current != null and _current.needs_delivered_content()
 
@@ -249,7 +249,7 @@ func current_server_dependencies() -> PackedStringArray:
 
 
 ## The running game's delivered maps, as `<owner>/<map id>@<version>` keys, for the game
-## to turn into map definitions (GameSpice Map's DotMapCatalogue.add_delivered). Empty for a
+## to turn into map definitions (GameSpice Map's GSMapCatalogue.add_delivered). Empty for a
 ## game whose descriptor names none.
 func current_maps() -> PackedStringArray:
 	return _current.maps if _current != null else PackedStringArray()
@@ -294,7 +294,7 @@ func describe_lines() -> PackedStringArray:
 	if phase == Phase.SYNCING:
 		var waiting := PackedStringArray()
 		for session in server.sessions():
-			if session.state == DotClientSession.State.DOWNLOADING:
+			if session.state == GSClientSession.State.DOWNLOADING:
 				waiting.append("%s %d%%" % [
 					session.display_name, int(session.content_progress * 100.0)
 				])

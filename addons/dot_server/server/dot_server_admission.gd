@@ -1,18 +1,18 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_teardown.gd"
 
-## Address and identity admission, ban enforcement and the query host of [DotServer].
+## Address and identity admission, ban enforcement and the query host of [GSServer].
 
-## Plugs a query responder (GameSpice Server Query's [code]DotQueryHost[/code], duck-typed) into this server.
+## Plugs a query responder (GameSpice Server Query's [code]GSQueryHost[/code], duck-typed) into this server.
 ## Opened once the server is running, or at once when it attaches later, as a runtime-loaded module does.
 ## See [member query_host].
-func attach_query_host(host: Object) -> DotResult:
+func attach_query_host(host: Object) -> GSResult:
 	if host == null:
-		return DotResult.fail(DotError.CODE_INVALID, "A query host cannot be null.")
+		return GSResult.fail(GSError.CODE_INVALID, "A query host cannot be null.")
 
 	if not host.has_method("open"):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"A query host needs an open() method.",
 			"got a %s" % host.get_class()
 		)
@@ -20,8 +20,8 @@ func attach_query_host(host: Object) -> DotResult:
 	if query_host != null and query_host != host:
 		# Two responders would bind the same port, and the second failure would be
 		# reported as a bind error rather than as the configuration mistake it is.
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"This server already has a query host.",
 			"attached: %s" % query_host.get_class()
 		)
@@ -29,9 +29,9 @@ func attach_query_host(host: Object) -> DotResult:
 	query_host = host
 
 	if state == State.RUNNING:
-		return host.call("open") as DotResult
+		return host.call("open") as GSResult
 
-	return DotResult.success(host)
+	return GSResult.success(host)
 
 
 ## Opens the attached query host, if there is one. Called once the server is up.
@@ -39,12 +39,12 @@ func _open_query_host() -> void:
 	if query_host == null or not is_instance_valid(query_host):
 		return
 
-	var opened := query_host.call("open") as DotResult
+	var opened := query_host.call("open") as GSResult
 
 	if opened != null and not opened.ok:
 		# Warned, never fatal. A server that is running and unlisted is worth far
 		# more than one that refused to boot because a query port was taken.
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"the query host could not open its listeners",
 			{"detail": opened.error.message}
@@ -54,7 +54,7 @@ func _open_query_host() -> void:
 ## Whether a peer at [param address] may connect at all, before a session exists: the ban list, an
 ## optional external ban source and the per-address limit.
 ## The identity half is [method check_identity_admission].
-func check_address_admission(address: String) -> DotResult:
+func check_address_admission(address: String) -> GSResult:
 	if bans != null:
 		var banned := bans.check_address(address)
 		if not banned.ok:
@@ -63,7 +63,7 @@ func check_address_admission(address: String) -> DotResult:
 	var source := _ban_source()
 	if source != null:
 		var external: Variant = source.call("check_admission", "", address)
-		if external is DotResult and not (external as DotResult).ok:
+		if external is GSResult and not (external as GSResult).ok:
 			return external
 
 	if address_guard != null:
@@ -71,15 +71,15 @@ func check_address_admission(address: String) -> DotResult:
 		if not allowed.ok:
 			return allowed
 
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
 ## Whether an authenticated session may stay.
 ##
 ## Checks the account and the address: a client connected before a ban has passed only the address half.
-func check_identity_admission(session: DotClientSession) -> DotResult:
+func check_identity_admission(session: GSClientSession) -> GSResult:
 	if session == null:
-		return DotResult.fail(DotError.CODE_INVALID, "No session.")
+		return GSResult.fail(GSError.CODE_INVALID, "No session.")
 
 	if bans != null:
 		var banned := bans.check_session(session)
@@ -91,19 +91,19 @@ func check_identity_admission(session: DotClientSession) -> DotResult:
 		var external: Variant = source.call(
 			"check_admission", session.uid(), session.address
 		)
-		if external is DotResult and not (external as DotResult).ok:
+		if external is GSResult and not (external as GSResult).ok:
 			return external
 
-	return DotResult.success(null)
+	return GSResult.success(null)
 
 
 ## Follows the external ban source's [code]punished[/code] and [code]revoked[/code] signals so its
-## account bans get the same guests-only address ban as [method DotBanManager.ban_session].
+## account bans get the same guests-only address ban as [method GSBanManager.ban_session].
 func watch_ban_source() -> void:
-	var bus := DotRegistry.signals()
+	var bus := GSRegistry.signals()
 	if not bus.service_registered.is_connected(_on_service_registered):
 		bus.service_registered.connect(_on_service_registered)
-	_hook_ban_source(DotRegistry.get_service(BAN_SOURCE))
+	_hook_ban_source(GSRegistry.get_service(BAN_SOURCE))
 
 
 func _on_service_registered(service_name: StringName, instance: Object) -> void:
@@ -154,7 +154,7 @@ func _on_source_revoked(punishment: Object, _by: String) -> void:
 ## Checked, not assumed: a registration that cannot answer the method is reported once, loudly,
 ## instead of silently skipped.
 func _ban_source() -> Object:
-	var source := DotRegistry.get_service(BAN_SOURCE)
+	var source := GSRegistry.get_service(BAN_SOURCE)
 
 	if source == null:
 		return null
@@ -162,7 +162,7 @@ func _ban_source() -> Object:
 	if not source.has_method("check_admission"):
 		if not _warned_about_ban_source:
 			_warned_about_ban_source = true
-			DotLog.error(
+			GSLog.error(
 				CHANNEL,
 				"a dot_ban_source is registered but cannot answer check_admission(uid, address); "
 				+ "its bans are enforced by nothing",

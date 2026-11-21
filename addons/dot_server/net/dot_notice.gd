@@ -1,9 +1,9 @@
-class_name DotNotice
+class_name GSNotice
 extends RefCounted
 
 ## Something the server wants a player to see on their HUD and hear, that is not chat: the one
 ## message sent to the client APPLICATION, not the loaded game. A dictionary on the wire.
-## Example: [code]DotNotice.make(&"vote_warning", "A vote starts in", 10.0, &"vote")[/code]
+## Example: [code]GSNotice.make(&"vote_warning", "A vote starts in", 10.0, &"vote")[/code]
 
 ## Default for [member max_text]. Longest [member text] a client is asked to draw. A HUD line, not a message of the day:
 ## past this it is wrapping over the game, and a server that means to say more has chat.
@@ -29,7 +29,7 @@ static var _reported: Dictionary = {}
 ## changes. [member max_seconds] is set directly (0 = unlimited).
 static func set_limits(text_chars: int, id_chars: int, data_bytes: int) -> bool:
 	if text_chars < 0 or id_chars < 0 or data_bytes < 0:
-		DotLog.error("notice", "notice limits refused: negative", {
+		GSLog.error("notice", "notice limits refused: negative", {
 			"sv_notice_max_text": text_chars, "sv_notice_max_id": id_chars,
 			"sv_notice_max_data_bytes": data_bytes})
 		return false
@@ -44,7 +44,7 @@ static func _report(setting: String, limit: int, got: int) -> void:
 	if _reported.has(setting):
 		return
 	_reported[setting] = true
-	DotLog.error("notice", "notice content over %s; cut or dropped (0 lifts the limit)" % setting, {
+	GSLog.error("notice", "notice content over %s; cut or dropped (0 lifts the limit)" % setting, {
 		"setting": setting, "limit": limit, "got": got})
 
 ## Longest countdown a notice can carry, in seconds; 0 = no limit. The default is an hour: it
@@ -80,8 +80,8 @@ static func make(
 	p_seconds: float = -1.0,
 	p_topic: StringName = &"",
 	p_data: Dictionary = {}
-) -> DotNotice:
-	var n := DotNotice.new()
+) -> GSNotice:
+	var n := GSNotice.new()
 	n.cue = _bounded_id(String(p_cue))
 	n.text = _bounded_text(p_text)
 	n.seconds = _bounded_seconds(p_seconds)
@@ -92,7 +92,7 @@ static func make(
 
 ## A notice that takes [param p_topic]'s line off the HUD: only the server knows a line stopped
 ## being true (a countdown called off).
-static func clear(p_topic: StringName) -> DotNotice:
+static func clear(p_topic: StringName) -> GSNotice:
 	return make(&"", "", -1.0, p_topic)
 
 
@@ -151,8 +151,8 @@ func bbcode_text() -> String:
 
 ## Reads a payload, whatever sent it. Tolerant: every field is type-checked (mismatched Variant
 ## comparisons are runtime errors) and what cannot be read is dropped, never raised.
-static func from_wire(payload: Variant) -> DotNotice:
-	var n := DotNotice.new()
+static func from_wire(payload: Variant) -> GSNotice:
+	var n := GSNotice.new()
 
 	if not (payload is Dictionary):
 		return n
@@ -196,7 +196,7 @@ static func sanitised_string(value: Variant, max_length: int = -1) -> String:
 		return ""
 	if max_length < 0:
 		max_length = max_text
-	return DotChatManager.sanitise(String(value), max_length)
+	return GSChatManager.sanitise(String(value), max_length)
 
 
 static func _bounded_id(value: String) -> StringName:
@@ -207,12 +207,12 @@ static func _bounded_id(value: String) -> StringName:
 	return StringName(s)
 
 
-## Cleaned by [method DotChatManager.sanitise]: it is drawn by the client that draws chat, so a
+## Cleaned by [method GSChatManager.sanitise]: it is drawn by the client that draws chat, so a
 ## newline or bidi override must not get through here that chat refuses.
 static func _bounded_text(value: String) -> String:
 	if max_text > 0 and value.length() > max_text:
 		_report("sv_notice_max_text", max_text, value.length())
-	return DotChatManager.sanitise(value, max_text)
+	return GSChatManager.sanitise(value, max_text)
 
 
 ## A dictionary of plain values within [member max_data_bytes], or an empty one. Only what JSON
@@ -257,6 +257,6 @@ static func _bounded_seconds(value: float) -> float:
 	if is_nan(value) or is_inf(value) or value < 0.0:
 		return -1.0
 	if max_seconds > 0.0 and value > max_seconds:
-		push_warning("DotNotice: countdown of %s s refused, it is past max_seconds (%s); the notice has no countdown." % [value, max_seconds])
+		push_warning("GSNotice: countdown of %s s refused, it is past max_seconds (%s); the notice has no countdown." % [value, max_seconds])
 		return -1.0
 	return value

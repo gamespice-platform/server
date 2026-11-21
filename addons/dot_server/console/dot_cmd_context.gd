@@ -1,4 +1,4 @@
-class_name DotCmdContext
+class_name GSCmdContext
 extends RefCounted
 
 ## Who ran a command, with what arguments, and where output should go.
@@ -34,7 +34,7 @@ var args: PackedStringArray = PackedStringArray()
 var identity: Object = null
 
 ## The calling client's session, when a client ran this.
-var session: RefCounted = null  # a DotClientSession, held untyped so this file and dot_client_session.gd do not keep each other's parsers alive
+var session: RefCounted = null  # a GSClientSession, held untyped so this file and dot_client_session.gd do not keep each other's parsers alive
 
 ## Permission flags the caller holds. Checked by the console before dispatch.
 var permissions: PackedStringArray = PackedStringArray()
@@ -52,20 +52,20 @@ var address: String = ""
 var output: PackedStringArray = PackedStringArray()
 
 
-static func console(command_name: String, arguments: PackedStringArray) -> DotCmdContext:
-	var ctx := DotCmdContext.new()
+static func console(command_name: String, arguments: PackedStringArray) -> GSCmdContext:
+	var ctx := GSCmdContext.new()
 	ctx.source = Source.CONSOLE
 	ctx.command = command_name
 	ctx.args = arguments
 	# The local console holds every permission: whoever has the terminal already
 	# has the process, and pretending otherwise only makes the server harder to
 	# administer without making it safer.
-	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.root_immunity()
+	ctx.permissions = PackedStringArray([GSAdminFlags.ROOT])
+	ctx.immunity = GSAdminFlags.root_immunity()
 	return ctx
 
 
-static func internal(command_name: String, arguments: PackedStringArray) -> DotCmdContext:
+static func internal(command_name: String, arguments: PackedStringArray) -> GSCmdContext:
 	var ctx := console(command_name, arguments)
 	ctx.source = Source.INTERNAL
 	return ctx
@@ -122,7 +122,7 @@ func reply_lines(lines: PackedStringArray) -> void:
 
 
 ## Reports a failure to the caller and logs it.
-func reply_error(res: DotResult) -> void:
+func reply_error(res: GSResult) -> void:
 	if res.ok:
 		return
 	reply("Error: %s" % res.error.message)
@@ -132,13 +132,13 @@ func reply_error(res: DotResult) -> void:
 
 
 func has_permission(flag: String) -> bool:
-	return DotAdminFlags.granted(permissions, flag)
+	return GSAdminFlags.granted(permissions, flag)
 
 
 ## Whether this caller may act on a target with [param target_immunity].
 ## Equal immunity cannot act on equal: two admins at one level kicking each other has no resolution.
 func outranks(target_immunity: int) -> bool:
-	if has_permission(DotAdminFlags.ROOT):
+	if has_permission(GSAdminFlags.ROOT):
 		return true
 	return immunity > target_immunity
 
@@ -163,6 +163,6 @@ func caller_label() -> String:
 
 
 func _to_string() -> String:
-	return "DotCmdContext(%s %s from %s)" % [
+	return "GSCmdContext(%s %s from %s)" % [
 		command, " ".join(Array(args)), caller_label()
 	]

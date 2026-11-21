@@ -1,4 +1,4 @@
-class_name DotConCommand
+class_name GSConCommand
 extends RefCounted
 
 ## A console command carrying its own permission and argument bounds, so the console refuses
@@ -6,16 +6,16 @@ extends RefCounted
 ## very different trust; a handler checking for itself would sometimes forget.
 
 ## The invocation context: who is asking and where to reply (so `kick` can respect immunity
-## and output reaches the RCON session that asked). A [DotCmdContext], not a bare array.
+## and output reaches the RCON session that asked). A [GSCmdContext], not a bare array.
 
-## Callable signature: [code]func(ctx: DotCmdContext) -> void[/code].
+## Callable signature: [code]func(ctx: GSCmdContext) -> void[/code].
 var handler: Callable
 
 var name: String
 var description: String
 
 ## Permission flag required to run this; empty means anybody (`status`, `help`). Anything
-## that changes state should have one. See [DotAdminFlags].
+## that changes state should have one. See [GSAdminFlags].
 var permission: String = ""
 
 ## Usage line shown by `help`, e.g. [code]"<player> [reason][/code]".
@@ -31,9 +31,9 @@ var rcon_allowed: bool = true
 
 ## What this command says about chat (`!kick`, `/map`): [code]ALLOWED[/code] and
 ## [code]REFUSED[/code] are its own decision; [code]DEFAULT[/code] (the default) defers to
-## [member DotConsole.chat_commands_open]. Not a security boundary; [member permission] is.
+## [member GSConsole.chat_commands_open]. Not a security boundary; [member permission] is.
 enum ChatPolicy {
-	## Follow the server: [member DotConsole.chat_commands_open].
+	## Follow the server: [member GSConsole.chat_commands_open].
 	DEFAULT,
 	## Always reachable from chat, whatever the server's default is.
 	ALLOWED,
@@ -44,7 +44,7 @@ enum ChatPolicy {
 var chat_policy: ChatPolicy = ChatPolicy.DEFAULT
 
 ## Whether this command has not refused chat outright. Not the whole answer: a DEFAULT command
-## with [member DotConsole.chat_commands_open] off reads true yet is unreachable; the console
+## with [member GSConsole.chat_commands_open] off reads true yet is unreachable; the console
 ## calls [method allows_chat]. Assigning true marks ALLOWED, false REFUSED.
 var chat_allowed: bool:
 	get:
@@ -73,12 +73,12 @@ func _init(
 	permission = p_permission
 
 
-func with_usage(p_usage: String) -> DotConCommand:
+func with_usage(p_usage: String) -> GSConCommand:
 	usage = p_usage
 	return self
 
 
-func with_args(p_min: int, p_max: int = -1) -> DotConCommand:
+func with_args(p_min: int, p_max: int = -1) -> GSConCommand:
 	min_args = p_min
 	max_args = p_max
 	return self
@@ -86,14 +86,14 @@ func with_args(p_min: int, p_max: int = -1) -> DotConCommand:
 
 ## Marks this reachable from chat whatever the server default is, so it survives an operator
 ## turning the default off (`!rtv`, `!top`).
-func with_chat(allowed: bool = true) -> DotConCommand:
+func with_chat(allowed: bool = true) -> GSConCommand:
 	chat_policy = ChatPolicy.ALLOWED if allowed else ChatPolicy.REFUSED
 	return self
 
 
 ## Marks this unreachable from chat whatever the server default is, for operations rather
 ## than callers (`quit` on a listen server). Everything else relies on [member permission].
-func no_chat() -> DotConCommand:
+func no_chat() -> GSConCommand:
 	chat_policy = ChatPolicy.REFUSED
 	return self
 
@@ -110,38 +110,38 @@ func allows_chat(open_by_default: bool) -> bool:
 			return open_by_default
 
 
-func with_rcon(allowed: bool) -> DotConCommand:
+func with_rcon(allowed: bool) -> GSConCommand:
 	rcon_allowed = allowed
 	return self
 
 
-func with_completer(p_completer: Callable) -> DotConCommand:
+func with_completer(p_completer: Callable) -> GSConCommand:
 	completer = p_completer
 	return self
 
 
-func as_hidden() -> DotConCommand:
+func as_hidden() -> GSConCommand:
 	hidden = true
 	return self
 
 
 ## Checks argument counts. Called by the console before the handler runs.
-func check_args(argc: int) -> DotResult:
+func check_args(argc: int) -> GSResult:
 	if argc < min_args:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Not enough arguments.",
 			usage_line()
 		)
 
 	if max_args >= 0 and argc > max_args:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"Too many arguments.",
 			usage_line()
 		)
 
-	return DotResult.success(true)
+	return GSResult.success(true)
 
 
 func usage_line() -> String:
@@ -180,4 +180,4 @@ func describe_help() -> PackedStringArray:
 
 
 func _to_string() -> String:
-	return "DotConCommand(%s)" % name
+	return "GSConCommand(%s)" % name

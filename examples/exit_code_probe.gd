@@ -6,11 +6,11 @@ extends Node
 
 
 func _ready() -> void:
-	var config := DotServerConfig.new()
+	var config := GSServerConfig.new()
 	config.port = 0
 	config.rcon_port = 0
 	config.stdin_console_pipes = true
-	var server := DotServer.new()
+	var server := GSServer.new()
 	server.config = config
 	server.auto_boot = false
 	add_child(server)

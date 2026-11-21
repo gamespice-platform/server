@@ -8,7 +8,7 @@ var _passed := 0
 var _failed := 0
 var _failures: Array[String] = []
 
-var _server: DotServer = null
+var _server: GSServer = null
 var _links: Dictionary = {}
 
 

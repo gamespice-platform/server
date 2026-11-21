@@ -4,22 +4,22 @@ extends "res://examples/selftest/signon_revision_base.gd"
 
 const Credentials := preload("res://addons/dot_server/client/dot_client_credentials.gd")
 
-## Every `@rpc` on [DotServer] has a counterpart on [DotClientLink], and likewise for chat: Godot
+## Every `@rpc` on [GSServer] has a counterpart on [GSClientLink], and likewise for chat: Godot
 ## compares the name sets and refuses the pair when they differ. The suite asserts the sets, not
 ## the count, so a rename fails as loudly as an addition.
 func _test_the_two_sides_agree() -> void:
 	_section("the two sides of the handshake declare the same methods")
 
-	var server_names := DotSignon.rpc_method_names([DotServer, DotChatManager])
-	var client_names := DotSignon.rpc_method_names([DotClientLink, DotClientChat])
+	var server_names := GSSignon.rpc_method_names([GSServer, GSChatManager])
+	var client_names := GSSignon.rpc_method_names([GSClientLink, GSClientChat])
 
 	# The surface is frozen: exactly the six envelope names on each end and none on the chat pair;
 	# a feature is a kind, and a seventh method is the protocol break.
-	var frozen := PackedStringArray(DotSignon.ENVELOPE)
+	var frozen := PackedStringArray(GSSignon.ENVELOPE)
 	_check(
 		server_names == frozen,
 		"the server declares exactly the six envelope rpcs",
-		"it declares: %s -- add a kind to DotServer.envelope, not an @rpc" % ", ".join(server_names)
+		"it declares: %s -- add a kind to GSServer.envelope, not an @rpc" % ", ".join(server_names)
 	)
 	_check(
 		client_names == frozen,
@@ -27,7 +27,7 @@ func _test_the_two_sides_agree() -> void:
 		"it declares: %s" % ", ".join(client_names)
 	)
 	_check(
-		DotSignon.rpc_method_names([DotChatManager, DotClientChat]).is_empty(),
+		GSSignon.rpc_method_names([GSChatManager, GSClientChat]).is_empty(),
 		"and the chat nodes declare none: chat is two kinds now"
 	)
 
@@ -46,17 +46,17 @@ func _test_the_two_sides_agree() -> void:
 	_check(
 		only_server.is_empty(),
 		"every server rpc has a client counterpart",
-		"DotClientLink/DotClientChat are missing: %s" % ", ".join(only_server)
+		"GSClientLink/GSClientChat are missing: %s" % ", ".join(only_server)
 	)
 	_check(
 		only_client.is_empty(),
 		"every client rpc has a server counterpart",
-		"DotServer/DotChatManager are missing: %s" % ", ".join(only_client)
+		"GSServer/GSChatManager are missing: %s" % ", ".join(only_client)
 	)
 
 	# The consequence, stated as the thing a deployment actually depends on.
 	_check(
-		DotSignon.revision([DotServer]) == DotSignon.revision([DotClientLink]),
+		GSSignon.revision([GSServer]) == GSSignon.revision([GSClientLink]),
 		"so a client built from this tree can join a server built from it"
 	)
 
@@ -65,15 +65,15 @@ func _test_the_two_sides_agree() -> void:
 func _test_the_revision_is_derived() -> void:
 	_section("the revision is derived from the declaration, not written down")
 
-	var rev := DotSignon.revision([DotServer, DotChatManager])
+	var rev := GSSignon.revision([GSServer, GSChatManager])
 
 	_check(rev != "", "it is not empty (%s)" % rev)
 	_check(
-		rev.length() == DotSignon.REVISION_LENGTH,
-		"and is %d characters" % DotSignon.REVISION_LENGTH
+		rev.length() == GSSignon.REVISION_LENGTH,
+		"and is %d characters" % GSSignon.REVISION_LENGTH
 	)
 	_check(
-		rev == DotSignon.revision([DotChatManager, DotServer]),
+		rev == GSSignon.revision([GSChatManager, GSServer]),
 		"the order the scripts are passed in does not change it",
 		"two servers that loaded their scripts in different orders would disagree"
 	)
@@ -81,22 +81,22 @@ func _test_the_revision_is_derived() -> void:
 	# An empty answer must not be a hash: a build that cannot read the rpc config has to say so,
 	# not offer a hash of nothing that every other build would refuse.
 	_check(
-		DotSignon.revision([]) == "",
+		GSSignon.revision([]) == "",
 		"a side that cannot answer reports nothing rather than a hash of nothing"
 	)
 
 	# Empty on EITHER side is not a mismatch: a server older than this class sends no revision.
-	_check(DotSignon.compatible(rev, ""), "an older server is not refused")
-	_check(DotSignon.compatible("", rev), "and neither is an older client")
-	_check(DotSignon.compatible(rev, rev), "the same revision is compatible")
+	_check(GSSignon.compatible(rev, ""), "an older server is not refused")
+	_check(GSSignon.compatible("", rev), "and neither is an older client")
+	_check(GSSignon.compatible(rev, rev), "the same revision is compatible")
 	_check(
-		not DotSignon.compatible(rev, "0123456789ab"),
+		not GSSignon.compatible(rev, "0123456789ab"),
 		"a different one is not"
 	)
 
-	var err := DotSignon.explain(rev, "0123456789ab")
+	var err := GSSignon.explain(rev, "0123456789ab")
 	_check(
-		err.code == DotError.CODE_UNSUPPORTED,
+		err.code == GSError.CODE_UNSUPPORTED,
 		"and explaining it gives CODE_UNSUPPORTED rather than a network error",
 		"a player told 'connection failed' will retry for ever"
 	)
@@ -110,8 +110,8 @@ func _test_the_revision_is_derived() -> void:
 func _test_a_real_join_carries_it() -> bool:
 	_section("a real join carries the revision")
 
-	_link = DotClientLink.new()
-	# "Server", the same as DotServer. The name is the routing.
+	_link = GSClientLink.new()
+	# "Server", the same as GSServer. The name is the routing.
 	_link.name = "Server"
 	_link.player_name = "Joiner"
 	_client_side.add_child(_link)
@@ -119,7 +119,7 @@ func _test_a_real_join_carries_it() -> bool:
 	_link.spawned.connect(func() -> void: _spawned[0] = true)
 	_link.disconnected.connect(func(reason: String) -> void: _refused[0] = reason)
 
-	var connecting: DotResult = await _link.connect_to_server("127.0.0.1:%d" % PORT)
+	var connecting: GSResult = await _link.connect_to_server("127.0.0.1:%d" % PORT)
 
 	if not _check(connecting.ok, "the client connects", str(connecting.error)):
 		_done()
@@ -134,7 +134,7 @@ func _test_a_real_join_carries_it() -> bool:
 		return false
 
 	# The round trip is known within a second of joining, not after the first two-second
-	# heartbeat: every game's clock takes its input lead from it (DotClientLink._enter_playing).
+	# heartbeat: every game's clock takes its input lead from it (GSClientLink._enter_playing).
 	var joined_ms := Time.get_ticks_msec()
 	var measured := await _until(func() -> bool: return _link.ping_ms() >= 0, 1.0)
 	_check(measured, "the client knows its round trip within a second of joining (%d ms after)" % (Time.get_ticks_msec() - joined_ms))
@@ -147,7 +147,7 @@ func _test_a_real_join_carries_it() -> bool:
 	)
 
 	_check(
-		_link.server_signon == DotSignon.revision([DotServer]),
+		_link.server_signon == GSSignon.revision([GSServer]),
 		"and kept the server's revision (%s)" % _link.server_signon,
 		"the challenge did not carry one, so no browser can read it either"
 	)
@@ -184,9 +184,9 @@ func _test_replicated_cvars_reach_the_client() -> void:
 	_link.replicated_cvar_changed.connect(func(n: String, v: String) -> void: heard.append([n, v]))
 
 	var rule := _server.console.cvar("mp_signon_test_rule", "1", "a game rule a client predicts under",
-		DotConVar.FLAG_REPLICATED | DotConVar.FLAG_NOTIFY)
+		GSConVar.FLAG_REPLICATED | GSConVar.FLAG_NOTIFY)
 	var secret := _server.console.cvar("mp_signon_test_secret", "hunter2", "replicated but protected",
-		DotConVar.FLAG_REPLICATED | DotConVar.FLAG_PROTECTED)
+		GSConVar.FLAG_REPLICATED | GSConVar.FLAG_PROTECTED)
 	var plain := _server.console.cvar("mp_signon_test_plain", "5", "a server-only knob")
 
 	_check(await _until(func() -> bool: return _link.replicated_cvar("mp_signon_test_rule") == "1", 5.0),
@@ -225,7 +225,7 @@ func _test_a_mismatch_is_refused_at_once() -> void:
 	_refused[0] = ""
 
 	_link._on_challenge(1, {
-		"protocol": DotSignon.PROTOCOL,
+		"protocol": GSSignon.PROTOCOL,
 		"hostname": "Somewhere Else",
 		"server_id": "",
 		"needs_password": false,
@@ -234,13 +234,13 @@ func _test_a_mismatch_is_refused_at_once() -> void:
 	})
 
 	_check(
-		_link.phase == DotClientLink.Phase.FAILED,
+		_link.phase == GSClientLink.Phase.FAILED,
 		"the client fails rather than answering",
-		"phase is %s" % DotClientLink.phase_name(_link.phase)
+		"phase is %s" % GSClientLink.phase_name(_link.phase)
 	)
 	_check(
 		_link.last_error != null
-			and _link.last_error.code == DotError.CODE_UNSUPPORTED,
+			and _link.last_error.code == GSError.CODE_UNSUPPORTED,
 		"with CODE_UNSUPPORTED",
 		"got %s" % (str(_link.last_error) if _link.last_error != null else "nothing")
 	)
@@ -258,17 +258,17 @@ func _test_a_mismatch_is_refused_at_once() -> void:
 	)
 
 	# The one change names cannot express: the same revision, a different PROTOCOL.
-	var protocol_link := DotClientLink.new()
+	var protocol_link := GSClientLink.new()
 	add_child(protocol_link)
 	protocol_link._on_challenge(1, {
-		"protocol": DotSignon.PROTOCOL + 1,
+		"protocol": GSSignon.PROTOCOL + 1,
 		"hostname": "Elsewhere",
-		"signon": DotSignon.revision([DotClientLink]),
+		"signon": GSSignon.revision([GSClientLink]),
 	})
 	_check(
-		protocol_link.phase == DotClientLink.Phase.FAILED
+		protocol_link.phase == GSClientLink.Phase.FAILED
 			and protocol_link.last_error != null
-			and protocol_link.last_error.code == DotError.CODE_UNSUPPORTED,
+			and protocol_link.last_error.code == GSError.CODE_UNSUPPORTED,
 		"a server on another signon protocol is refused the same way"
 	)
 	protocol_link.queue_free()
@@ -282,10 +282,10 @@ func _test_an_older_client_on_a_newer_server() -> void:
 
 	_server.envelope.register(&"skew.server_news")
 
-	var old := _new_link("OldClient", func(link: DotClientLink) -> void:
-		link.envelope.unregister(DotEnvelope.NOTICE)
-		link.envelope.unregister(DotEnvelope.CHAT_LINE)
-		link.envelope.unregister(DotEnvelope.CVARS)
+	var old := _new_link("OldClient", func(link: GSClientLink) -> void:
+		link.envelope.unregister(GSEnvelope.NOTICE)
+		link.envelope.unregister(GSEnvelope.CHAT_LINE)
+		link.envelope.unregister(GSEnvelope.CVARS)
 	)
 
 	var joined := await _join(old)
@@ -297,19 +297,19 @@ func _test_an_older_client_on_a_newer_server() -> void:
 	_check(old.server_addons.is_empty(), "a server announcing no addons sends no list", str(old.server_addons))
 
 	var peer := _peer_of("OldClient")
-	var session: DotClientSession = _server.session_of(peer)
+	var session: GSClientSession = _server.session_of(peer)
 
 	_check(
-		not _server.envelope.peer_knows(peer, DotEnvelope.NOTICE),
+		not _server.envelope.peer_knows(peer, GSEnvelope.NOTICE),
 		"the server knows this client has no notices"
 	)
 	var skipped := _server.envelope.skipped_sends
 	_check(
-		not _server.send_notice(session, DotNotice.make(&"cue", "not for you")),
+		not _server.send_notice(session, GSNotice.make(&"cue", "not for you")),
 		"so a notice to it is not sent"
 	)
 	_check(
-		not _server.send_kind(peer, &"skew.server_news", {"x": 1}, DotEnvelope.Lane.EVENT),
+		not _server.send_kind(peer, &"skew.server_news", {"x": 1}, GSEnvelope.Lane.EVENT),
 		"and nor is the newer server's own kind"
 	)
 	_check(
@@ -324,7 +324,7 @@ func _test_an_older_client_on_a_newer_server() -> void:
 	# Put an unknown kind on the wire anyway, as a server that did not filter would.
 	var dropped := old.envelope.dropped_arrivals
 	_server._dot_down_event.rpc_id(peer, "skew.server_news", {"x": 1})
-	_server._dot_down.rpc_id(peer, String(DotEnvelope.NOTICE), {"cue": "raw"})
+	_server._dot_down.rpc_id(peer, String(GSEnvelope.NOTICE), {"cue": "raw"})
 	var ignored := await _until(func() -> bool: return old.envelope.dropped_arrivals >= dropped + 2, 5.0)
 	_check(ignored, "what it has never heard of is dropped on arrival (%d)" % (old.envelope.dropped_arrivals - dropped))
 
@@ -353,17 +353,17 @@ func _test_an_older_client_on_a_newer_server() -> void:
 func _test_a_newer_client_on_an_older_server() -> void:
 	_section("a newer client joins an older server")
 
-	_server.envelope.unregister(DotEnvelope.NOTICE)
+	_server.envelope.unregister(GSEnvelope.NOTICE)
 
 	var heard := [0]
-	var newer := _new_link("NewClient", func(link: DotClientLink) -> void:
+	var newer := _new_link("NewClient", func(link: GSClientLink) -> void:
 		link.envelope.register(&"skew.client_news")
 		link.envelope.register(&"skew.server_only_reply", func(_p: int, _d: Dictionary) -> void: heard[0] += 1)
 	)
 
 	var joined := await _join(newer)
 	if not _check(joined == "", "it joins and plays", joined):
-		_server.envelope.register(DotEnvelope.NOTICE)
+		_server.envelope.register(GSEnvelope.NOTICE)
 		_done()
 		return
 
@@ -377,18 +377,18 @@ func _test_a_newer_client_on_an_older_server() -> void:
 	var ignored := await _until(func() -> bool: return _server.envelope.dropped_arrivals > dropped, 5.0)
 	_check(ignored, "and one that arrives anyway is dropped by the server")
 
-	var session: DotClientSession = _server.session_of(_peer_of("NewClient"))
+	var session: GSClientSession = _server.session_of(_peer_of("NewClient"))
 	_check(
 		session != null and session.is_playing(),
 		"which goes on serving it"
 	)
 	_check(
-		not newer.envelope.peer_knows(1, DotEnvelope.NOTICE),
+		not newer.envelope.peer_knows(1, GSEnvelope.NOTICE),
 		"and the client knows this server has no notices"
 	)
 
 	_drop_link(newer)
-	_server.envelope.register(DotEnvelope.NOTICE)
+	_server.envelope.register(GSEnvelope.NOTICE)
 	_done()
 
 ## [b]A newer client REQUIRES a kind the server does not have.[/b] Refused by the server in
@@ -396,7 +396,7 @@ func _test_a_newer_client_on_an_older_server() -> void:
 func _test_a_required_kind_the_server_lacks() -> void:
 	_section("a client that requires a kind this server lacks is refused in words")
 
-	var strict := _new_link("StrictClient", func(link: DotClientLink) -> void:
+	var strict := _new_link("StrictClient", func(link: GSClientLink) -> void:
 		link.envelope.register(&"skew.vital", Callable(), true)
 	)
 
@@ -406,11 +406,11 @@ func _test_a_required_kind_the_server_lacks() -> void:
 
 	_check(outcome != "", "it does not join")
 	_check(
-		strict.phase == DotClientLink.Phase.FAILED,
-		"its phase says it failed (%s)" % DotClientLink.phase_name(strict.phase)
+		strict.phase == GSClientLink.Phase.FAILED,
+		"its phase says it failed (%s)" % GSClientLink.phase_name(strict.phase)
 	)
 	_check(
-		strict.last_error != null and strict.last_error.code == DotError.CODE_VERSION,
+		strict.last_error != null and strict.last_error.code == GSError.CODE_VERSION,
 		"as a version problem, not a kick",
 		str(strict.last_error)
 	)
@@ -446,7 +446,7 @@ func _test_a_required_kind_the_client_lacks() -> void:
 		outcome
 	)
 	_check(
-		older.last_error != null and older.last_error.code == DotError.CODE_VERSION
+		older.last_error != null and older.last_error.code == GSError.CODE_VERSION
 			and older.last_error.detail.contains("skew.must"),
 		"as a version problem naming the kind",
 		str(older.last_error)
@@ -472,8 +472,8 @@ func _test_a_secret_never_rides_udp() -> void:
 		var counts: Dictionary = _server.multiplayer.multiplayer_peer.call("peer_counts")
 		seen.append({"token": credential.get("access_token", ""), "enet": counts["enet"]})
 	var client_auth := StandIns._TokenStandIn.new()
-	DotRegistry.register(&"dot_auth_server", server_auth)
-	DotRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"dot_auth_server", server_auth)
+	GSRegistry.register(&"dot_auth_client", client_auth)
 
 	var link := _new_link("Secretive", Callable())
 	await _join(link)
@@ -491,8 +491,8 @@ func _test_a_secret_never_rides_udp() -> void:
 		"minted for the audience the server announced", str(client_auth.minted_for)
 	)
 
-	DotRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	DotRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -508,23 +508,23 @@ func _test_introspect_refuses_a_server_not_ours() -> void:
 	server_auth.on_authenticate = func(credential: Dictionary) -> void:
 		seen.append(credential.duplicate())
 	var client_auth := StandIns._TokenStandIn.new()
-	DotRegistry.register(&"dot_auth_server", server_auth)
-	DotRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"dot_auth_server", server_auth)
+	GSRegistry.register(&"dot_auth_client", client_auth)
 
-	var link := _new_link("Stranger", func(l: DotClientLink) -> void:
+	var link := _new_link("Stranger", func(l: GSClientLink) -> void:
 		l.transport_preference = "ws")
 	var outcome := await _join(link)
 
 	_check(
-		link.last_error != null and link.last_error.code == DotError.CODE_FORBIDDEN,
+		link.last_error != null and link.last_error.code == GSError.CODE_FORBIDDEN,
 		"the join failed as forbidden", str(link.last_error)
 	)
 	_check(outcome != "", "with a sentence for the player", outcome)
 	_check(seen.is_empty(), "and the server received no credentials (%d)" % seen.size())
 	_check(client_auth.minted_for.is_empty(), "and no join token was minted")
 
-	DotRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	DotRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -552,10 +552,10 @@ func _test_join_token_address_binding() -> void:
 			seen.append(credential.duplicate())
 		var client_auth := StandIns._TokenStandIn.new()
 		client_auth.config.bind_join_address = bind
-		DotRegistry.register(&"dot_auth_server", server_auth)
-		DotRegistry.register(&"dot_auth_client", client_auth)
+		GSRegistry.register(&"dot_auth_server", server_auth)
+		GSRegistry.register(&"dot_auth_client", client_auth)
 
-		var link := _new_link("Binder", func(l: DotClientLink) -> void:
+		var link := _new_link("Binder", func(l: GSClientLink) -> void:
 			l.transport_preference = "ws")
 		await _join(link)
 		await _until(func() -> bool: return not seen.is_empty(), 5.0)
@@ -566,8 +566,8 @@ func _test_join_token_address_binding() -> void:
 		_check(seen.size() == 1 and str(seen[0].get("access_token", "")) == StandIns._TokenStandIn.JOIN,
 			"flag %s: the server still got the join token" % bind, str(seen))
 
-		DotRegistry.unregister_instance(&"dot_auth_server", server_auth)
-		DotRegistry.unregister_instance(&"dot_auth_client", client_auth)
+		GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
+		GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
 		_drop_link(link)
 	_done()
 
@@ -583,10 +583,10 @@ func _test_a_ticket_is_asked_for_by_the_dialled_address() -> void:
 	server_auth.on_authenticate = func(credential: Dictionary) -> void:
 		seen.append(credential.duplicate())
 	var client_auth := StandIns._TicketStandIn.new()
-	DotRegistry.register(&"dot_auth_server", server_auth)
-	DotRegistry.register(&"dot_auth_client", client_auth)
+	GSRegistry.register(&"dot_auth_server", server_auth)
+	GSRegistry.register(&"dot_auth_client", client_auth)
 
-	var link := _new_link("Ticketed", func(l: DotClientLink) -> void:
+	var link := _new_link("Ticketed", func(l: GSClientLink) -> void:
 		l.transport_preference = "ws")
 	await _join(link)
 
@@ -602,8 +602,8 @@ func _test_a_ticket_is_asked_for_by_the_dialled_address() -> void:
 			and not seen[0].has("ticket_nonce"),
 		"and the server checked it against its own copy, not the client's", str(server_auth.nonces))
 
-	DotRegistry.unregister_instance(&"dot_auth_server", server_auth)
-	DotRegistry.unregister_instance(&"dot_auth_client", client_auth)
+	GSRegistry.unregister_instance(&"dot_auth_server", server_auth)
+	GSRegistry.unregister_instance(&"dot_auth_client", client_auth)
 	_drop_link(link)
 	_done()
 
@@ -614,19 +614,19 @@ func _test_an_account_holds_one_seat() -> void:
 	_section("an account signing in again replaces its older connection")
 
 	var auth := StandIns._SameAccountStandIn.new()
-	DotRegistry.register(&"dot_auth_server", auth)
+	GSRegistry.register(&"dot_auth_server", auth)
 	var same := func() -> int:
-		return _server.sessions().filter(func(x: DotClientSession) -> bool:
+		return _server.sessions().filter(func(x: GSClientSession) -> bool:
 			return x.is_active() and x.uid() == "tmc:the-same-account").size()
 
-	var first := _new_link("TwinA", func(l: DotClientLink) -> void: l.transport_preference = "ws")
+	var first := _new_link("TwinA", func(l: GSClientLink) -> void: l.transport_preference = "ws")
 	var lost := [""]
 	var heard: Array[String] = []
 	first.disconnected.connect(func(reason: String) -> void:
 		heard.append(reason)
 		lost[0] = reason)
 	_check(await _join(first) == "", "the account joins")
-	var second := _new_link("TwinB", func(l: DotClientLink) -> void: l.transport_preference = "ws")
+	var second := _new_link("TwinB", func(l: GSClientLink) -> void: l.transport_preference = "ws")
 	_check(await _join(second) == "", "and joins again from another connection")
 	await _until(func() -> bool: return lost[0] != "", 3.0)
 	_check(same.call() == 1, "leaving one seat (%d)" % same.call())
@@ -637,12 +637,12 @@ func _test_an_account_holds_one_seat() -> void:
 		"and only that reason is reported, not the transport's generic one after it", str(heard))
 
 	_server.console.set_cvar("sv_single_seat", "0")
-	var third := _new_link("TwinC", func(l: DotClientLink) -> void: l.transport_preference = "ws")
+	var third := _new_link("TwinC", func(l: GSClientLink) -> void: l.transport_preference = "ws")
 	_check(await _join(third) == "", "with sv_single_seat 0 a third joins")
 	_check(same.call() == 2, "and both seats stay (%d)" % same.call())
 	_server.console.set_cvar("sv_single_seat", "1")
 
-	DotRegistry.unregister_instance(&"dot_auth_server", auth)
+	GSRegistry.unregister_instance(&"dot_auth_server", auth)
 	_drop_link(first)
 	_drop_link(second)
 	_drop_link(third)
@@ -665,9 +665,9 @@ func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 
 	var cloud := FakeCloud.new()
 	add_child(cloud)
-	DotRegistry.register(&"dot_cloud_client", cloud)
+	GSRegistry.register(&"dot_cloud_client", cloud)
 
-	var link := DotClientLink.new()
+	var link := GSClientLink.new()
 	add_child(link)
 	var seen: Array = []
 	link.download_progress.connect(func(fraction: float, _text: String) -> void: seen.append(fraction))
@@ -678,7 +678,7 @@ func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 	link.queue_free()
 
 	cloud.hang = true
-	var link2 := DotClientLink.new()
+	var link2 := GSClientLink.new()
 	add_child(link2)
 	link2._on_load_game(0, info)
 	for i in 8:
@@ -686,10 +686,10 @@ func _test_the_warm_feeds_progress_and_survives_the_cloud() -> void:
 	cloud.free()
 	var loaded := await _until(func() -> bool: return link2.get("_scene_instance") != null, 3.0)
 	_check(loaded, "a cloud freed mid-warm falls back to a plain load() of the scene")
-	_check(link2.phase != DotClientLink.Phase.LOADING or loaded, "and the join is not left in LOADING")
+	_check(link2.phase != GSClientLink.Phase.LOADING or loaded, "and the join is not left in LOADING")
 	link2.queue_free()
 
-	DotRegistry.unregister(&"dot_cloud_client")
+	GSRegistry.unregister(&"dot_cloud_client")
 	DirAccess.remove_absolute(dir + "/s.tscn")
 	DirAccess.remove_absolute(dir)
 	DirAccess.remove_absolute("res://dot_cloud/_warmtest")

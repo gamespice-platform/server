@@ -1,5 +1,5 @@
 @tool
-class_name DotChatManager
+class_name GSChatManager
 extends Node
 
 ## Chat, and the chat-trigger path into the console: routing, flood control, length limits,
@@ -9,11 +9,11 @@ extends Node
 const CHANNEL := "chat"
 const SERVICE := &"dot_chat_manager"
 
-const CHANNEL_EVENT := DotTransport.Channel.EVENT
+const CHANNEL_EVENT := GSTransport.Channel.EVENT
 
 ## Code points [method sanitise] removes outright: zero-width and formatting characters, the
 ## directional marks, overrides and isolates, and the byte-order mark. The same list as
-## GameSpice Chat's [code]DotChatFilter.INVISIBLE[/code] — see [method is_refused] for why.
+## GameSpice Chat's [code]GSChatFilter.INVISIBLE[/code] — see [method is_refused] for why.
 const INVISIBLE: Array[int] = [
 	0x00AD, 0x061C, 0x180E,
 	0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
@@ -25,10 +25,10 @@ const INVISIBLE: Array[int] = [
 ]
 
 ## Emitted after a message is accepted and broadcast.
-signal message_sent(session: DotClientSession, text: String, team_only: bool)
+signal message_sent(session: GSClientSession, text: String, team_only: bool)
 
 ## Emitted when a message is refused, for abuse detection.
-signal message_blocked(session: DotClientSession, reason: String)
+signal message_blocked(session: GSClientSession, reason: String)
 
 @export_group("Announcements")
 
@@ -41,19 +41,19 @@ signal message_blocked(session: DotClientSession, reason: String)
 ## Prefix on admin chat.
 @export var admin_prefix: String = "[ADMIN]"
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
-var _limiter: DotRateLimiter = null
+var _limiter: GSRateLimiter = null
 
 
 func setup(p_server: Node) -> void:
 	server = p_server
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 
 	var per_minute: int = server.config.chat_rate_per_minute
 	# Burst equal to a quarter of the per-minute budget: enough for a player typing
 	# three quick lines, not enough to paste a wall of text.
-	_limiter = DotRateLimiter.new(
+	_limiter = GSRateLimiter.new(
 		float(per_minute) / 60.0, maxf(3.0, float(per_minute) / 4.0)
 	)
 
@@ -62,35 +62,35 @@ func setup(p_server: Node) -> void:
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 
 ## Handles a chat message from a client. Cheap structural checks first, then rate limiting,
 ## mute, the command path, the cancellable event hook, then broadcast: reject before working.
 func handle_message(
-	session: DotClientSession,
+	session: GSClientSession,
 	raw: String,
 	team_only: bool = false
-) -> DotResult:
+) -> GSResult:
 	if session == null or not session.is_playing():
-		return DotResult.fail(
-			DotError.CODE_STATE, "You are not in the game yet."
+		return GSResult.fail(
+			GSError.CODE_STATE, "You are not in the game yet."
 		)
 
 	var text: String = sanitise(raw, server.config.chat_max_length)
 
 	if text == "":
-		return DotResult.fail(DotError.CODE_INVALID, "Empty message.")
+		return GSResult.fail(GSError.CODE_INVALID, "Empty message.")
 
 	if not _limiter.allow(session.userid):
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL, "chat rate limited", {"user": session.label()}
 		)
 		send_system_to(session, "You are sending messages too quickly.")
 		message_blocked.emit(session, "rate limited")
-		return DotResult.fail(
-			DotError.CODE_RATE_LIMITED, "Sending too quickly."
+		return GSResult.fail(
+			GSError.CODE_RATE_LIMITED, "Sending too quickly."
 		)
 
 	# A chat command is checked before the mute, so a muted player can still use
@@ -102,10 +102,10 @@ func handle_message(
 	if session.is_silenced():
 		send_system_to(session, "You are muted.")
 		message_blocked.emit(session, "muted")
-		return DotResult.fail(DotError.CODE_FORBIDDEN, "You are muted.")
+		return GSResult.fail(GSError.CODE_FORBIDDEN, "You are muted.")
 
 	if server.events != null:
-		var event: DotEvent = server.events.fire("player_chat", {
+		var event: GSEvent = server.events.fire("player_chat", {
 			"userid": session.userid,
 			"name": session.display_name,
 			"text": text,
@@ -115,8 +115,8 @@ func handle_message(
 
 		if event.cancelled:
 			message_blocked.emit(session, event.cancel_reason)
-			return DotResult.fail(
-				DotError.CODE_FORBIDDEN,
+			return GSResult.fail(
+				GSError.CODE_FORBIDDEN,
 				event.cancel_reason if event.cancel_reason != "" else "Message blocked."
 			)
 
@@ -126,11 +126,11 @@ func handle_message(
 			event.get_string("text", text), server.config.chat_max_length
 		)
 		if text == "":
-			return DotResult.fail(DotError.CODE_INVALID, "Empty message.")
+			return GSResult.fail(GSError.CODE_INVALID, "Empty message.")
 
 	_broadcast_chat(session, text, team_only)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"chat",
 		{
@@ -141,7 +141,7 @@ func handle_message(
 	)
 
 	message_sent.emit(session, text, team_only)
-	return DotResult.success(text)
+	return GSResult.success(text)
 
 
 ## Which configured prefix a message starts with, or [code]""[/code].
@@ -154,21 +154,21 @@ func _command_prefix(text: String) -> String:
 
 ## Runs a chat command with the speaker's permissions.
 func _handle_command(
-	session: DotClientSession,
+	session: GSClientSession,
 	command_line: String
-) -> DotResult:
+) -> GSResult:
 	var trimmed := command_line.strip_edges()
 	if trimmed == "":
-		return DotResult.fail(DotError.CODE_INVALID, "No command given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No command given.")
 
-	var tokens := DotConsole.tokenize(trimmed)
+	var tokens := GSConsole.tokenize(trimmed)
 	if tokens.is_empty():
-		return DotResult.fail(DotError.CODE_INVALID, "No command given.")
+		return GSResult.fail(GSError.CODE_INVALID, "No command given.")
 
 	var command_name := tokens[0].to_lower()
 
 	if server.events != null:
-		var event: DotEvent = server.events.fire("player_command", {
+		var event: GSEvent = server.events.fire("player_command", {
 			"userid": session.userid,
 			"name": session.display_name,
 			"command": command_name,
@@ -176,22 +176,22 @@ func _handle_command(
 			"session": session,
 		})
 		if event.cancelled:
-			return DotResult.fail(
-				DotError.CODE_FORBIDDEN, "Command blocked."
+			return GSResult.fail(
+				GSError.CODE_FORBIDDEN, "Command blocked."
 			)
 
-	var cmd: DotConCommand = server.console.find_command(command_name)
+	var cmd: GSConCommand = server.console.find_command(command_name)
 
 	if cmd == null:
 		# Not a command: ignored silently, since an error would confirm which commands
 		# exist to anyone probing.
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL,
 			"unknown chat command ignored",
 			{"user": session.label(), "command": command_name}
 		)
-		return DotResult.fail(
-			DotError.CODE_INVALID, "Unknown command."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "Unknown command."
 		)
 
 	# Replies go to the speaker only. A chat command's output is for the person who
@@ -199,7 +199,7 @@ func _handle_command(
 	var ctx := session.make_context(
 		command_name,
 		PackedStringArray(Array(tokens).slice(1)),
-		DotCmdContext.Source.CHAT,
+		GSCmdContext.Source.CHAT,
 		func(line: String) -> void: send_system_to(session, line)
 	)
 
@@ -210,7 +210,7 @@ func _handle_command(
 
 
 func _broadcast_chat(
-	session: DotClientSession,
+	session: GSClientSession,
 	text: String,
 	team_only: bool
 ) -> void:
@@ -227,12 +227,12 @@ func _broadcast_chat(
 			continue
 		if not _can_reach(other):
 			continue
-		server.send_kind(other.peer_id, DotEnvelope.CHAT_LINE, payload, DotEnvelope.Lane.EVENT)
+		server.send_kind(other.peer_id, GSEnvelope.CHAT_LINE, payload, GSEnvelope.Lane.EVENT)
 
 
 ## Whether two sessions are on the same team, from a [code]team[/code] key in session data.
 ## Without one everyone is on one team, so team chat never silently reaches nobody.
-func _same_team(a: DotClientSession, b: DotClientSession) -> bool:
+func _same_team(a: GSClientSession, b: GSClientSession) -> bool:
 	var team_a: Variant = a.data.get("team")
 	var team_b: Variant = b.data.get("team")
 	if team_a == null or team_b == null:
@@ -246,7 +246,7 @@ func _same_team(a: DotClientSession, b: DotClientSession) -> bool:
 var relay_fn: Callable = Callable()
 
 ## Points [member relay_fn] at a relay and tells everybody what changed. Duck-typed (a
-## method `is_carrying() -> bool`) because naming [code]DotChatRelay[/code] would not compile
+## method `is_carrying() -> bool`) because naming [code]GSChatRelay[/code] would not compile
 ## without GameSpice Chat. A null relay, or one without the method, means nothing carries chat.
 func watch_relay(relay: Object) -> void:
 	if relay != null and relay.has_method("is_carrying"):
@@ -259,7 +259,7 @@ func watch_relay(relay: Object) -> void:
 
 ## What the client is told about the conversation it just joined. Only the server knows
 ## whether a player's lines already reach a web page; what the client does with that
-## ([code]DotChatWindow.enabled[/code] and a setting) is the client's.
+## ([code]GSChatWindow.enabled[/code] and a setting) is the client's.
 func chat_state() -> Dictionary:
 	return {
 		"kind": "state",
@@ -277,12 +277,12 @@ func is_relayed() -> bool:
 
 
 ## Tells one joining client what is carrying chat, before the join announcement so it has
-## the answer before any line to draw. Called by [DotServer] as a session starts playing.
-func greet(session: DotClientSession) -> void:
+## the answer before any line to draw. Called by [GSServer] as a session starts playing.
+func greet(session: GSClientSession) -> void:
 	if not _can_reach(session):
 		return
 
-	server.send_kind(session.peer_id, DotEnvelope.CHAT_LINE, chat_state(), DotEnvelope.Lane.EVENT)
+	server.send_kind(session.peer_id, GSEnvelope.CHAT_LINE, chat_state(), GSEnvelope.Lane.EVENT)
 
 
 ## Tells everybody, for a relay that came up or went down mid-match.
@@ -294,9 +294,9 @@ func announce_state() -> void:
 
 	for session in server.playing_sessions():
 		if _can_reach(session):
-			server.send_kind(session.peer_id, DotEnvelope.CHAT_LINE, payload, DotEnvelope.Lane.EVENT)
+			server.send_kind(session.peer_id, GSEnvelope.CHAT_LINE, payload, GSEnvelope.Lane.EVENT)
 
-	DotLog.info(CHANNEL, "chat state", payload)
+	GSLog.info(CHANNEL, "chat state", payload)
 
 
 ## Sends a system message to everyone playing.
@@ -309,15 +309,15 @@ func broadcast_system(text: String) -> void:
 
 	for session in server.playing_sessions():
 		if _can_reach(session):
-			server.send_kind(session.peer_id, DotEnvelope.CHAT_LINE, payload, DotEnvelope.Lane.EVENT)
+			server.send_kind(session.peer_id, GSEnvelope.CHAT_LINE, payload, GSEnvelope.Lane.EVENT)
 
-	DotLog.info(CHANNEL, "system message", {"text": text})
+	GSLog.info(CHANNEL, "system message", {"text": text})
 
 
 ## Whether a line to this session can be put on the wire. `is_active()` is not enough: between
 ## a player leaving and the server noticing, `rpc_id` prints an engine error per reply line.
 ## The host's own id is not in `get_peers()`; `rpc_id` to oneself is refused anyway.
-func _can_reach(session: DotClientSession) -> bool:
+func _can_reach(session: GSClientSession) -> bool:
 	if session == null or not session.is_active():
 		return false
 	var mp := multiplayer
@@ -327,18 +327,18 @@ func _can_reach(session: DotClientSession) -> bool:
 
 
 ## Sends a system message to one client.
-func send_system_to(session: DotClientSession, text: String) -> void:
+func send_system_to(session: GSClientSession, text: String) -> void:
 	if not _can_reach(session):
 		return
 
-	server.send_kind(session.peer_id, DotEnvelope.CHAT_LINE, {
+	server.send_kind(session.peer_id, GSEnvelope.CHAT_LINE, {
 		"kind": "system",
 		"name": system_prefix,
 		"text": text,
-	}, DotEnvelope.Lane.EVENT)
+	}, GSEnvelope.Lane.EVENT)
 
 
-## Sends admin chat to everyone holding [constant DotAdminFlags.CHAT], filtered server-side:
+## Sends admin chat to everyone holding [constant GSAdminFlags.CHAT], filtered server-side:
 ## asking clients to hide messages is not a control.
 func broadcast_admin(from: String, text: String) -> void:
 	var payload := {
@@ -349,11 +349,11 @@ func broadcast_admin(from: String, text: String) -> void:
 
 	var recipients := 0
 	for session in server.playing_sessions():
-		if session.has_permission(DotAdminFlags.CHAT) and _can_reach(session):
-			server.send_kind(session.peer_id, DotEnvelope.CHAT_LINE, payload, DotEnvelope.Lane.EVENT)
+		if session.has_permission(GSAdminFlags.CHAT) and _can_reach(session):
+			server.send_kind(session.peer_id, GSEnvelope.CHAT_LINE, payload, GSEnvelope.Lane.EVENT)
 			recipients += 1
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"admin chat",
 		{"from": from, "text": text, "recipients": recipients}
@@ -367,27 +367,27 @@ func announce_action(text: String) -> void:
 	broadcast_system(text)
 
 
-func announce_join(session: DotClientSession) -> void:
+func announce_join(session: GSClientSession) -> void:
 	if not announce_joins:
 		return
 	broadcast_system("%s joined the game." % session.display_name)
 
 
-func announce_leave(session: DotClientSession) -> void:
+func announce_leave(session: GSClientSession) -> void:
 	if not announce_joins:
 		return
 	broadcast_system("%s left the game." % session.display_name)
 
 
 # No RPCs here: a line in arrives as the envelope's `chat.submit` kind, a line out goes as
-# `chat.line` through [method DotServer.send_kind]. RPCs here would be a second surface
-# a client had to match exactly; see [DotEnvelope].
+# `chat.line` through [method GSServer.send_kind]. RPCs here would be a second surface
+# a client had to match exactly; see [GSEnvelope].
 
 
 
 ## Cleans untrusted chat text: strips controls and invisibles ([method is_refused]), collapses
 ## whitespace, truncates; does NOT escape BBCode (a [RichTextLabel] caller does). Shared with
-## [DotNotice]. Linear: stops reading one character past the limit.
+## [GSNotice]. Linear: stops reading one character past the limit.
 static func sanitise(raw: String, max_length: int) -> String:
 	var out := PackedStringArray()
 	var last_space := true   # so a leading space is dropped, which is strip_edges' left half
@@ -427,7 +427,7 @@ static func sanitise(raw: String, max_length: int) -> String:
 
 
 ## Whether [method sanitise] drops [param code]: controls, DEL, and [constant INVISIBLE].
-## Keep equal to GameSpice Chat's [code]DotChatFilter[/code]; a character one passes is a spoof
+## Keep equal to GameSpice Chat's [code]GSChatFilter[/code]; a character one passes is a spoof
 ## route. Copied because GameSpice Server names no other addon.
 static func is_refused(code: int) -> bool:
 	if code < 32 or code == 127 or (code >= 0x80 and code <= 0x9F):

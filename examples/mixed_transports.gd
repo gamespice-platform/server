@@ -22,9 +22,9 @@ var _world_path: NodePath = NodePath()
 
 
 func _ready() -> void:
-	DotLog.set_level(
-		DotLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
-		else DotLog.Level.ERROR
+	GSLog.set_level(
+		GSLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
+		else GSLog.Level.ERROR
 	)
 	_run.call_deferred()
 
@@ -76,7 +76,7 @@ func _run() -> void:
 func _boot() -> bool:
 	_section("a dual-stack server boots")
 
-	var config := DotServerConfig.new()
+	var config := GSServerConfig.new()
 	config.hostname = "Mixed Transports"
 	config.port = PORT
 	config.max_players = 8
@@ -94,7 +94,7 @@ func _boot() -> bool:
 	add_child(server_side)
 	get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), server_side.get_path())
 
-	_server = DotServer.new()
+	_server = GSServer.new()
 	_server.name = "Server"
 	_server.config = config
 	_server.config_file = ""
@@ -106,14 +106,14 @@ func _boot() -> bool:
 		_done()
 		return false
 
-	var game := DotGameDescriptor.new()
+	var game := GSGameDescriptor.new()
 	game.game_id = "mixed"
 	game.display_name = "Mixed"
 	game.version = "1.0.0"
 	game.scene = "res://examples/fixtures/mixed_world.tscn"
 	_server.games.add_game(game)
 
-	var loaded: DotResult = await _server.games.change_game("mixed")
+	var loaded: GSResult = await _server.games.change_game("mixed")
 	_check(loaded.ok and WORLD.instances.has(1), "and loads the relay world", str(loaded.error))
 	if WORLD.instances.has(1):
 		_world_path = server_side.get_path_to(WORLD.instances[1] as Node)
@@ -124,12 +124,12 @@ func _boot() -> bool:
 
 # 2, 3. One of each
 
-func _test_browser_joins_over_websocket() -> DotClientLink:
+func _test_browser_joins_over_websocket() -> GSClientLink:
 	_section("a browser-style player joins over WebSocket")
 
-	# A browser build never tries UDP (DotPlatform.is_web()); on a native build "ws" is the
+	# A browser build never tries UDP (GSPlatform.is_web()); on a native build "ws" is the
 	# same path, and it is the opt-out a desktop player gets with `--transport ws`.
-	var link := _new_link("Browser", func(l: DotClientLink) -> void: l.transport_preference = "ws")
+	var link := _new_link("Browser", func(l: GSClientLink) -> void: l.transport_preference = "ws")
 	var refused := await _join(link)
 	if not _check(refused == "", "it joins", refused):
 		_done()
@@ -144,7 +144,7 @@ func _test_browser_joins_over_websocket() -> DotClientLink:
 	return link
 
 
-func _test_desktop_joins_over_enet() -> DotClientLink:
+func _test_desktop_joins_over_enet() -> GSClientLink:
 	_section("a desktop player joins over ENet, to the same server")
 
 	var link := _new_link("Desktop", Callable())
@@ -164,7 +164,7 @@ func _test_desktop_joins_over_enet() -> DotClientLink:
 
 # 4. One match
 
-func _test_one_match(browser: DotClientLink, desktop: DotClientLink) -> void:
+func _test_one_match(browser: GSClientLink, desktop: GSClientLink) -> void:
 	_section("the server holds one match with both of them in it")
 
 	_check(_server.playing_sessions().size() == 2, "two playing sessions (%d)" % _server.playing_sessions().size())
@@ -174,7 +174,7 @@ func _test_one_match(browser: DotClientLink, desktop: DotClientLink) -> void:
 	)
 
 	var boards := {"Browser": {}, "Desktop": {}}
-	for link: DotClientLink in [browser, desktop]:
+	for link: GSClientLink in [browser, desktop]:
 		var label := link.player_name
 		link.scoreboard_received.connect(func(snap: Dictionary) -> void: boards[label] = snap)
 		var _asked := link.request_scoreboard()
@@ -189,7 +189,7 @@ func _test_one_match(browser: DotClientLink, desktop: DotClientLink) -> void:
 
 # 5. Reliable
 
-func _test_reliable_crosses(browser: DotClientLink, desktop: DotClientLink) -> void:
+func _test_reliable_crosses(browser: GSClientLink, desktop: GSClientLink) -> void:
 	_section("a reliable game RPC crosses from one transport to the other")
 
 	var b := _world_of(browser)
@@ -224,7 +224,7 @@ func _test_reliable_crosses(browser: DotClientLink, desktop: DotClientLink) -> v
 
 # 6. Unreliable
 
-func _test_unreliable_crosses(browser: DotClientLink, desktop: DotClientLink) -> void:
+func _test_unreliable_crosses(browser: GSClientLink, desktop: GSClientLink) -> void:
 	_section("an unreliable stream crosses both ways")
 
 	var b := _world_of(browser)
@@ -251,7 +251,7 @@ func _test_unreliable_crosses(browser: DotClientLink, desktop: DotClientLink) ->
 
 ## A listed server's game port is a TLS port, so a native WebSocket join to a public bare host:port tries wss:// first;
 ## local hosts and explicit schemes do not. Real TLS is proven by hand (docs/transports.md); this pins the rule.
-func _test_which_addresses_try_tls_first(link: DotClientLink) -> void:
+func _test_which_addresses_try_tls_first(link: GSClientLink) -> void:
 	_section("a native WebSocket join tries TLS first only at a public bare host:port")
 
 	var tls := ["play.example.com:6064", "fcdn.example.com:443", "203.0.113.9:6000"]
@@ -273,12 +273,12 @@ func _test_which_addresses_try_tls_first(link: DotClientLink) -> void:
 
 # 7. A desktop player whose UDP is blocked
 
-func _test_blocked_udp_falls_back(browser: DotClientLink, desktop: DotClientLink) -> DotClientLink:
+func _test_blocked_udp_falls_back(browser: GSClientLink, desktop: GSClientLink) -> GSClientLink:
 	_section("a desktop player whose UDP gets no answer falls back to WebSocket and plays")
 
 	# `udp_address` is what the shell's `--udp` sets from the server's advertised enet_port;
 	# pointing it at a port nobody answers on is a firewall that drops UDP.
-	var link := _new_link("Firewalled", func(l: DotClientLink) -> void:
+	var link := _new_link("Firewalled", func(l: GSClientLink) -> void:
 		l.udp_address = "127.0.0.1:%d" % DEAD_UDP_PORT)
 	var started := Time.get_ticks_msec()
 	var refused := await _join(link)
@@ -317,7 +317,7 @@ func _test_blocked_udp_falls_back(browser: DotClientLink, desktop: DotClientLink
 
 # 8. Leaving
 
-func _test_a_leaver_disturbs_nobody(browser: DotClientLink, desktop: DotClientLink, fallback: DotClientLink) -> void:
+func _test_a_leaver_disturbs_nobody(browser: GSClientLink, desktop: GSClientLink, fallback: GSClientLink) -> void:
 	_section("the ENet player leaving disturbs nobody else")
 
 	var d_peer := _peer_of("Desktop")
@@ -342,13 +342,13 @@ func _test_a_leaver_disturbs_nobody(browser: DotClientLink, desktop: DotClientLi
 
 # Helpers
 
-func _new_link(label: String, configure: Callable) -> DotClientLink:
+func _new_link(label: String, configure: Callable) -> GSClientLink:
 	var root := Node.new()
 	root.name = label
 	add_child(root)
 	get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), root.get_path())
 
-	var link := DotClientLink.new()
+	var link := GSClientLink.new()
 	link.name = "Server"
 	link.player_name = label
 	root.add_child(link)
@@ -368,13 +368,13 @@ func _new_link(label: String, configure: Callable) -> DotClientLink:
 
 
 ## "" when the link spawned and the server agrees; the reason when not.
-func _join(link: DotClientLink) -> String:
+func _join(link: GSClientLink) -> String:
 	var outcome: Array = _outcomes[link.player_name]
-	var connecting: DotResult = await link.connect_to_server("127.0.0.1:%d" % PORT)
+	var connecting: GSResult = await link.connect_to_server("127.0.0.1:%d" % PORT)
 	if not connecting.ok:
 		return "could not connect: %s" % str(connecting.error)
 	if not await _until(func() -> bool: return outcome[0] or outcome[1] != "", 10.0):
-		return "timed out in %s" % DotClientLink.phase_name(link.phase)
+		return "timed out in %s" % GSClientLink.phase_name(link.phase)
 	if outcome[1] != "":
 		return str(outcome[1])
 	var label := link.player_name
@@ -415,7 +415,7 @@ func _peer_of(label: String) -> int:
 
 
 ## The relay world this link's client loaded, located by the unique id of its MultiplayerAPI.
-func _world_of(link: DotClientLink) -> Node:
+func _world_of(link: GSClientLink) -> Node:
 	if not is_instance_valid(link) or not link.is_inside_tree():
 		return null
 	return WORLD.instances.get(link.multiplayer.get_unique_id())
@@ -437,7 +437,7 @@ func _names_on(snap: Dictionary) -> Array:
 	return names
 
 
-func _drop_link(link: DotClientLink) -> void:
+func _drop_link(link: GSClientLink) -> void:
 	link.disconnect_from_server()
 	var root := link.get_parent()
 	if root != null:
@@ -449,6 +449,6 @@ func _teardown() -> void:
 	for label in _links:
 		var l: Variant = _links[label]
 		if is_instance_valid(l):
-			(l as DotClientLink).disconnect_from_server()
+			(l as GSClientLink).disconnect_from_server()
 	if _server != null:
 		_server.shutdown("test over")

@@ -6,7 +6,7 @@
 #
 #   examples/module_load_error_check.sh     exit 0 when every check passes, 1 otherwise
 #
-# Arm it by making DotModuleHost.with_script_errors return `failed` unchanged: three checks fail.
+# Arm it by making GSModuleHost.with_script_errors return `failed` unchanged: three checks fail.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 out=$(timeout 120 "${GODOT:-godot}" --headless --path . res://examples/module_load_error_probe.tscn 2>&1)

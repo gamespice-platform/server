@@ -1,33 +1,33 @@
 @tool
 extends "res://addons/dot_server/client/dot_client_link_connect.gd"
 
-## The challenge, credentials and content sync of [DotClientLink].
+## The challenge, credentials and content sync of [GSClientLink].
 
 
 ## Refuses a server whose RPC set or protocol differs: Godot would silently drop every
 ## message after the first, which the player sees as a spinner and "Timed out".
 func _revision_compatible(challenge: Dictionary) -> bool:
-	var ours := DotSignon.revision([load("uid://bbnmrseos3avj")])  # DotClientLink, loaded: this file is one of its bases
+	var ours := GSSignon.revision([load("uid://bbnmrseos3avj")])  # GSClientLink, loaded: this file is one of its bases
 	var theirs := str(challenge.get("signon", ""))
 
 	# Kept before the refusal so a shell can tell the page which build the server wants.
 	server_signon = theirs
 
-	if not DotSignon.compatible(ours, theirs):
-		var mismatch := DotSignon.explain(ours, theirs)
-		DotLog.error(CHANNEL, "signon revision mismatch", {
+	if not GSSignon.compatible(ours, theirs):
+		var mismatch := GSSignon.explain(ours, theirs)
+		GSLog.error(CHANNEL, "signon revision mismatch", {
 			"server": theirs, "client": ours, "host": server_hostname
 		})
 		_fail(mismatch)
 		disconnect_from_server(mismatch.message)
 		return false
 
-	# A kind that kept its name and changed its meaning; see [constant DotSignon.PROTOCOL].
-	var protocol := int(DotEnvelope.number(challenge, "protocol", DotSignon.PROTOCOL))
-	if protocol != DotSignon.PROTOCOL:
-		var differs := DotSignon.explain_protocol(DotSignon.PROTOCOL, protocol)
-		DotLog.error(CHANNEL, "signon protocol mismatch", {
-			"server": protocol, "client": DotSignon.PROTOCOL, "host": server_hostname
+	# A kind that kept its name and changed its meaning; see [constant GSSignon.PROTOCOL].
+	var protocol := int(GSEnvelope.number(challenge, "protocol", GSSignon.PROTOCOL))
+	if protocol != GSSignon.PROTOCOL:
+		var differs := GSSignon.explain_protocol(GSSignon.PROTOCOL, protocol)
+		GSLog.error(CHANNEL, "signon protocol mismatch", {
+			"server": protocol, "client": GSSignon.PROTOCOL, "host": server_hostname
 		})
 		_fail(differs)
 		disconnect_from_server(differs.message)
@@ -45,9 +45,9 @@ func _on_challenge(_peer_id: int, challenge: Dictionary) -> void:
 	server_addons = (addons as Array).duplicate(true) if addons is Array else []
 
 	# Where those addons are published, for a client with no content origin of its own
-	# yet (see `DotServer._handshake_challenge`). The same adoption `content.sync` does.
+	# yet (see `GSServer._handshake_challenge`). The same adoption `content.sync` does.
 	if challenge.has("content_base_urls"):
-		var cloud := DotRegistry.get_service(cloud_service)
+		var cloud := GSRegistry.get_service(cloud_service)
 		if cloud != null:
 			_adopt_content_bases(cloud, challenge.get("content_base_urls"))
 
@@ -58,7 +58,7 @@ func _on_challenge(_peer_id: int, challenge: Dictionary) -> void:
 	# here: the server compares both adverts at the credentials and refuses in words.
 	var adopted := envelope.adopt(1, challenge.get("kinds"), false)
 	if not adopted.ok:
-		DotLog.debug(CHANNEL, "the server's kinds do not cover this client's", {
+		GSLog.debug(CHANNEL, "the server's kinds do not cover this client's", {
 			"why": adopted.error.message, "detail": adopted.error.detail,
 		})
 
@@ -68,7 +68,7 @@ func _on_challenge(_peer_id: int, challenge: Dictionary) -> void:
 
 	server_info.emit(challenge)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"server challenge",
 		{
@@ -84,7 +84,7 @@ func _on_challenge(_peer_id: int, challenge: Dictionary) -> void:
 		# without anything that survives a reinstall.
 		"device_id": Credentials.device_id(),
 		# What this client can say and hear. The server decides from it whether the two
-		# can play; see [DotEnvelope].
+		# can play; see [GSEnvelope].
 		"kinds": envelope.advert(),
 		# What kind of client this is, so a server whose owner has turned a platform
 		# off can say so in a sentence. A payload field, not an RPC: the signon
@@ -101,7 +101,7 @@ func _on_challenge(_peer_id: int, challenge: Dictionary) -> void:
 	if not await _creds.attach_credential(payload, strategy):
 		return
 
-	send_kind(DotEnvelope.CREDENTIALS, payload)
+	send_kind(GSEnvelope.CREDENTIALS, payload)
 
 
 ## Whether this link's transport may carry the credential [param strategy] needs.
@@ -112,15 +112,15 @@ func _may_send_credential_here(strategy: String) -> bool:
 		return true
 
 	if transport_preference == "udp":
-		_fail(DotError.make(
-			DotError.CODE_UNSUPPORTED,
+		_fail(GSError.make(
+			GSError.CODE_UNSUPPORTED,
 			"This server's sign-in cannot be sent over UDP.",
 			"strategy %s sends a secret and UDP is unencrypted; connect over WebSocket" % strategy
 		))
 		disconnect_from_server()
 		return false
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"this server's sign-in sends a secret and UDP is unencrypted; rejoining over WebSocket",
 		{"strategy": strategy}
@@ -172,19 +172,19 @@ func _ensure_extra_content(cloud: Object, info: Dictionary) -> bool:
 		var dep_version := key.substr(at + 1) if at > 0 else ""
 
 		if dep_id == "" or dep_version == "":
-			_fail(DotError.make(
-				DotError.CODE_INVALID,
+			_fail(GSError.make(
+				GSError.CODE_INVALID,
 				"This server named a dependency without a version: %s" % key
 			))
 			return false
 
 		var got: Variant = await cloud.call("ensure", dep_id, dep_version)
 
-		if not (got is DotResult) or not (got as DotResult).ok:
-			var why := (got as DotResult).error if got is DotResult else DotError.make(
-				DotError.CODE_INTERNAL, "Content download failed."
+		if not (got is GSResult) or not (got as GSResult).ok:
+			var why := (got as GSResult).error if got is GSResult else GSError.make(
+				GSError.CODE_INTERNAL, "Content download failed."
 			)
-			_fail(DotError.make(
+			_fail(GSError.make(
 				why.code,
 				"This game needs %s, which could not be downloaded." % key,
 				str(why)
@@ -200,16 +200,16 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 
 	_set_phase(Phase.DOWNLOADING, "Downloading game content…")
 
-	var cloud := DotRegistry.get_service(cloud_service)
+	var cloud := GSRegistry.get_service(cloud_service)
 
 	if cloud == null:
 		# Pretending to be ready would put the player in a world of missing assets.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"this server requires downloadable content but dot-cloud is not installed"
 		)
-		_fail(DotError.make(
-			DotError.CODE_UNSUPPORTED,
+		_fail(GSError.make(
+			GSError.CODE_UNSUPPORTED,
 			"This server needs downloadable content, which this build cannot fetch."
 		))
 		return
@@ -218,7 +218,7 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 
 	_adopt_content_bases(cloud, info.get("content_base_urls", []))
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL, "syncing content", {"content": content_key, "url": manifest_url}
 	)
 
@@ -234,8 +234,8 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 
 	if want_id == "":
 		# A URL with no content key is old or broken; mounting blind is what `ensure` prevents.
-		_fail(DotError.make(
-			DotError.CODE_INVALID,
+		_fail(GSError.make(
+			GSError.CODE_INVALID,
 			"This server asked for content without saying what it is."
 		))
 		return
@@ -244,9 +244,9 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 		"ensure", want_id, want_version, groups, manifest_url
 	)
 
-	if not (res is DotResult) or not (res as DotResult).ok:
-		var err := (res as DotResult).error if res is DotResult else DotError.make(
-			DotError.CODE_INTERNAL, "Content download failed."
+	if not (res is GSResult) or not (res as GSResult).ok:
+		var err := (res as GSResult).error if res is GSResult else GSError.make(
+			GSError.CODE_INTERNAL, "Content download failed."
 		)
 		_fail(err)
 		return
@@ -254,7 +254,7 @@ func _on_content_sync(_peer_id: int, info: Dictionary) -> void:
 	if not await _ensure_extra_content(cloud, info):
 		return
 
-	send_kind(DotEnvelope.CONTENT_READY, {"content_key": content_key})
+	send_kind(GSEnvelope.CONTENT_READY, {"content_key": content_key})
 
 
 ## Adds the server's content addresses after the client's own (a LAN mirror still wins). Only
@@ -290,7 +290,7 @@ func _adopt_content_bases(cloud: Object, urls: Variant) -> void:
 		return
 
 	cloud.set("http_base_urls", bases)
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"the server said where its content is",
 		{"added": ", ".join(added)}
@@ -299,7 +299,7 @@ func _adopt_content_bases(cloud: Object, urls: Variant) -> void:
 
 func _on_cloud_progress(p: Dictionary) -> void:
 	var fraction := float(p.get("fraction", 0.0))
-	send_kind(DotEnvelope.CONTENT_PROGRESS, {"fraction": fraction})
+	send_kind(GSEnvelope.CONTENT_PROGRESS, {"fraction": fraction})
 	download_progress.emit(fraction, _progress_text(p))
 
 
@@ -309,5 +309,5 @@ static func _progress_text(p: Dictionary) -> String:
 	if total <= 0:
 		return "Downloading…"
 	return "Downloading %s of %s" % [
-		DotPaths.format_bytes(done), DotPaths.format_bytes(total)
+		GSPaths.format_bytes(done), GSPaths.format_bytes(total)
 	]

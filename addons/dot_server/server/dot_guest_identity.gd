@@ -1,4 +1,4 @@
-class_name DotGuestIdentity
+class_name GSGuestIdentity
 extends RefCounted
 
 ## A minimal identity for servers without GameSpice Auth, with the duck-typed surface the server reads
@@ -22,16 +22,16 @@ var is_guest: bool = true
 
 ## Builds a guest identity from a client-supplied device id.
 ## The id is hashed, not stored: it is arbitrary client input that should not reach ban lists and audit logs raw.
-static func from_device(device_id: String, name: String = "") -> DotGuestIdentity:
+static func from_device(device_id: String, name: String = "") -> GSGuestIdentity:
 	var seed_value := device_id
 	if seed_value.strip_edges() == "":
 		# No device id at all. Random rather than a shared constant, which would make
 		# every anonymous client the same person as far as mutes and kicks go.
-		seed_value = DotHash.random_hex(8)
+		seed_value = GSHash.random_hex(8)
 
-	var hashed := DotHash.sha256_text(seed_value).substr(0, 16)
+	var hashed := GSHash.sha256_text(seed_value).substr(0, 16)
 
-	var identity := DotGuestIdentity.new()
+	var identity := GSGuestIdentity.new()
 	identity.provider_id = hashed
 	identity.uid = "guest:%s" % hashed
 	identity.display_name = name.strip_edges() if name.strip_edges() != "" \
@@ -45,7 +45,7 @@ func is_valid() -> bool:
 	return uid != ""
 
 
-## Matches [code]DotAuthIdentity.label()[/code], which logs and the audit trail read.
+## Matches [code]GSAuthIdentity.label()[/code], which logs and the audit trail read.
 func label() -> String:
 	return "%s <%s>" % [display_name, uid]
 
@@ -62,4 +62,4 @@ func to_dict() -> Dictionary:
 
 
 func _to_string() -> String:
-	return "DotGuestIdentity(%s)" % label()
+	return "GSGuestIdentity(%s)" % label()

@@ -1,5 +1,5 @@
 @tool
-class_name DotGameDescriptor
+class_name GSGameDescriptor
 extends Resource
 
 ## One game (or map, or mode) the server can run. A [Resource] so an operator can
@@ -43,7 +43,7 @@ extends Resource
 
 ## The maps this game offers, as delivered packs `<owner>/<map id>@<version>`. Not mounted at
 ## load: a map is fetched when the server changes to it. The game turns these into
-## [code]DotMapDef[/code]s; the installer checks each pack, so a typo fails at startup.
+## [code]GSMapDef[/code]s; the installer checks each pack, so a typo fails at startup.
 @export var maps: PackedStringArray = PackedStringArray()
 
 @export_group("Scenes")
@@ -76,11 +76,11 @@ extends Resource
 
 
 ## Checks the descriptor is usable before a change is attempted, so a mistake is a refused
-## command rather than a half-completed switch. Called by [DotGameManager] on every change.
-func validate() -> DotResult:
+## command rather than a half-completed switch. Called by [GSGameManager] on every change.
+func validate() -> GSResult:
 	if game_id.strip_edges() == "":
-		return DotResult.fail(
-			DotError.CODE_INVALID, "A game descriptor needs a game_id."
+		return GSResult.fail(
+			GSError.CODE_INVALID, "A game descriptor needs a game_id."
 		)
 
 	# A game built into a server is one name (`lobby`); a published one is its
@@ -88,28 +88,28 @@ func validate() -> DotResult:
 	# same-named games from two people are two ids. Each half is a slug.
 	var halves := game_id.split("/")
 	if halves.size() > 2:
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"game_id is a name or <owner>/<name>, with one slash at most.",
 			"got '%s'" % game_id
 		)
 	for half in halves:
-		var slug := DotPaths.slugify(half)
+		var slug := GSPaths.slugify(half)
 		if half == "" or slug != half:
-			return DotResult.fail(
-				DotError.CODE_INVALID,
+			return GSResult.fail(
+				GSError.CODE_INVALID,
 				"game_id must be lowercase alphanumeric with - or _, as a name or <owner>/<name>.",
-				"got '%s', try '%s'" % [game_id, "/".join(Array(halves).map(func(h): return DotPaths.slugify(h)))]
+				"got '%s', try '%s'" % [game_id, "/".join(Array(halves).map(func(h): return GSPaths.slugify(h)))]
 			)
 
 	if scene.strip_edges() == "" and client_scene.strip_edges() == "":
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"'%s' names no scene." % game_id
 		)
 
 	if scene != "" and not scene.contains("://"):
-		var safe := DotPaths.safe_relative(scene)
+		var safe := GSPaths.safe_relative(scene)
 		if not safe.ok:
 			return safe.wrap("'%s' has an unsafe scene path." % game_id)
 
@@ -121,13 +121,13 @@ func validate() -> DotResult:
 		for key in (list[0] as PackedStringArray):
 			var parts := split_key(key)
 			if parts[0] == "" or parts[1] == "" or not parts[0].contains("/"):
-				return DotResult.fail(
-					DotError.CODE_INVALID,
+				return GSResult.fail(
+					GSError.CODE_INVALID,
 					"'%s' has a %s that is not <owner>/<name>@<version>." % [game_id, list[1]],
 					"got '%s'; @latest is resolved when the game is installed, not here" % key
 				)
 
-	return DotResult.success(true)
+	return GSResult.success(true)
 
 
 ## `<id>@<version>` taken apart from the right, as `[id, version]`. The same split the
@@ -159,7 +159,7 @@ func effective_content_id() -> String:
 ## client's reported content can be checked against the server's.
 func content_key() -> String:
 	# Never empty for a delivered game: the key is what a client reports back and what
-	# `DotClientLink._resolve_scene` splits to build the mount path, so an empty one would
+	# `GSClientLink._resolve_scene` splits to build the mount path, so an empty one would
 	# tell the client to download something with no name.
 	if not needs_delivered_content():
 		return ""
@@ -222,4 +222,4 @@ func describe() -> Dictionary:
 
 
 func _to_string() -> String:
-	return "DotGameDescriptor(%s)" % game_id
+	return "GSGameDescriptor(%s)" % game_id

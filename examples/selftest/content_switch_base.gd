@@ -23,7 +23,7 @@ const SRV_VERSION := "1.0.0"
 const SRV_SOURCE := DATA + "/srv_src"
 const MAP_KEY := "test/map_a@1.0.0"
 
-## A fixed port, because [DotServer] does not report the one an ephemeral bind chose
+## A fixed port, because [GSServer] does not report the one an ephemeral bind chose
 ## and the client half of this test has to be told where to connect.
 const PORT := 27515
 
@@ -46,11 +46,11 @@ var _failures := PackedStringArray()
 var _entered := 0
 var _completed := 0
 
-var _server: DotServer = null
+var _server: GSServer = null
 var _server_cloud: Node = null
 var _client_side: Node = null
 var _client_cloud: Node = null
-var _link: DotClientLink = null
+var _link: GSClientLink = null
 
 # Arrays, because a lambda captures locals by value: a flag set in a handler stays false outside.
 var _spawned := [false]
@@ -101,7 +101,7 @@ func _until(condition: Callable, seconds: float = 20.0) -> bool:
 ## error makes the scene hang rather than fail.
 func _client_playing() -> bool:
 	return _server.sessions().size() > 0 \
-		and _server.sessions()[0].state == DotClientSession.State.SPAWNED
+		and _server.sessions()[0].state == GSClientSession.State.SPAWNED
 
 
 func _told_lobby_again() -> bool:
@@ -111,7 +111,7 @@ func _told_lobby_again() -> bool:
 func _at_game(game_id: String) -> bool:
 	var current := _server.games.current()
 	return current != null and current.game_id == game_id \
-		and _server.games.phase == DotGameManager.Phase.IDLE
+		and _server.games.phase == GSGameManager.Phase.IDLE
 
 
 
@@ -127,19 +127,19 @@ func _publish_content() -> bool:
 		+ "[node name=\"DeliveredWorld\" type=\"Node\"]\n"
 	)
 
-	var written := DotPaths.write_text(SOURCE.path_join(PACK_SCENE), scene)
+	var written := GSPaths.write_text(SOURCE.path_join(PACK_SCENE), scene)
 	if not _check(written.ok, "the source scene is written", str(written.error)):
 		_done()
 		return false
 
-	var keys := DotCloudSignature.generate_keypair()
+	var keys := GSCloudSignature.generate_keypair()
 	if not _check(keys.ok, "a signing key pair is generated", str(keys.error)):
 		_done()
 		return false
 
 	var pair: Dictionary = keys.value
 
-	var publisher := DotCloudPublisher.new()
+	var publisher := GSCloudPublisher.new()
 	publisher.content_id = PACK_ID
 	publisher.version = PACK_VERSION
 	publisher.display_name = "Delivered FC"
@@ -147,7 +147,7 @@ func _publish_content() -> bool:
 	publisher.signing_key_pem = str(pair["private"])
 	publisher.signing_key_id = "test"
 
-	# Must agree with DotCloudClient.manifest_url_template so `ensure` finds the pack by id
+	# Must agree with GSCloudClient.manifest_url_template so `ensure` finds the pack by id
 	# and version as well as by URL.
 	var out := "%s/%s/%s" % [DIST, PACK_ID, PACK_VERSION]
 
@@ -173,7 +173,7 @@ func _publish_content() -> bool:
 	# HTTPRequest cannot fetch `user://`, so a disk-served manifest needs the client to read
 	# local paths itself.
 	_check(
-		DotCloudClient.is_local_manifest_url(_manifest_url),
+		GSCloudClient.is_local_manifest_url(_manifest_url),
 		"and the client recognises it as a local path rather than a URL"
 	)
 
@@ -187,8 +187,8 @@ func _publish_side_packs(pair: Dictionary) -> void:
 	# A second pack the game names as a DEPENDENCY: a map or asset pack that has to be
 	# mounted beside the game's own, on the server and on every client, before anyone
 	# is told the change is ready.
-	DotPaths.write_text(DEP_SOURCE.path_join("shared.txt"), "shared assets\n")
-	var dep := DotCloudPublisher.new()
+	GSPaths.write_text(DEP_SOURCE.path_join("shared.txt"), "shared assets\n")
+	var dep := GSCloudPublisher.new()
 	dep.content_id = DEP_ID
 	dep.version = DEP_VERSION
 	dep.display_name = "Shared Assets"
@@ -198,8 +198,8 @@ func _publish_side_packs(pair: Dictionary) -> void:
 	_check(dep_published.ok, "a dependency pack publishes beside it", str(dep_published.error))
 
 	# And one the game needs on the SERVER only: never in a client's content.sync.
-	DotPaths.write_text(SRV_SOURCE.path_join("server.txt"), "server only\n")
-	var srv := DotCloudPublisher.new()
+	GSPaths.write_text(SRV_SOURCE.path_join("server.txt"), "server only\n")
+	var srv := GSCloudPublisher.new()
 	srv.content_id = SRV_ID
 	srv.version = SRV_VERSION
 	srv.display_name = "Server Only"
@@ -210,14 +210,14 @@ func _publish_side_packs(pair: Dictionary) -> void:
 
 
 ## A cloud client fed from the published directory. [param scope] keeps the two halves apart
-## in [DotRegistry]; the server's is the scoped one.
+## in [GSRegistry]; the server's is the scoped one.
 func _make_cloud(cache: String, public_key: String, scope: StringName) -> Node:
-	var config := DotCloudConfig.new()
+	var config := GSCloudConfig.new()
 	config.cache_dir = cache
 	config.require_signed_manifests = true
 	config.trusted_keys = {"test": public_key}
 
-	var cloud := DotCloudClient.new()
+	var cloud := GSCloudClient.new()
 	cloud.name = "Cloud" + (String(scope) if scope != &"" else "Client")
 	cloud.config = config
 	# Empty so a file left by another run cannot change what this test asserts.
@@ -232,8 +232,8 @@ func _make_cloud(cache: String, public_key: String, scope: StringName) -> Node:
 
 
 
-func _boot_config() -> DotServerConfig:
-	var config := DotServerConfig.new()
+func _boot_config() -> GSServerConfig:
+	var config := GSServerConfig.new()
 	config.hostname = "content-switch"
 	config.server_id = "content-switch-1"
 	config.port = PORT
@@ -257,19 +257,19 @@ func _boot_config() -> DotServerConfig:
 
 
 func _add_boot_games() -> void:
-	var builtin := DotGameDescriptor.new()
+	var builtin := GSGameDescriptor.new()
 	builtin.game_id = "lobby"
 	builtin.display_name = "Lobby"
 	builtin.version = "1.0.0"
 	builtin.scene = "res://examples/fixtures/lobby_world.tscn"
 
-	var delivered := DotGameDescriptor.new()
+	var delivered := GSGameDescriptor.new()
 	delivered.game_id = "fc"
 	delivered.display_name = "Delivered FC"
 	delivered.content_id = PACK_ID
 	delivered.version = PACK_VERSION
 	delivered.manifest_url = _manifest_url
-	# Relative, so it resolves under each side's mount prefix; DotClientLink refuses an
+	# Relative, so it resolves under each side's mount prefix; GSClientLink refuses an
 	# absolute path.
 	delivered.scene = PACK_SCENE
 	delivered.client_scene = PACK_SCENE
@@ -281,7 +281,7 @@ func _add_boot_games() -> void:
 
 	_check(delivered.validate().ok, "the delivered descriptor validates")
 
-	var unpinned := DotGameDescriptor.new()
+	var unpinned := GSGameDescriptor.new()
 	unpinned.game_id = "unpinned"
 	unpinned.scene = "res://examples/fixtures/lobby_world.tscn"
 	unpinned.maps = PackedStringArray(["test/map_b"])
@@ -364,7 +364,7 @@ func _boot() -> bool:
 		"the two halves have separate MultiplayerAPI instances"
 	)
 
-	_server = DotServer.new()
+	_server = GSServer.new()
 	_server.name = "Server"
 	_server.config = config
 	_server.config_file = ""

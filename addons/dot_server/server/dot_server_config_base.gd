@@ -1,14 +1,14 @@
 @tool
-extends DotConfig
+extends GSConfig
 
-## The exported settings of DotServerConfig, in the order the inspector shows them.
+## The exported settings of GSServerConfig, in the order the inspector shows them.
 
 @export_group("Identity")
 
 ## Name shown in server listings and `status`.
 @export var hostname: String = "A dot server"
 
-## Identifier this server is known by; the audience for GameSpice Auth connect tickets, so it must match the issuer's [member DotAuthConfig.server_id].
+## Identifier this server is known by; the audience for GameSpice Auth connect tickets, so it must match the issuer's [member GSAuthConfig.server_id].
 @export var server_id: String = ""
 
 ## Free-form tags for listings.
@@ -26,10 +26,10 @@ extends DotConfig
 ## Transport. When unset, [member transport_mode] builds one.
 ## [b]Most likely to be wrong[/b]: ENet alone cannot accept browsers and nothing looks misconfigured.
 ## Leave unset unless [member transport_mode] cannot describe what you need.
-@export var transport: DotTransport = null
+@export var transport: GSTransport = null
 
 ## What [method resolve_transport] builds when [member transport] is unset: [code]dual[/code] (WebSocket for browsers plus ENet
-## on [method effective_enet_port], see [DotTransportDual]; WebSocket only where ENet or UDP is missing), [code]websocket[/code], or [code]enet[/code] (no browsers).
+## on [method effective_enet_port], see [GSTransportDual]; WebSocket only where ENet or UDP is missing), [code]websocket[/code], or [code]enet[/code] (no browsers).
 @export_enum("dual", "websocket", "enet") var transport_mode: String = "dual"
 
 ## Per-client WebSocket receive buffer as a power-of-two exponent (17 = 128 KiB). Clients send commands of at most
@@ -44,7 +44,7 @@ extends DotConfig
 @export_range(16, 8192, 1) var ws_max_queued_packets: int = 4096
 
 ## UDP port native clients reach ENet on. 0: the game port's number (TCP and UDP are separate namespaces).
-## Shared with A2S/DQP through [DotUdpDemux]; see [member enet_share_udp_port].
+## Shared with A2S/DQP through [GSUdpDemux]; see [member enet_share_udp_port].
 @export_range(0, 65535, 1) var enet_port: int = 0
 
 ## Interface ENet's UDP port binds. Empty: the query listeners' interface ([method effective_query_bind_address]),
@@ -58,7 +58,7 @@ extends DotConfig
 ## 0 is unlimited; ENet caps the real count at 4095 (12-bit peer ids).
 @export_range(0, 4095, 1) var max_players: int = 32
 
-## Slots kept for players with the [constant DotAdminFlags.RESERVATION] flag.
+## Slots kept for players with the [constant GSAdminFlags.RESERVATION] flag.
 ## Counted inside [member max_players]: 32 slots with 2 reserved fill up for the public at 30.
 @export_range(0, 64, 1) var reserved_slots: int = 0
 
@@ -93,7 +93,7 @@ extends DotConfig
 @export_group("Hibernation")
 
 ## Reduce tick processing when nobody is connected (cvar `sv_hibernate_when_empty`, live).
-## [b]On[/b]: ticks at [member hibernate_tickrate] and [signal DotServer.hibernation_changed] clocks wait for a joiner.
+## [b]On[/b]: ticks at [member hibernate_tickrate] and [signal GSServer.hibernation_changed] clocks wait for a joiner.
 ## [b]Off[/b]: clocks run, and with nobody to vote GameSpice Vote draws the next map at random.
 @export var hibernate_when_empty: bool = true
 
@@ -113,8 +113,8 @@ extends DotConfig
 
 ## Build each player's snapshot on the workers (cvar [code]sv_threads_net[/code]). On by default: GameSpice Net's snapshot_bench
 ## (native core, 213 NPCs) measured byte-identical payloads and a build 2 to 4 times cheaper at 64 and 100 players.
-## Nothing runs on workers where [method DotParallel.available] is false (the web) or [member worker_threads] is 0.
-## The game's wiring copies [method net_snapshot_workers] into [code]DotNetConfig.snapshot_workers[/code]; GameSpice Net does not depend on this addon.
+## Nothing runs on workers where [method GSParallel.available] is false (the web) or [member worker_threads] is 0.
+## The game's wiring copies [method net_snapshot_workers] into [code]GSNetConfig.snapshot_workers[/code]; GameSpice Net does not depend on this addon.
 @export var threads_net: bool = true
 
 ## Run NPC decisions and path searches on the workers (cvar [code]sv_threads_npc[/code], live), for brains that
@@ -122,7 +122,7 @@ extends DotConfig
 @export var threads_npc: bool = false
 
 ## Build snapshots in GameSpice Net's native core (cvar [code]net_native[/code], live). On by default (GDScript costs about 9 times as much at 100 players);
-## the game's wiring ORs it into [code]DotNetConfig.native[/code], and GameSpice Net falls back to GDScript and logs why where the library cannot load.
+## the game's wiring ORs it into [code]GSNetConfig.native[/code], and GameSpice Net falls back to GDScript and logs why where the library cannot load.
 @export var net_native: bool = true
 
 ## Also run the interest phase in the native core (cvar [code]net_native_interest[/code]; needs [member net_native]). On by default.
@@ -142,12 +142,12 @@ extends DotConfig
 ## TCP port for RCON. 0 uses [member port] + 1.
 @export var rcon_port: int = 0
 
-## Read the server's own terminal and run what is typed. Harmless with nothing to read: [DotStdinConsole] reads only a terminal
+## Read the server's own terminal and run what is typed. Harmless with nothing to read: [GSStdinConsole] reads only a terminal
 ## or regular file. Turn off for a server whose stdin carries something that is not commands.
 @export var stdin_console_enabled: bool = true
 
 ## Read stdin even when it is a pipe, socket or `/dev/null`. Off: the reader blocks in a read nothing can cancel and a pipe
-## whose writer never closes hangs exit. On for a supervisor feeding commands down a pipe; see [member DotStdinConsole.read_pipes].
+## whose writer never closes hangs exit. On for a supervisor feeding commands down a pipe; see [member GSStdinConsole.read_pipes].
 @export var stdin_console_pipes: bool = false
 
 ## Also serve RCON over WebSocket, for browser admin panels. Same authentication and rate limits.
@@ -304,7 +304,7 @@ var query_player_detail: String = "full"
 @export var announce_admin_actions: bool = true
 
 ## Most simultaneous connections from one address. 0 removes the limit. Neither a ban nor the connect rate limiter covers a slow
-## trickle that fills a small server. See [DotAddressGuard] for why the default is off (households, universities, CGNAT).
+## trickle that fills a small server. See [GSAddressGuard] for why the default is off (households, universities, CGNAT).
 @export_range(0, 64, 1) var max_connections_per_ip: int = 0
 
 ## Addresses the per-address limit never applies to, on top of loopback (a LAN party, an office, a known NAT).
@@ -335,7 +335,7 @@ var query_player_detail: String = "full"
 ## a manifest still needs a signature from a key the CLIENT trusts. The host sets it from the same setting as its content client.
 @export var content_base_urls: PackedStringArray = PackedStringArray()
 
-## Let clients fetch content over the game connection when they cannot reach the content host. Costs bandwidth; see [DotCloudSourceNetchan].
+## Let clients fetch content over the game connection when they cannot reach the content host. Costs bandwidth; see [GSCloudSourceNetchan].
 @export var allow_netchan_content: bool = true
 
 ## Bytes per in-band content chunk.

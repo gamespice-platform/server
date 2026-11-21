@@ -1,12 +1,12 @@
 @tool
 extends "res://addons/dot_server/game/dot_game_manager_state.gd"
 
-## Content fetch, client sync and scene swap of [DotGameManager].
+## Content fetch, client sync and scene swap of [GSGameManager].
 
 ## Fetches the content here first, then has every client fetch it.
 ##
 ## Server first, so a server that cannot get it abandons the change while nobody has been disturbed.
-func _deliver_content(descriptor: DotGameDescriptor) -> DotResult:
+func _deliver_content(descriptor: GSGameDescriptor) -> GSResult:
 	var have := await _acquire_content(descriptor)
 	if not have.ok:
 		return have
@@ -14,22 +14,22 @@ func _deliver_content(descriptor: DotGameDescriptor) -> DotResult:
 	return await _sync_clients(descriptor)
 
 
-## Downloads and mounts the new game's content on this server, through GameSpice Cloud from [DotRegistry].
+## Downloads and mounts the new game's content on this server, through GameSpice Cloud from [GSRegistry].
 ## An absent cloud client is a refusal: a manifest_url says the content is delivered, and clients
 ## must not be asked for what the server cannot load.
-func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
-	var cloud := DotRegistry.get_service(&"dot_cloud_client")
+func _acquire_content(descriptor: GSGameDescriptor) -> GSResult:
+	var cloud := GSRegistry.get_service(&"dot_cloud_client")
 
 	if cloud == null or not cloud.has_method("ensure"):
-		return DotResult.fail(
-			DotError.CODE_STATE,
+		return GSResult.fail(
+			GSError.CODE_STATE,
 			"'%s' is delivered content and dot-cloud is not installed."
 				% descriptor.game_id,
-			"add a DotCloudClient to this server, or ship the game inside the build "
+			"add a GSCloudClient to this server, or ship the game inside the build "
 			+ "by clearing its manifest_url"
 		)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"fetching the new game's content",
 		{
@@ -57,8 +57,8 @@ func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
 		descriptor.manifest_url
 	)
 
-	if acquired is DotResult:
-		var typed: DotResult = acquired
+	if acquired is GSResult:
+		var typed: GSResult = acquired
 		if not typed.ok:
 			return typed.wrap(
 				"Could not get %s's content." % descriptor.game_id
@@ -67,11 +67,11 @@ func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
 		# Dependencies and server-only packs are fetched here too, so an unobtainable one abandons
 		# the change before any client downloads. Server-only ones never reach content.sync.
 		for key in descriptor.dependencies + descriptor.server_dependencies:
-			var parts := DotGameDescriptor.split_key(key)
+			var parts := GSGameDescriptor.split_key(key)
 			var dep: Variant = await cloud.call("ensure", parts[0], parts[1])
-			if not (dep is DotResult) or not (dep as DotResult).ok:
-				var why := (dep as DotResult) if dep is DotResult else DotResult.fail(
-					DotError.CODE_INTERNAL, "The cloud client returned no result."
+			if not (dep is GSResult) or not (dep as GSResult).ok:
+				var why := (dep as GSResult) if dep is GSResult else GSResult.fail(
+					GSError.CODE_INTERNAL, "The cloud client returned no result."
 				)
 				return why.wrap(
 					"Could not get %s, which %s needs." % [key, descriptor.game_id]
@@ -79,15 +79,15 @@ func _acquire_content(descriptor: DotGameDescriptor) -> DotResult:
 
 		return typed
 
-	return DotResult.fail(
-		DotError.CODE_INTERNAL,
-		"The cloud client returned something that is not a DotResult.",
+	return GSResult.fail(
+		GSError.CODE_INTERNAL,
+		"The cloud client returned something that is not a GSResult.",
 		str(acquired)
 	)
 
 
 ## Tells every client to fetch the new content and waits for them.
-func _sync_clients(descriptor: DotGameDescriptor) -> DotResult:
+func _sync_clients(descriptor: GSGameDescriptor) -> GSResult:
 	phase = Phase.SYNCING
 	_sync_deadline = int(Time.get_unix_time_from_system()) + int(sync_timeout_sec)
 
@@ -106,9 +106,9 @@ func _sync_clients(descriptor: DotGameDescriptor) -> DotResult:
 			expected += 1
 
 	if expected == 0:
-		return DotResult.success(0)
+		return GSResult.success(0)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL, "waiting for clients to sync", {"clients": expected}
 	)
 
@@ -116,8 +116,8 @@ func _sync_clients(descriptor: DotGameDescriptor) -> DotResult:
 		await get_tree().create_timer(0.5).timeout
 
 		if not is_inside_tree():
-			return DotResult.fail(
-				DotError.CODE_CANCELLED, "The server is shutting down."
+			return GSResult.fail(
+				GSError.CODE_CANCELLED, "The server is shutting down."
 			)
 
 		var ready_count := 0
@@ -128,33 +128,33 @@ func _sync_clients(descriptor: DotGameDescriptor) -> DotResult:
 				continue
 			if session.content_key == descriptor.content_key():
 				ready_count += 1
-			elif session.state == DotClientSession.State.DOWNLOADING:
+			elif session.state == GSClientSession.State.DOWNLOADING:
 				waiting += 1
 
 		change_progress.emit(ready_count, ready_count + waiting)
 
 		# Off, the change waits out the whole timeout even when everybody is ready.
 		if waiting == 0 and swap_when_all_ready:
-			DotLog.info(CHANNEL, "all clients synced", {"clients": ready_count})
-			return DotResult.success(ready_count)
+			GSLog.info(CHANNEL, "all clients synced", {"clients": ready_count})
+			return GSResult.success(ready_count)
 
 		if int(Time.get_unix_time_from_system()) >= _sync_deadline:
 			_on_sync_timeout(ready_count, waiting)
 			# Proceeding, not failing: the ones who got the content keep their change.
-			return DotResult.success(ready_count)
+			return GSResult.success(ready_count)
 
-	return DotResult.success(0)
+	return GSResult.success(0)
 
 
 ## Moves one session to DOWNLOADING and sends it the sync. False when it is not waited for.
-func _send_content_sync(session: DotClientSession, info: Dictionary) -> bool:
+func _send_content_sync(session: GSClientSession, info: Dictionary) -> bool:
 	if not session.is_active():
 		return false
 	# A client still authenticating, or held in PROFILE, reaches the new content through the
 	# normal join flow; moving a held one to DOWNLOADING would let it past its holder.
-	if session.state == DotClientSession.State.CONNECTING \
-		or session.state == DotClientSession.State.AUTHENTICATING \
-		or session.state == DotClientSession.State.PROFILE:
+	if session.state == GSClientSession.State.CONNECTING \
+		or session.state == GSClientSession.State.AUTHENTICATING \
+		or session.state == GSClientSession.State.PROFILE:
 		return false
 
 	session.content_progress = 0.0
@@ -162,8 +162,8 @@ func _send_content_sync(session: DotClientSession, info: Dictionary) -> bool:
 	# earlier still holds the new key, so it would be counted ready before the RPC even arrived.
 	session.content_key = ""
 
-	if not session.transition_to(DotClientSession.State.DOWNLOADING):
-		DotLog.warn(
+	if not session.transition_to(GSClientSession.State.DOWNLOADING):
+		GSLog.warn(
 			CHANNEL,
 			"a client could not be sent to download",
 			{"user": session.label(), "state": session.state_name()}
@@ -172,12 +172,12 @@ func _send_content_sync(session: DotClientSession, info: Dictionary) -> bool:
 
 	# Announced like every other state change; modules and admin panels hear it from the signal.
 	server.client_state_changed.emit(session)
-	server.send_kind(session.peer_id, DotEnvelope.CONTENT_SYNC, info)
+	server.send_kind(session.peer_id, GSEnvelope.CONTENT_SYNC, info)
 	return true
 
 
 func _on_sync_timeout(ready_count: int, waiting: int) -> void:
-	DotLog.warn(
+	GSLog.warn(
 		CHANNEL,
 		"content sync timed out",
 		{"ready": ready_count, "waiting": waiting}
@@ -187,12 +187,12 @@ func _on_sync_timeout(ready_count: int, waiting: int) -> void:
 		return
 
 	for session in server.sessions():
-		if session.state == DotClientSession.State.DOWNLOADING:
+		if session.state == GSClientSession.State.DOWNLOADING:
 			server.kick(session, "Could not download the new game content in time")
 
 
 ## Frees the old scene and instantiates the new one.
-func _swap_to(descriptor: DotGameDescriptor) -> DotResult:
+func _swap_to(descriptor: GSGameDescriptor) -> GSResult:
 	phase = Phase.SWAPPING
 
 	var previous := _current
@@ -202,26 +202,26 @@ func _swap_to(descriptor: DotGameDescriptor) -> DotResult:
 	var scene_path := descriptor.resolve_scene_path()
 
 	if scene_path == "":
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"'%s' has no scene to load." % descriptor.game_id
 		)
 
 	if not ResourceLoader.exists(scene_path):
 		# Restore the previous game so a wrong scene name inside synced content leaves a game.
-		DotLog.error(
+		GSLog.error(
 			CHANNEL,
 			"the game scene is missing",
 			{"game": descriptor.game_id, "path": scene_path}
 		)
 
 		if previous != null:
-			DotLog.info(CHANNEL, "restoring the previous game")
+			GSLog.info(CHANNEL, "restoring the previous game")
 			_current = previous
 			_instantiate(previous.resolve_scene_path())
 
-		return DotResult.fail(
-			DotError.CODE_IO, "The game scene is missing.", scene_path
+		return GSResult.fail(
+			GSError.CODE_IO, "The game scene is missing.", scene_path
 		)
 
 	var instantiated := _instantiate(scene_path)
@@ -238,7 +238,7 @@ func _swap_to(descriptor: DotGameDescriptor) -> DotResult:
 			server.config.game_config_prefix + descriptor.game_id, null, false
 		)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"game loaded",
 		{"game": descriptor.game_id, "scene": scene_path}
@@ -259,30 +259,30 @@ func _swap_to(descriptor: DotGameDescriptor) -> DotResult:
 			"Now playing %s." % descriptor.display_name_or_id()
 		)
 
-	return DotResult.success(descriptor)
+	return GSResult.success(descriptor)
 
 
 ## Puts everyone who has the content back through loading so the client rebuilds its scene.
 ##
 ## Only sessions that got as far as loading once: one still connecting is sent the game by the join flow.
-func _restart_loading(descriptor: DotGameDescriptor) -> void:
+func _restart_loading(descriptor: GSGameDescriptor) -> void:
 	for session in server.sessions():
 		if not session.is_active():
 			continue
-		if session.state != DotClientSession.State.DOWNLOADING \
-			and session.state != DotClientSession.State.LOADING \
-			and session.state != DotClientSession.State.SPAWNED:
+		if session.state != GSClientSession.State.DOWNLOADING \
+			and session.state != GSClientSession.State.LOADING \
+			and session.state != GSClientSession.State.SPAWNED:
 			continue
 		if session.content_key == descriptor.content_key() \
 			or not descriptor.needs_delivered_content():
-			session.transition_to(DotClientSession.State.LOADING)
+			session.transition_to(GSClientSession.State.LOADING)
 			server._send_load_game(session)
 
 
-## Applies a descriptor's [member DotGameDescriptor.cvars].
+## Applies a descriptor's [member GSGameDescriptor.cvars].
 ## An unregistered name is counted, not wrong, on the first pass (its module loads after [signal game_loaded]);
 ## [method reapply_descriptor_cvars] is where it is wrong. A registered cvar refusing its value always warns.
-func _apply_descriptor_cvars(descriptor: DotGameDescriptor, unknown_is_wrong: bool) -> int:
+func _apply_descriptor_cvars(descriptor: GSGameDescriptor, unknown_is_wrong: bool) -> int:
 	if server.console == null or descriptor.cvars.is_empty():
 		return 0
 
@@ -297,25 +297,25 @@ func _apply_descriptor_cvars(descriptor: DotGameDescriptor, unknown_is_wrong: bo
 			unknown.append(cvar_name)
 
 			if unknown_is_wrong:
-				DotLog.warn(CHANNEL, "a game names a cvar nothing registers", {
+				GSLog.warn(CHANNEL, "a game names a cvar nothing registers", {
 					"game": descriptor.game_id, "cvar": cvar_name, "value": value,
 					"hint": "a typo, or a module that did not load",
 				})
 
 			continue
 
-		var result: DotResult = server.console.set_cvar(cvar_name, value)
+		var result: GSResult = server.console.set_cvar(cvar_name, value)
 
 		if result.ok:
 			applied += 1
 			continue
 
-		DotLog.warn(CHANNEL, "a game's cvar was refused its value", {
+		GSLog.warn(CHANNEL, "a game's cvar was refused its value", {
 			"game": descriptor.game_id, "cvar": cvar_name, "value": value,
 			"why": result.error.message,
 		})
 
-	DotLog.info(CHANNEL, "the game's cvars were applied", {
+	GSLog.info(CHANNEL, "the game's cvars were applied", {
 		"game": descriptor.game_id,
 		"applied": applied,
 		"of": descriptor.cvars.size(),
@@ -335,19 +335,19 @@ func reapply_descriptor_cvars() -> int:
 	return _apply_descriptor_cvars(_current, true)
 
 
-func _instantiate(scene_path: String) -> DotResult:
+func _instantiate(scene_path: String) -> GSResult:
 	var packed := load(scene_path)
 	if not (packed is PackedScene):
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"The game scene is not a PackedScene.",
 			scene_path
 		)
 
 	var instance := (packed as PackedScene).instantiate()
 	if instance == null:
-		return DotResult.fail(
-			DotError.CODE_INTERNAL,
+		return GSResult.fail(
+			GSError.CODE_INTERNAL,
 			"The game scene could not be instantiated.",
 			scene_path
 		)
@@ -356,8 +356,8 @@ func _instantiate(scene_path: String) -> DotResult:
 		_game_root = game_root_ref.resolve_or_null(self, CHANNEL)
 	if _game_root == null:
 		instance.queue_free()
-		return DotResult.fail(
-			DotError.CODE_STATE, "There is no game root node to add the scene to."
+		return GSResult.fail(
+			GSError.CODE_STATE, "There is no game root node to add the scene to."
 		)
 
 	if server != null:
@@ -366,7 +366,7 @@ func _instantiate(scene_path: String) -> DotResult:
 	_scene_instance = instance
 	_game_root.add_child(instance)
 
-	return DotResult.success(instance)
+	return GSResult.success(instance)
 
 
 ## Frees the running scene.
@@ -395,11 +395,11 @@ func _unload_current() -> void:
 	# Release the old content's cache references so GameSpice Cloud may evict it. The
 	# pack's file table stays mounted — the engine offers no way to remove it — but
 	# nothing points at those paths any more.
-	var cloud := DotRegistry.get_service(&"dot_cloud_client")
+	var cloud := GSRegistry.get_service(&"dot_cloud_client")
 	if cloud != null and previous_key != "" and cloud.has_method("release"):
 		cloud.call("release", previous_key)
 
-	DotLog.debug(CHANNEL, "previous game unloaded", {"was": previous_key})
+	GSLog.debug(CHANNEL, "previous game unloaded", {"was": previous_key})
 
 
 ## Retires what the game that just went put under the server: its RPC link, above all.
@@ -423,7 +423,7 @@ func _free_game_children() -> void:
 	if retired.is_empty() or not server.is_inside_tree():
 		return
 
-	DotLog.debug(CHANNEL, "retired what the game left under the server", {
+	GSLog.debug(CHANNEL, "retired what the game left under the server", {
 		"nodes": retired.size(),
 	})
 

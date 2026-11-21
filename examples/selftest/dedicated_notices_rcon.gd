@@ -2,15 +2,15 @@ extends "res://examples/selftest/dedicated_cvars_permissions_admins.gd"
 
 ## Notice and RCON sections of dedicated_server.gd.
 
-## [DotNotice]'s wire form, and the server's half with nobody to send to. The half with a
+## [GSNotice]'s wire form, and the server's half with nobody to send to. The half with a
 ## client is in `signon_revision`; this shows the decoder survives a payload no server of this
 ## build sends, because a client may not raise.
 func _test_notices() -> void:
 	print("")
 	_section("[notices]")
 
-	var full := DotNotice.make(&"vote_start", "Vote now", 30.0, &"game_vote")
-	var back := DotNotice.from_wire(full.to_wire())
+	var full := GSNotice.make(&"vote_start", "Vote now", 30.0, &"game_vote")
+	var back := GSNotice.from_wire(full.to_wire())
 	_check(
 		"a notice survives its own wire form",
 		back.cue == full.cue and back.text == full.text
@@ -19,33 +19,33 @@ func _test_notices() -> void:
 
 	# A bare cue is one key. Absent and default decode the same, and a countdown of
 	# zero is NOT what "no countdown" means -- a HUD shows a line that has run out.
-	var bare := DotNotice.make(&"vote_count")
+	var bare := GSNotice.make(&"vote_count")
 	_check("a bare cue is one key on the wire", bare.to_wire().size() == 1)
 	_check(
 		"and comes back with no countdown",
-		not DotNotice.from_wire(bare.to_wire()).has_countdown()
+		not GSNotice.from_wire(bare.to_wire()).has_countdown()
 	)
 	_check(
 		"a countdown of zero is still a countdown",
-		DotNotice.make(&"", "go", 0.0).has_countdown()
+		GSNotice.make(&"", "go", 0.0).has_countdown()
 	)
 
-	_check("a topic and nothing else is a clear", DotNotice.clear(&"x").is_clear())
-	_check("and a clear is not empty", not DotNotice.clear(&"x").is_empty())
-	_check("a notice with nothing on it is empty", DotNotice.new().is_empty())
+	_check("a topic and nothing else is a clear", GSNotice.clear(&"x").is_clear())
+	_check("and a clear is not empty", not GSNotice.clear(&"x").is_empty())
+	_check("a notice with nothing on it is empty", GSNotice.new().is_empty())
 
 	_test_notices_bounds()
 
 func _test_notices_bounds() -> void:
 	# Bounded, because this is drawn on a HUD: a newline pushes the next line off the
 	# panel and a thousand characters cover the game.
-	var long := DotNotice.make(&"", "line one\nline two" + "x".repeat(500))
+	var long := GSNotice.make(&"", "line one\nline two" + "x".repeat(500))
 	_check("a line has no control characters", not long.text.contains("\n"))
-	_check("and is bounded", long.text.length() == DotNotice.MAX_TEXT)
+	_check("and is bounded", long.text.length() == GSNotice.MAX_TEXT)
 	# The same list chat refuses, because the same client draws both. DEL, a zero-width
 	# space and joiner, a byte-order mark, a right-to-left override and an isolate: every
 	# one of them passed when this stripped only what is below 32.
-	var spoof := DotNotice.make(&"", "a\u007Fb\u200Bc\u200Dd\uFEFFe\u202Ef\u2066g\nh")
+	var spoof := GSNotice.make(&"", "a\u007Fb\u200Bc\u200Dd\uFEFFe\u202Ef\u2066g\nh")
 	_check("and none of the characters chat refuses (%s)" % spoof.text.c_escape(), spoof.text == "abcdefg h")
 	# Every character GameSpice Chat's filter refuses, written out rather than read from the
 	# constant, so the constant shrinking is visible here.
@@ -57,11 +57,11 @@ func _test_notices_bounds() -> void:
 		refused.append(String.chr(code))
 	for code in range(0x80, 0xA0):
 		refused.append(String.chr(code))
-	var every := DotNotice.make(&"", "a" + "".join(refused) + "b")
+	var every := GSNotice.make(&"", "a" + "".join(refused) + "b")
 	_check("nor any character dot-chat's filter refuses (%s)" % every.text.c_escape(), every.text == "ab")
 	# A host that fills the fields itself skipped make(); the wire form bounds them again,
 	# because what the server sends is the server's to decide, not the receiving client's.
-	var by_hand := DotNotice.new()
+	var by_hand := GSNotice.new()
 	by_hand.text = "a\u202Eb\u200Fc\nd" + "x".repeat(500)
 	by_hand.topic = StringName("t".repeat(200))
 	by_hand.seconds = INF
@@ -69,13 +69,13 @@ func _test_notices_bounds() -> void:
 	_check(
 		"a notice built by hand is bounded on its way out, not only on its way in",
 		str(sent.get("text", "")).begins_with("abc d") \
-			and str(sent.get("text", "")).length() == DotNotice.MAX_TEXT \
-			and str(sent.get("topic", "")).length() == DotNotice.MAX_ID \
+			and str(sent.get("text", "")).length() == GSNotice.MAX_TEXT \
+			and str(sent.get("topic", "")).length() == GSNotice.MAX_ID \
 			and not sent.has("seconds")
 	)
 	# The wire is plain text, drawn by a plain Label; a rich-text client escapes it itself,
 	# and in one pass, or "[a]" comes out as "[lb[rb]a[rb]".
-	var marked := DotNotice.make(&"", "[b]x[/b]")
+	var marked := GSNotice.make(&"", "[b]x[/b]")
 	_check(
 		"a line's markup stays text on the wire, and escapes whole for rich text (%s)" % marked.bbcode_text(),
 		marked.text == "[b]x[/b]" and marked.bbcode_text() == "[lb]b[rb]x[lb]/b[rb]"
@@ -89,60 +89,60 @@ func _test_notices_bounds() -> void:
 	# A megabyte from a caller that meant a line. Built by `+=` and cut at the end, this
 	# was a copy of the whole string per character kept.
 	var started := Time.get_ticks_msec()
-	var huge := DotNotice.make(&"", "word ".repeat(200000))
+	var huge := GSNotice.make(&"", "word ".repeat(200000))
 	var took := Time.get_ticks_msec() - started
 	_check("a megabyte is read no further than the line it makes (%d ms)" % took,
-		took < 10000 and huge.text.length() == DotNotice.MAX_TEXT)
+		took < 10000 and huge.text.length() == GSNotice.MAX_TEXT)
 	_check(
 		"a countdown that could not be computed is none, not an hour",
-		not DotNotice.make(&"", "", NAN).has_countdown()
+		not GSNotice.make(&"", "", NAN).has_countdown()
 	)
 	_check(
 		"and one past the limit is refused, not clamped",
-		not DotNotice.make(&"", "", 1.0e9).has_countdown()
+		not GSNotice.make(&"", "", 1.0e9).has_countdown()
 	)
-	var saved_max := DotNotice.max_seconds
-	DotNotice.max_seconds = 0.0
-	_check("0 lifts the limit", is_equal_approx(DotNotice.make(&"", "", 1.0e9).seconds, 1.0e9))
-	DotNotice.max_seconds = saved_max
+	var saved_max := GSNotice.max_seconds
+	GSNotice.max_seconds = 0.0
+	_check("0 lifts the limit", is_equal_approx(GSNotice.make(&"", "", 1.0e9).seconds, 1.0e9))
+	GSNotice.max_seconds = saved_max
 
 	_test_notices_decode()
 
 func _test_notices_decode() -> void:
-	var full := DotNotice.make(&"vote_start", "Vote now", 30.0, &"game_vote")
+	var full := GSNotice.make(&"vote_start", "Vote now", 30.0, &"game_vote")
 	# The decoder's whole job: a Variant it did not choose. Every one of these must come
 	# back as a notice rather than as a runtime error in a client's RPC handler.
-	_check("a non-dictionary decodes to nothing", DotNotice.from_wire("x").is_empty())
-	_check("so does null", DotNotice.from_wire(null).is_empty())
-	var odd := DotNotice.from_wire({"cue": 7, "text": ["a"], "seconds": "10", "topic": &"t"})
+	_check("a non-dictionary decodes to nothing", GSNotice.from_wire("x").is_empty())
+	_check("so does null", GSNotice.from_wire(null).is_empty())
+	var odd := GSNotice.from_wire({"cue": 7, "text": ["a"], "seconds": "10", "topic": &"t"})
 	_check(
 		"fields of the wrong type are dropped, the rest kept",
 		odd.cue == &"" and odd.text == "" and not odd.has_countdown() and odd.topic == &"t"
 	)
 	_check(
 		"an integer countdown is read as seconds",
-		is_equal_approx(DotNotice.from_wire({"seconds": 5}).seconds, 5.0)
+		is_equal_approx(GSNotice.from_wire({"seconds": 5}).seconds, 5.0)
 	)
 	_check(
 		"a field this build has never heard of is ignored",
-		DotNotice.from_wire({"cue": "a", "colour": "red"}).cue == &"a"
+		GSNotice.from_wire({"cue": "a", "colour": "red"}).cue == &"a"
 	)
 
 	# The server half with nobody connected. Sent to nobody, and said so: a host mirroring
 	# notices into a log still hears the one it meant.
 	var heard: Array[int] = []
-	var on_sent := func(_n: DotNotice, count: int) -> void: heard.append(count)
+	var on_sent := func(_n: GSNotice, count: int) -> void: heard.append(count)
 	server.notice_sent.connect(on_sent)
 
 	_check("a broadcast to nobody reaches nobody", server.broadcast_notice(full) == 0)
 	_check("and is still reported", heard.size() == 1 and heard[0] == 0)
-	_check("an empty notice is not even that", server.broadcast_notice(DotNotice.new()) == 0)
+	_check("an empty notice is not even that", server.broadcast_notice(GSNotice.new()) == 0)
 	_check("and is not reported", heard.size() == 1)
 	_check("nothing is sent to no session", not server.send_notice(null, full))
 
 	# An adopted session has no peer. rpc_id at it is an engine error on a path that is
 	# otherwise working, which is how error output stops being read.
-	var adopted := DotClientSession.new()
+	var adopted := GSClientSession.new()
 	adopted.local = true
 	_check("nor to one with no peer", not server.send_notice(adopted, full))
 
@@ -159,59 +159,59 @@ func _test_rcon_allow_list() -> void:
 	var host := PackedStringArray(["127.0.0.1"])
 
 	_check("an empty allow-list allows anything",
-		DotRconServer.address_matches("203.0.113.9", PackedStringArray()))
+		GSRconServer.address_matches("203.0.113.9", PackedStringArray()))
 	_check("an exact address is allowed",
-		DotRconServer.address_matches("127.0.0.1", host))
+		GSRconServer.address_matches("127.0.0.1", host))
 	_check("any other address is refused",
-		not DotRconServer.address_matches("203.0.113.9", host))
+		not GSRconServer.address_matches("203.0.113.9", host))
 
 	# The containment case: the trailing dot has to anchor the prefix to an octet
 	# boundary, or "192.16." quietly covers the whole of 192.168.0.0/16.
 	_check("a subnet prefix covers its subnet",
-		DotRconServer.address_matches("192.168.1.5", lan))
+		GSRconServer.address_matches("192.168.1.5", lan))
 	_check("a subnet prefix stops at the octet boundary",
-		not DotRconServer.address_matches("192.168.1.1",
+		not GSRconServer.address_matches("192.168.1.1",
 			PackedStringArray(["192.16."])))
 	_check("a subnet prefix does not cover a different subnet",
-		not DotRconServer.address_matches("10.0.0.4", lan))
+		not GSRconServer.address_matches("10.0.0.4", lan))
 
 	# A dual-stack listener reports an IPv4 client mapped into IPv6. Both
 	# spellings are the same address and each has to match an entry written in
 	# the other, or the operator is refused by their own server.
 	_check("a mapped IPv4 client matches a bare entry",
-		DotRconServer.address_matches("::ffff:127.0.0.1", host))
+		GSRconServer.address_matches("::ffff:127.0.0.1", host))
 	_check("a mapped IPv4 client matches a bare subnet prefix",
-		DotRconServer.address_matches("::ffff:192.168.1.5", lan))
+		GSRconServer.address_matches("::ffff:192.168.1.5", lan))
 	_check("a bare IPv4 client matches a mapped entry",
-		DotRconServer.address_matches("127.0.0.1",
+		GSRconServer.address_matches("127.0.0.1",
 			PackedStringArray(["::ffff:127.0.0.1"])))
 	_check("mapping does not admit an address the list never had",
-		not DotRconServer.address_matches("::ffff:203.0.113.9", host))
+		not GSRconServer.address_matches("::ffff:203.0.113.9", host))
 
 	# The entry side is normalised too. It was not, so an entry carrying a port,
 	# a scheme or stray whitespace matched nothing and said nothing about it.
 	_check("an entry carrying a port still matches the host",
-		DotRconServer.address_matches("127.0.0.1",
+		GSRconServer.address_matches("127.0.0.1",
 			PackedStringArray(["127.0.0.1:27055"])))
 	_check("an entry carrying a scheme still prefix-matches",
-		DotRconServer.address_matches("192.168.1.5",
+		GSRconServer.address_matches("192.168.1.5",
 			PackedStringArray(["tcp://192.168."])))
 	_check("an entry with stray whitespace still prefix-matches",
-		DotRconServer.address_matches("192.168.1.5",
+		GSRconServer.address_matches("192.168.1.5",
 			PackedStringArray(["  192.168.  "])))
 	_check("an empty entry matches nothing",
-		not DotRconServer.address_matches("127.0.0.1",
+		not GSRconServer.address_matches("127.0.0.1",
 			PackedStringArray([""])))
 
 	# Documented behaviour, asserted so it cannot drift into a silent hole: a
-	# prefix without its trailing dot matches nothing. DotServerConfig warns
+	# prefix without its trailing dot matches nothing. GSServerConfig warns
 	# about exactly this shape.
 	_check("a prefix missing its trailing dot matches nothing",
-		not DotRconServer.address_matches("192.168.1.5",
+		not GSRconServer.address_matches("192.168.1.5",
 			PackedStringArray(["192.168"])))
 
 	_check("an IPv6 client matches an IPv6 entry",
-		DotRconServer.address_matches("::1", PackedStringArray(["::1"])))
+		GSRconServer.address_matches("::1", PackedStringArray(["::1"])))
 
 	await _test_rcon_allow_list_live()
 
@@ -229,24 +229,24 @@ func _test_rcon_allow_list_live() -> void:
 	# A scanner dialling the port seven times in a row logs one WARN, not seven.
 	var warns: Array[Dictionary] = []
 	var on_record := func(rec: Dictionary) -> void:
-		if str(rec.get("channel", "")) == "rcon" and int(rec.get("level", -1)) == DotLog.Level.WARN:
+		if str(rec.get("channel", "")) == "rcon" and int(rec.get("level", -1)) == GSLog.Level.WARN:
 			warns.append(rec)
-	DotLog.signals().record.connect(on_record)
-	var refuser := DotRconServer.new()
+	GSLog.signals().record.connect(on_record)
+	var refuser := GSRconServer.new()
 	for n in 7:
 		refuser._log_refusal("167.94.146.48", "RCON connection refused: address not allowed")
 	refuser._log_refusal("203.0.113.9", "RCON connection refused: address not allowed")
-	DotLog.signals().record.disconnect(on_record)
+	GSLog.signals().record.disconnect(on_record)
 	_check("seven refusals from one address log one WARN (plus the other address's)", warns.size() == 2)
 	_check("the quiet count is held for the address that was muted", int(refuser._refusals_quiet.get("167.94.146.48", 0)) == 6)
 
 	refuser.free()
 
 	# Both tables shrink once the window has passed: a refilled bucket is dropped by time.
-	var scan := DotRconServer.new()
+	var scan := GSRconServer.new()
 	# One token per 0.5 s: the second refusal of an address must land inside that, however slowly the
 	# first WARN was written (at 100/s a 10 ms log write refilled the bucket and the count was never kept).
-	scan._refusal_log = DotRateLimiter.new(2.0, 1.0)
+	scan._refusal_log = GSRateLimiter.new(2.0, 1.0)
 	scan._refusal_log.idle_eviction_sec = 0.02
 	scan._refusal_log.sweep_interval_ms = 0
 	for n in 3:
@@ -470,11 +470,11 @@ func _test_web_transport_limits() -> void:
 	print("")
 	_section("[web transport limits]")
 
-	var cfg := DotServerConfig.new()
+	var cfg := GSServerConfig.new()
 	var ws := cfg.configured_websocket()
 	_check("ws_* keys reach the WebSocket transport", ws.inbound_buffer_exp == cfg.ws_inbound_buffer_exp and ws.outbound_buffer_exp == cfg.ws_outbound_buffer_exp and ws.max_queued_packets == cfg.ws_max_queued_packets)
 	cfg.transport_mode = "websocket"
-	var auto := cfg.resolve_transport() as DotTransportAuto
+	var auto := cfg.resolve_transport() as GSTransportAuto
 	_check("the built web-only transport carries them", auto != null and auto.websocket.outbound_buffer_exp == cfg.ws_outbound_buffer_exp)
 
 	# A worst-case board: more rows than the cap, each with a long name.
@@ -488,7 +488,7 @@ func _test_web_transport_limits() -> void:
 	var srv_peer := ws.create_server(port, "127.0.0.1").value as MultiplayerPeer
 	var ids: Array[int] = []
 	srv_peer.peer_connected.connect(func(id: int) -> void: ids.append(id))
-	var client := DotTransportWebSocket.new().create_client("ws://127.0.0.1:%d" % port).value as MultiplayerPeer
+	var client := GSTransportWebSocket.new().create_client("ws://127.0.0.1:%d" % port).value as MultiplayerPeer
 	var deadline := Time.get_ticks_msec() + 5000
 	while Time.get_ticks_msec() < deadline and (ids.is_empty() or client.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
 		srv_peer.poll()

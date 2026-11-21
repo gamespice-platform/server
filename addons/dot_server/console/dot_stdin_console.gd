@@ -1,4 +1,4 @@
-class_name DotStdinConsole
+class_name GSStdinConsole
 extends Node
 
 ## Runs what an operator types into the server's own terminal, as the CONSOLE source. The
@@ -18,19 +18,19 @@ const EOF_EMPTY_READS := 64
 ## Seconds between looks at the tap file (see [method _start_tap]).
 const TAP_POLL_SEC := 0.1
 
-## Where typed lines are attributed from: [constant DotCmdContext.Source.CONSOLE], like a
+## Where typed lines are attributed from: [constant GSCmdContext.Source.CONSOLE], like a
 ## startup `.cfg`. It bypasses the rcon and chat gates, which bound REMOTE callers.
-@export var source: DotCmdContext.Source = DotCmdContext.Source.CONSOLE
+@export var source: GSCmdContext.Source = GSCmdContext.Source.CONSOLE
 
 ## Print each line back before running it. Off: a terminal already shows it; useful for a pipe.
 @export var echo: bool = false
 
 ## Also read stdin when it is a pipe, socket or device. Off, because a pipe nobody closes hangs
-## the process at exit; turn on ([member DotServerConfig.stdin_console_pipes]) for a supervisor
+## the process at exit; turn on ([member GSServerConfig.stdin_console_pipes]) for a supervisor
 ## feeding commands down a pipe, and close the pipe to stop the server.
 @export var read_pipes: bool = false
 
-var server: Node = null  # a DotServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
+var server: Node = null  # a GSServer, held as Node so this file and dot_server.gd do not keep each other's parsers alive
 
 var _thread: Thread = null
 var _stop := false
@@ -44,12 +44,12 @@ var _tap_clock := 0.0
 
 
 ## Starts reading, or explains why it will not.
-func setup(p_server: Node) -> DotResult:
+func setup(p_server: Node) -> GSResult:
 	server = p_server
 
 	if server == null or server.console == null:
-		return DotResult.fail(
-			DotError.CODE_STATE, "A stdin console needs a server with a console."
+		return GSResult.fail(
+			GSError.CODE_STATE, "A stdin console needs a server with a console."
 		)
 
 	# No terminal is the ordinary case (container without `-i`, systemd unit, CI): a reader
@@ -57,49 +57,49 @@ func setup(p_server: Node) -> DotResult:
 	var kind := OS.get_stdin_type()
 
 	if kind == OS.STD_HANDLE_INVALID:
-		DotLog.info(CHANNEL, "no terminal on stdin; console input is off", {
+		GSLog.info(CHANNEL, "no terminal on stdin; console input is off", {
 			"hint": "run the server in the foreground, or use RCON"
 		})
-		return DotResult.success(false)
+		return GSResult.success(false)
 
 	if not should_read(kind, read_pipes):
-		DotLog.info(CHANNEL, "stdin is not a terminal or a file; console input is off", {
+		GSLog.info(CHANNEL, "stdin is not a terminal or a file; console input is off", {
 			"stdin": kind,
 			"hint": "set stdin_console_pipes to read a pipe, and close it to stop"
 		})
-		return DotResult.success(false)
+		return GSResult.success(false)
 
-	if not DotPlatform.has_threads():
+	if not GSPlatform.has_threads():
 		# The browser, and any export built without threads. A server does not run
 		# there, but this class must not be the reason a build refuses to load.
-		DotLog.info(CHANNEL, "no threads on this platform; console input is off")
-		return DotResult.success(false)
+		GSLog.info(CHANNEL, "no threads on this platform; console input is off")
+		return GSResult.success(false)
 
 	if kind != OS.STD_HANDLE_FILE and _start_tap():
 		set_process(true)
-		DotLog.info(CHANNEL, "console input is on; type a command and press enter", {
+		GSLog.info(CHANNEL, "console input is on; type a command and press enter", {
 			"stdin": kind, "reader": "helper process"
 		})
-		return DotResult.success(true)
+		return GSResult.success(true)
 
 	if kind != OS.STD_HANDLE_FILE and kind != OS.STD_HANDLE_CONSOLE:
 		# A blocked read thread on a pipe keeps the process from exiting (quit(75) is lost).
-		DotLog.warn(CHANNEL, "console input is off: the stdin helper process could not start", {
+		GSLog.warn(CHANNEL, "console input is off: the stdin helper process could not start", {
 			"reason": _tap_error
 		})
-		return DotResult.success(false)
+		return GSResult.success(false)
 
 	if not _start_read():
-		return DotResult.fail(
-			DotError.CODE_INTERNAL, "Could not start the stdin reader thread."
+		return GSResult.fail(
+			GSError.CODE_INTERNAL, "Could not start the stdin reader thread."
 		)
 
 	set_process(true)
-	DotLog.info(CHANNEL, "console input is on; type a command and press enter", {
+	GSLog.info(CHANNEL, "console input is on; type a command and press enter", {
 		"stdin": kind
 	})
 
-	return DotResult.success(true)
+	return GSResult.success(true)
 
 
 ## Whether a stdin of this [method OS.get_stdin_type] is read at all: a terminal and a file are;
@@ -131,7 +131,7 @@ func _process(delta: float) -> void:
 		# that was closed. Said once, so `./server < commands.txt` does not look hung.
 		if _empty_reads >= EOF_EMPTY_READS:
 			set_process(false)
-			DotLog.info(CHANNEL, "end of input; console input is off")
+			GSLog.info(CHANNEL, "end of input; console input is off")
 			return
 	else:
 		_empty_reads = 0
@@ -166,7 +166,7 @@ func _start_tap() -> bool:
 	if OS.get_name() not in ["Linux", "FreeBSD", "NetBSD", "OpenBSD", "macOS"]:
 		_tap_error = "no shell on this platform"
 		return false
-	if not FileAccess.file_exists("/bin/sh") or DotConfig.gs_env("DOT_STDIN_NO_HELPER") != "":
+	if not FileAccess.file_exists("/bin/sh") or GSConfig.gs_env("DOT_STDIN_NO_HELPER") != "":
 		_tap_error = "/bin/sh unavailable"
 		return false
 
@@ -219,7 +219,7 @@ func _poll_tap(delta: float) -> void:
 
 	if not alive:
 		set_process(false)
-		DotLog.info(CHANNEL, "end of input; console input is off")
+		GSLog.info(CHANNEL, "end of input; console input is off")
 
 
 func _run(line: String) -> void:
@@ -231,20 +231,20 @@ func _run(line: String) -> void:
 	if echo:
 		print("> %s" % text)
 
-	var ctx := DotCmdContext.new()
+	var ctx := GSCmdContext.new()
 	ctx.source = source
 
 	# ROOT, as a startup `.cfg` gets it: this IS the terminal. It must be granted explicitly,
 	# because `_run_command` checks `ctx.has_permission` and does not consult `ctx.is_trusted()`.
-	ctx.permissions = PackedStringArray([DotAdminFlags.ROOT])
-	ctx.immunity = DotAdminFlags.root_immunity()
+	ctx.permissions = PackedStringArray([GSAdminFlags.ROOT])
+	ctx.immunity = GSAdminFlags.root_immunity()
 	ctx.address = "stdin"
 
 	# So a command that answers -- `status`, `games` -- prints to the terminal the
 	# person is looking at, rather than into a log sink they are not.
 	ctx.reply_sink = func(text: String) -> void: print(text)
 
-	var res: DotResult = server.console.execute(text, ctx)
+	var res: GSResult = server.console.execute(text, ctx)
 
 	# Printed rather than logged. A person typed this and is looking at the terminal
 	# waiting for an answer; a log line routed somewhere else is not an answer.

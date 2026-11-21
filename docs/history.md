@@ -4,8 +4,8 @@ Stories worth keeping because the bug could come back. The live rule from each i
 
 ## The protocol breaks
 
-- **Adding an `@rpc` pair was a protocol break that announced itself badly.** `client_visibility` was added as a method pair; a client built before it met a server built after it with "The rpc node checksum failed" and then sat in `AUTHENTICATING` until timed out, which reads as a network problem. That forced `DotSignon`.
-- **`_notice` locked every shipped client out two days before the envelope existed.** The notice pair moved the signon revision (`c5c1f679edb5` to `b202b914834e`), and every web and native shell had to be re-exported. Two days later the six-RPC `DotEnvelope` replaced every method pair, the last coordinated break: `DotSignon.PROTOCOL` went to 2, and every shell was re-exported once more. A client older than `DotSignon` itself has no check at all and times out in `AUTHENTICATING`.
+- **Adding an `@rpc` pair was a protocol break that announced itself badly.** `client_visibility` was added as a method pair; a client built before it met a server built after it with "The rpc node checksum failed" and then sat in `AUTHENTICATING` until timed out, which reads as a network problem. That forced `GSSignon`.
+- **`_notice` locked every shipped client out two days before the envelope existed.** The notice pair moved the signon revision (`c5c1f679edb5` to `b202b914834e`), and every web and native shell had to be re-exported. Two days later the six-RPC `GSEnvelope` replaced every method pair, the last coordinated break: `GSSignon.PROTOCOL` went to 2, and every shell was re-exported once more. A client older than `GSSignon` itself has no check at all and times out in `AUTHENTICATING`.
 - **A kick from outside an RPC handler never delivered its reason.** Found by GameSpice Server Deploy's `smash_client`, whose game netcode refused a client from outside a handler. Fixed by `_close_peer`'s grace.
 
 ## Game switching had never run
@@ -19,13 +19,13 @@ Every game in every suite shipped inside its build, and `change_game` skips the 
 - the first client to finish downloading was told to load the old game;
 - the download-progress subscription was made again on every change (a fresh lambda never matches `is_connected`), so after ten changes a client sent ten progress messages per tick.
 
-And `swap_when_all_ready` was tested one line below an unconditional `return` on the same condition. `DotGameDescriptor.cvars` was the same bug one field along: documented, exported, read by every host, and referenced once in the repository, so a descriptor's `cvars:` set nothing and the previous game's rules ran under the new name.
+And `swap_when_all_ready` was tested one line below an unconditional `return` on the same condition. `GSGameDescriptor.cvars` was the same bug one field along: documented, exported, read by every host, and referenced once in the repository, so a descriptor's `cvars:` set nothing and the previous game's rules ran under the new name.
 
 The client-scene rule ([game-switching.md](game-switching.md#delivered-or-shipped-in-the-build)) was found by the first example in the family to connect a client to a server running a real game scene: a game shipped with its own client could not be joined at all.
 
 ## Things built and never connected
 
-- **No argument completer had ever run.** Seven builtins set `DotConCommand.completer`; the only reader, `complete_argument`, had no callers, so `kick Bo` completed nothing. The other half was in GameSpice Console, whose panel returned early on any space. Two halves of one feature, each correct, never introduced.
+- **No argument completer had ever run.** Seven builtins set `GSConCommand.completer`; the only reader, `complete_argument`, had no callers, so `kick Bo` completed nothing. The other half was in GameSpice Console, whose panel returned early on any space. Two halves of one feature, each correct, never introduced.
 - **An addon's commands could not be typed on a dedicated server** until `add_source`: GameSpice Log's `log tail` existed only on clients, which have no log worth tailing.
 - **The audit log never opened** in any default configuration ([boot.md](boot.md#boot-order-is-fixed-and-load-bearing)). It warned on every boot, which read like an unfilled setting.
 
@@ -42,8 +42,8 @@ The client-scene rule ([game-switching.md](game-switching.md#delivered-or-shippe
 
 ## Trimmed from code comments
 
-- `DotAuditLog.open_log` is called twice because a created node has run `_ready` before `DotServer` assigns its config: the first call found no path and returned, so in the default configuration no administrative action was ever recorded, and the warning read like an unfilled setting.
+- `GSAuditLog.open_log` is called twice because a created node has run `_ready` before `GSServer` assigns its config: the first call found no path and returned, so in the default configuration no administrative action was ever recorded, and the warning read like an unfilled setting.
 - The content-switch suite once subscribed to the cloud client's `progress_changed` with a fresh lambda per change, so the `is_connected` guard never matched and each change added a subscriber (ten changes sent ten identical progress RPCs per tick, silently).
 - A content-switch client told to load the OLD game as soon as it finished downloading the new one produced a third `_load_game`; the suite pins exactly two.
 - A browser client guessing the content origin from its page URL got 404s on every CDN-hosted map, so the server now tells the client where the content is.
-- `DotModuleHost` scan-loads once produced "Trying to call an async function without 'await'" until `load_module` awaited the module.
+- `GSModuleHost` scan-loads once produced "Trying to call an async function without 'await'" until `load_module` awaited the module.

@@ -1,4 +1,4 @@
-class_name DotBotQuota
+class_name GSBotQuota
 extends RefCounted
 ## How many bots a game should be running, from how many people are playing.
 ## One rule for every game (cvars bot_quota, bot_quota_mode, bot_quota_empty); the game still owns how a bot is made.
@@ -10,20 +10,20 @@ const MODE_NAMES := {
 	"off": Mode.OFF, "fill": Mode.FILL, "fixed": Mode.FIXED, "per_player": Mode.PER_PLAYER,
 }
 
-var quota_cvar: DotConVar = null
-var mode_cvar: DotConVar = null
-var empty_cvar: DotConVar = null
+var quota_cvar: GSConVar = null
+var mode_cvar: GSConVar = null
+var empty_cvar: GSConVar = null
 
 
 ## Registers the three cvars on [param module] and returns the policy reading them.
 ## [param default_quota] is the game's own number; [param default_mode] is `fill` unless the game has a reason.
-static func install(module: DotModule, default_quota: int, default_mode: String = "fill") -> DotBotQuota:
-	var q := DotBotQuota.new()
+static func install(module: GSModule, default_quota: int, default_mode: String = "fill") -> GSBotQuota:
+	var q := GSBotQuota.new()
 
 	q.quota_cvar = module.add_cvar(
 		"bot_quota", str(maxi(default_quota, 0)),
 		"How many bots, read by bot_quota_mode: fill tops people up to this many players; fixed runs this many bots; per_player runs this many per person.",
-		DotConVar.FLAG_NOTIFY
+		GSConVar.FLAG_NOTIFY
 	)
 	if q.quota_cvar != null:
 		q.quota_cvar.with_min(0)
@@ -31,12 +31,12 @@ static func install(module: DotModule, default_quota: int, default_mode: String 
 	q.mode_cvar = module.add_cvar(
 		"bot_quota_mode", default_mode if MODE_NAMES.has(default_mode) else "fill",
 		"fill (people replace bots), fixed, per_player or off.",
-		DotConVar.FLAG_NOTIFY
+		GSConVar.FLAG_NOTIFY
 	)
 	if q.mode_cvar != null:
 		# A static method, not a lambda: a lambda's script can be gone before the console
 		# that holds it at engine teardown, which aborts the process at exit.
-		q.mode_cvar.with_validator(DotBotQuota._valid_mode)
+		q.mode_cvar.with_validator(GSBotQuota._valid_mode)
 
 	q.empty_cvar = module.add_cvar(
 		"bot_quota_empty", "1",
@@ -46,10 +46,10 @@ static func install(module: DotModule, default_quota: int, default_mode: String 
 	return q
 
 
-static func _valid_mode(value: String) -> DotResult:
+static func _valid_mode(value: String) -> GSResult:
 	if MODE_NAMES.has(value.strip_edges().to_lower()):
-		return DotResult.success(value)
-	return DotResult.fail(DotError.CODE_INVALID, "bot_quota_mode is fill, fixed, per_player or off.")
+		return GSResult.success(value)
+	return GSResult.fail(GSError.CODE_INVALID, "bot_quota_mode is fill, fixed, per_player or off.")
 
 
 func mode() -> Mode:

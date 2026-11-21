@@ -1,5 +1,5 @@
 @tool
-class_name DotEventBus
+class_name GSEventBus
 extends Node
 
 ## Named game events with pre-hooks that can veto and post-hooks that observe.
@@ -10,7 +10,7 @@ const CHANNEL := "events"
 const SERVICE := &"dot_event_bus"
 
 ## Emitted after every event, cancelled or not, for logging and relays.
-signal event_fired(event: DotEvent)
+signal event_fired(event: GSEvent)
 
 ## Log every fired event at TRACE. Very noisy; for debugging a hook order problem.
 @export var trace_events: bool = false
@@ -39,12 +39,12 @@ var _total_fired: int = 0
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	DotRegistry.register(SERVICE, self)
+	GSRegistry.register(SERVICE, self)
 	_declare_builtin()
 
 
 func _exit_tree() -> void:
-	DotRegistry.unregister_instance(SERVICE, self)
+	GSRegistry.unregister_instance(SERVICE, self)
 
 
 func _process(_delta: float) -> void:
@@ -119,7 +119,7 @@ func unhook_all(owner: Object) -> int:
 					removed += 1
 
 	if removed > 0:
-		DotLog.debug(
+		GSLog.debug(
 			CHANNEL, "hooks removed", {"count": removed, "owner": owner.get_class()}
 		)
 
@@ -133,11 +133,11 @@ func hook_count(name: String) -> int:
 
 
 
-## Fires an event and returns it, so the caller can check [member DotEvent.cancelled].
+## Fires an event and returns it, so the caller can check [member GSEvent.cancelled].
 ##
 ## Pre-hooks run first and may cancel; post-hooks run only if it was not cancelled.
-func fire(name: String, data: Dictionary = {}) -> DotEvent:
-	var event := DotEvent.new(name, data)
+func fire(name: String, data: Dictionary = {}) -> GSEvent:
+	var event := GSEvent.new(name, data)
 
 	_fired_this_frame += 1
 	_total_fired += 1
@@ -148,7 +148,7 @@ func fire(name: String, data: Dictionary = {}) -> DotEvent:
 		var now_ms := Time.get_ticks_msec()
 		if _flood_warned_ms < 0 or now_ms - _flood_warned_ms >= 10000:
 			_flood_warned_ms = now_ms
-			DotLog.error(
+			GSLog.error(
 				CHANNEL,
 				"event flood: events dropped past max_events_per_frame (a hook firing the event it handles?)",
 				{"event": name, "this_frame": _fired_this_frame, "max_events_per_frame": max_events_per_frame,
@@ -158,7 +158,7 @@ func fire(name: String, data: Dictionary = {}) -> DotEvent:
 		return event
 
 	if trace_events:
-		DotLog.trace(CHANNEL, "fire", {"event": name})
+		GSLog.trace(CHANNEL, "fire", {"event": name})
 
 	for hook in (_pre_hooks.get(name, []) as Array):
 		if not (hook as Callable).is_valid():
@@ -167,7 +167,7 @@ func fire(name: String, data: Dictionary = {}) -> DotEvent:
 		(hook as Callable).call(event)
 
 		if event.cancelled:
-			DotLog.debug(
+			GSLog.debug(
 				CHANNEL,
 				"event cancelled",
 				{"event": name, "reason": event.cancel_reason}

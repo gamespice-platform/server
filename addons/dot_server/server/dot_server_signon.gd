@@ -1,14 +1,14 @@
 @tool
 extends "res://addons/dot_server/server/dot_server_admission.gd"
 
-## Handshake, PROFILE stage, authentication and content sync of [DotServer].
+## Handshake, PROFILE stage, authentication and content sync of [GSServer].
 
 ## A client that has not answered its challenge is asked again this often, this many times.
 const CHALLENGE_RETRY_SEC := 3.0
 const CHALLENGE_RETRIES := 3
 
 
-func _handshake_challenge(session: DotClientSession) -> Dictionary:
+func _handshake_challenge(session: GSClientSession) -> Dictionary:
 	var challenge := _handshake_fields(session)
 
 	# Which backbone target a join token must name to be spent here: an INTROSPECT client mints a
@@ -31,16 +31,16 @@ func _handshake_challenge(session: DotClientSession) -> Dictionary:
 	return challenge
 
 
-func _handshake_fields(session: DotClientSession) -> Dictionary:
+func _handshake_fields(session: GSClientSession) -> Dictionary:
 	return {
-		"protocol": DotSignon.PROTOCOL,
+		"protocol": GSSignon.PROTOCOL,
 				# The RPC surface, so a client that cannot finish this join can say why instead of timing out.
 				# Godot refuses an RPC when the two ends declare different `@rpc` methods. It rides on the
-				# challenge because that still arrives after the checksum has failed. See [DotSignon].
-		"signon": DotSignon.revision([load("uid://bmmt0ykk31iv0")]),  # DotServer, loaded: this file is one of its bases
+				# challenge because that still arrives after the checksum has failed. See [GSSignon].
+		"signon": GSSignon.revision([load("uid://bmmt0ykk31iv0")]),  # GSServer, loaded: this file is one of its bases
 		# [b]Everything this server can say and hear, and which of it a client must know.[/b]
 		# The client answers with its own; the server compares them when the answer arrives
-		# and refuses a pair that cannot play, with a sentence. See [DotEnvelope].
+		# and refuses a pair that cannot play, with a sentence. See [GSEnvelope].
 		"kinds": envelope.advert(),
 		"hostname": _cv_hostname.get_string(),
 		"server_id": config.server_id,
@@ -55,14 +55,14 @@ func _handshake_fields(session: DotClientSession) -> Dictionary:
 
 ## The client asks for a ticket bound to this, so one copied off the wire is refused
 ## on every other connection.
-func _ticket_nonce_for(session: DotClientSession) -> String:
+func _ticket_nonce_for(session: GSClientSession) -> String:
 	if session.ticket_nonce == "":
-		session.ticket_nonce = DotHash.random_token(16)
+		session.ticket_nonce = GSHash.random_token(16)
 	return session.ticket_nonce
 
 
 func _auth_strategy_name() -> String:
-	var auth := DotRegistry.get_service(&"dot_auth_server")
+	var auth := GSRegistry.get_service(&"dot_auth_server")
 	if auth == null:
 		return "none"
 	if auth.has_method("strategy_name"):
@@ -71,7 +71,7 @@ func _auth_strategy_name() -> String:
 
 
 func _auth_join_audience() -> String:
-	var auth := DotRegistry.get_service(&"dot_auth_server")
+	var auth := GSRegistry.get_service(&"dot_auth_server")
 	if auth == null or not auth.has_method("join_audience"):
 		return ""
 	return str(auth.call("join_audience"))
@@ -79,19 +79,19 @@ func _auth_join_audience() -> String:
 
 ## Asks a client that has not answered its challenge again (same nonce), up to [constant CHALLENGE_RETRIES]
 ## times, [constant CHALLENGE_RETRY_SEC] apart. The client answers a repeat exactly as the first.
-func _resend_challenge(session: DotClientSession) -> void:
+func _resend_challenge(session: GSClientSession) -> void:
 	session.challenges_sent += 1
-	DotLog.info(CHANNEL, "challenge repeated: no credentials yet", {
+	GSLog.info(CHANNEL, "challenge repeated: no credentials yet", {
 		"userid": session.userid, "attempt": session.challenges_sent,
 	})
-	send_kind(session.peer_id, DotEnvelope.CHALLENGE, _handshake_challenge(session))
+	send_kind(session.peer_id, GSEnvelope.CHALLENGE, _handshake_challenge(session))
 
 
 ## A client's answer to the challenge. The one unauthenticated entry point, so everything it
 ## touches is bounded: fields are validated, the password compare is constant-time, and a failure
 ## closes the connection.
 func _on_credentials(peer_id: int, payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 
 	if session == null:
 		return
@@ -101,11 +101,11 @@ func _on_credentials(peer_id: int, payload: Dictionary) -> void:
 	if session.credentials_seen:
 		# A re-challenge crossed the first answer; the first is already being handled.
 		return
-	if session.state == DotClientSession.State.AUTHENTICATING:
+	if session.state == GSClientSession.State.AUTHENTICATING:
 		session.credentials_seen = true
 
-	if session.state != DotClientSession.State.AUTHENTICATING:
-		DotLog.warn(
+	if session.state != GSClientSession.State.AUTHENTICATING:
+		GSLog.warn(
 			CHANNEL,
 			"credentials submitted in the wrong state",
 			{"userid": session.userid, "state": session.state_name()}
@@ -130,7 +130,7 @@ func _on_credentials(peer_id: int, payload: Dictionary) -> void:
 
 	var admitted := check_identity_admission(session)
 	if not admitted.ok:
-		DotLog.info(
+		GSLog.info(
 			CHANNEL,
 			"banned player refused",
 			{"user": session.label(), "why": admitted.error.detail}
@@ -148,7 +148,7 @@ func _on_credentials(peer_id: int, payload: Dictionary) -> void:
 		if name_value != null and str(name_value) != "":
 			session.display_name = str(name_value)
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"client authenticated",
 		{
@@ -162,12 +162,12 @@ func _on_credentials(peer_id: int, payload: Dictionary) -> void:
 
 
 ## False (and the session rejected) when the client's protocol or platform is refused.
-func _accept_hello(session: DotClientSession, peer_id: int, payload: Dictionary) -> bool:
+func _accept_hello(session: GSClientSession, peer_id: int, payload: Dictionary) -> bool:
 	# First, so a client too old to play reads "needs a newer game client" instead of
 	# waiting out an auth timeout.
 	var compatible := envelope.adopt(peer_id, payload.get("kinds"), true)
 	if not compatible.ok:
-		DotLog.info(CHANNEL, "client refused: it cannot speak this server's protocol", {
+		GSLog.info(CHANNEL, "client refused: it cannot speak this server's protocol", {
 			"userid": session.userid,
 			"from": session.address,
 			"why": compatible.error.message,
@@ -179,7 +179,7 @@ func _accept_hello(session: DotClientSession, peer_id: int, payload: Dictionary)
 	var requested_name := str(payload.get("name", "")).strip_edges()
 	var max_name := console.get_int("sv_max_name_length", 32)
 	if requested_name != "" and max_name > 0 and requested_name.length() > max_name:
-		DotLog.info(CHANNEL, "client name refused: past sv_max_name_length, it keeps its default name", {
+		GSLog.info(CHANNEL, "client name refused: past sv_max_name_length, it keeps its default name", {
 			"userid": session.userid,
 			"length": requested_name.length(),
 			"limit": max_name,
@@ -191,7 +191,7 @@ func _accept_hello(session: DotClientSession, peer_id: int, payload: Dictionary)
 	session.platform = str(payload.get("platform", "")).strip_edges().to_lower()
 	var platform_refusal := platform_refusal_for(session.platform)
 	if platform_refusal != "":
-		DotLog.info(CHANNEL, "client refused: this server does not take its platform", {
+		GSLog.info(CHANNEL, "client refused: this server does not take its platform", {
 			"userid": session.userid,
 			"from": session.address,
 			"platform": session.platform,
@@ -203,27 +203,27 @@ func _accept_hello(session: DotClientSession, peer_id: int, payload: Dictionary)
 
 ## True (and the session rejected) when the server has a password and the payload's differs.
 ## Checked before authentication so an unauthenticated client cannot probe the auth path.
-func _password_refused(session: DotClientSession, payload: Dictionary) -> bool:
+func _password_refused(session: GSClientSession, payload: Dictionary) -> bool:
 	var server_password := _cv_password.get_string()
 	if server_password == "":
 		return false
 	var supplied := str(payload.get("password", ""))
-	if DotHash.constant_time_equal(supplied.to_utf8_buffer(), server_password.to_utf8_buffer()):
+	if GSHash.constant_time_equal(supplied.to_utf8_buffer(), server_password.to_utf8_buffer()):
 		return false
-	DotLog.info(CHANNEL, "wrong server password", {"userid": session.userid, "from": session.address})
+	GSLog.info(CHANNEL, "wrong server password", {"userid": session.userid, "from": session.address})
 	_reject_session(session, "Incorrect server password.")
 	return true
 
 
-## Puts an authenticated session in [constant DotClientSession.State.PROFILE] and lets it
+## Puts an authenticated session in [constant GSClientSession.State.PROFILE] and lets it
 ## through at once unless something holds it. A stage, not a spawn hook: it is the last point at
 ## which a refusal takes nothing back. Holders claim it synchronously from [signal client_state_changed].
-func _enter_profile(session: DotClientSession) -> void:
+func _enter_profile(session: GSClientSession) -> void:
 	# The credentials handler awaited authentication; the player may have gone meanwhile.
 	if not session.is_active():
 		return
 
-	if not session.transition_to(DotClientSession.State.PROFILE):
+	if not session.transition_to(GSClientSession.State.PROFILE):
 		return
 
 	client_state_changed.emit(session)
@@ -231,12 +231,12 @@ func _enter_profile(session: DotClientSession) -> void:
 	# A holder may already have released, or refused, from inside its handler: a module
 	# that decides synchronously. Only a session still in the stage with nobody holding
 	# it moves on here, so it is never advanced twice.
-	if session.state == DotClientSession.State.PROFILE and session.profile_holds.is_empty():
+	if session.state == GSClientSession.State.PROFILE and session.profile_holds.is_empty():
 		_advance_to_content(session)
 		return
 
-	if session.state == DotClientSession.State.PROFILE:
-		DotLog.debug(CHANNEL, "client held in the profile stage", {
+	if session.state == GSClientSession.State.PROFILE:
+		GSLog.debug(CHANNEL, "client held in the profile stage", {
 			"user": session.label(),
 			"by": ", ".join(session.profile_holds),
 		})
@@ -244,11 +244,11 @@ func _enter_profile(session: DotClientSession) -> void:
 
 ## Holds [param session] in the PROFILE stage until [param holder] releases it.
 ## False, holding nothing, when the session is past PROFILE. Call it from a [signal client_state_changed]
-## handler before awaiting; the stage has its own deadline, [member DotServerConfig.profile_timeout_sec].
-func hold_profile(session: DotClientSession, holder: String) -> bool:
+## handler before awaiting; the stage has its own deadline, [member GSServerConfig.profile_timeout_sec].
+func hold_profile(session: GSClientSession, holder: String) -> bool:
 	if session == null or not session.is_active():
 		return false
-	if session.state != DotClientSession.State.PROFILE:
+	if session.state != GSClientSession.State.PROFILE:
 		return false
 	if holder == "":
 		push_error("hold_profile needs a holder name, so it can be released")
@@ -260,8 +260,8 @@ func hold_profile(session: DotClientSession, holder: String) -> bool:
 
 ## Releases [param holder]'s hold. The last release sends the player on to content.
 ## Safe for a session that has left the stage, been refused or gone.
-func release_profile(session: DotClientSession, holder: String) -> void:
-	if session == null or session.state != DotClientSession.State.PROFILE:
+func release_profile(session: GSClientSession, holder: String) -> void:
+	if session == null or session.state != GSClientSession.State.PROFILE:
 		return
 
 	var at := session.profile_holds.find(holder)
@@ -276,13 +276,13 @@ func release_profile(session: DotClientSession, holder: String) -> void:
 ## Refuses a player still in the PROFILE stage: they are told [param reason] and never appear.
 ## False when the session is past PROFILE and has to be kicked instead. A refusal, not a kick: the
 ## session is REJECTED, with no kicked event and no leave line, because nobody saw them join.
-func refuse_profile(session: DotClientSession, reason: String, why: DotError = null) -> bool:
+func refuse_profile(session: GSClientSession, reason: String, why: GSError = null) -> bool:
 	if session == null or not session.is_active():
 		return false
-	if session.state != DotClientSession.State.PROFILE:
+	if session.state != GSClientSession.State.PROFILE:
 		return false
 
-	DotLog.info(CHANNEL, "client refused in the profile stage", {
+	GSLog.info(CHANNEL, "client refused in the profile stage", {
 		"user": session.label(),
 		"reason": reason,
 	})
@@ -311,7 +311,7 @@ func platform_refusal_for(platform: String) -> String:
 func allowed_platforms() -> PackedStringArray:
 	var out := PackedStringArray()
 	for pair in [["web", _cv_allow_web], ["desktop", _cv_allow_desktop], ["mobile", _cv_allow_mobile]]:
-		var cv: DotConVar = pair[1]
+		var cv: GSConVar = pair[1]
 		if cv == null or cv.get_bool():
 			out.append(pair[0])
 	return out
@@ -319,10 +319,10 @@ func allowed_platforms() -> PackedStringArray:
 
 ## Runs GameSpice Auth if it is present, or admits everyone as a guest. Null after rejecting the session.
 func _authenticate(
-	session: DotClientSession,
+	session: GSClientSession,
 	payload: Dictionary
 ) -> Object:
-	var auth := DotRegistry.get_service(&"dot_auth_server")
+	var auth := GSRegistry.get_service(&"dot_auth_server")
 
 	if auth == null or not auth.has_method("authenticate"):
 		# No GameSpice Auth installed. Everyone is a guest, which is the only honest
@@ -345,14 +345,14 @@ func _authenticate(
 	else:
 		res = await auth.call("authenticate", credential, session.address)
 
-	if not (res is DotResult):
-		DotLog.error(
+	if not (res is GSResult):
+		GSLog.error(
 			CHANNEL, "the auth service returned something unexpected"
 		)
 		_reject_session(session, "Server authentication is misconfigured.")
 		return null
 
-	var result := res as DotResult
+	var result := res as GSResult
 
 	if not result.ok:
 		_reject_session(session, result.error.message)
@@ -362,19 +362,19 @@ func _authenticate(
 
 
 ## A minimal identity for servers running without GameSpice Auth.
-## Duck-typed to what [DotClientSession] reads. See [DotGuestIdentity].
+## Duck-typed to what [GSClientSession] reads. See [GSGuestIdentity].
 func _guest_identity(
-	session: DotClientSession,
+	session: GSClientSession,
 	payload: Dictionary
 ) -> Object:
-	return DotGuestIdentity.from_device(
+	return GSGuestIdentity.from_device(
 		str(payload.get("device_id", "")), session.display_name
 	)
 
 
 ## Under `sv_single_seat`, an account signing in again replaces its older connection:
 ## newest wins, so a player whose old connection is still timing out can come back.
-func _take_seat(session: DotClientSession) -> void:
+func _take_seat(session: GSClientSession) -> void:
 	if _cv_single_seat == null or not _cv_single_seat.get_bool() or not session.is_account():
 		return
 	var uid := session.uid()
@@ -382,14 +382,14 @@ func _take_seat(session: DotClientSession) -> void:
 		return
 	for other in sessions():
 		if other != session and other.is_active() and other.is_authenticated() and other.uid() == uid:
-			DotLog.info(CHANNEL, "account signed in again; replacing its older connection", {
+			GSLog.info(CHANNEL, "account signed in again; replacing its older connection", {
 				"user": session.label(), "old_userid": other.userid,
 			})
 			kick(other, "You signed in from another connection.")
 
 
 ## Enforces the slot limit, honouring reserved slots.
-func _claim_slot(session: DotClientSession) -> bool:
+func _claim_slot(session: GSClientSession) -> bool:
 	var occupied := 0
 	for other in sessions():
 		if other.peer_id != session.peer_id and other.is_active():
@@ -400,14 +400,14 @@ func _claim_slot(session: DotClientSession) -> bool:
 	if occupied < config.public_slots():
 		return true
 
-	if (max_players <= 0 or occupied < max_players) and session.has_permission(DotAdminFlags.RESERVATION):
+	if (max_players <= 0 or occupied < max_players) and session.has_permission(GSAdminFlags.RESERVATION):
 		session.used_reserved_slot = true
-		DotLog.info(
+		GSLog.info(
 			CHANNEL, "reserved slot used", {"user": session.label()}
 		)
 		return true
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"server full",
 		{"user": session.label(), "occupied": occupied, "max": max_players}
@@ -417,7 +417,7 @@ func _claim_slot(session: DotClientSession) -> bool:
 
 
 ## Moves an authenticated client into content sync, or straight to loading.
-func _advance_to_content(session: DotClientSession) -> void:
+func _advance_to_content(session: GSClientSession) -> void:
 	var manifest_url := ""
 	if games != null:
 		manifest_url = games.current_manifest_url()
@@ -429,16 +429,16 @@ func _advance_to_content(session: DotClientSession) -> void:
 	var delivered := games != null and games.current_needs_content()
 
 	if manifest_url == "" and not delivered:
-		session.transition_to(DotClientSession.State.LOADING)
+		session.transition_to(GSClientSession.State.LOADING)
 		client_state_changed.emit(session)
 		_send_load_game(session)
 		return
 
-	session.transition_to(DotClientSession.State.DOWNLOADING)
+	session.transition_to(GSClientSession.State.DOWNLOADING)
 	session.content_progress = 0.0
 	client_state_changed.emit(session)
 
-	send_kind(session.peer_id, DotEnvelope.CONTENT_SYNC, content_sync_info(
+	send_kind(session.peer_id, GSEnvelope.CONTENT_SYNC, content_sync_info(
 		manifest_url,
 		# Documented on the descriptor since the first version and sent by nothing,
 		# so a game that named optional groups had every client fetch only the
@@ -450,7 +450,7 @@ func _advance_to_content(session: DotClientSession) -> void:
 
 
 ## The payload that tells a client what to download and where from.
-## Built here because the join path and [DotGameManager] both send it; two copies of config-derived
+## Built here because the join path and [GSGameManager] both send it; two copies of config-derived
 ## fields drifted (`content_base_urls` reached only the join path). There is one copy.
 func content_sync_info(
 	manifest_url: String,
@@ -477,24 +477,24 @@ func content_sync_info(
 ## A client reporting content-sync progress.
 ## Advisory (it drives `status` only), so it is clamped rather than validated.
 func _on_content_progress(peer_id: int, payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
 	session.touch()
-	session.content_progress = clampf(DotEnvelope.number(payload, "fraction", 0.0), 0.0, 1.0)
+	session.content_progress = clampf(GSEnvelope.number(payload, "fraction", 0.0), 0.0, 1.0)
 
 
 ## A client reporting that content is ready.
 func _on_content_ready(peer_id: int, payload: Dictionary) -> void:
-	var content_key := DotEnvelope.text(payload, "content_key")
-	var session: DotClientSession = _sessions.get(peer_id)
+	var content_key := GSEnvelope.text(payload, "content_key")
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
 	session.touch()
 
-	if session.state != DotClientSession.State.DOWNLOADING:
+	if session.state != GSClientSession.State.DOWNLOADING:
 		return
 
 		# The pending game counts, not only the current one: during a `changelevel` the key a client
@@ -513,7 +513,7 @@ func _on_content_ready(peer_id: int, payload: Dictionary) -> void:
 	if not acceptable.is_empty() and not (content_key in acceptable):
 		# The client has different content from the one the server is running.
 		# Admitting it would mean a player in a world made of the wrong assets.
-		DotLog.warn(
+		GSLog.warn(
 			CHANNEL,
 			"client reported the wrong content",
 			{
@@ -529,19 +529,19 @@ func _on_content_ready(peer_id: int, payload: Dictionary) -> void:
 
 	session.content_key = content_key
 	session.content_progress = 1.0
-	session.transition_to(DotClientSession.State.LOADING)
+	session.transition_to(GSClientSession.State.LOADING)
 	client_state_changed.emit(session)
 
 		# Not while a change is still syncing: `load_info()` describes the OLD game until the swap,
-		# so sending it told the first finisher to load the game it was in. [DotGameManager._swap_to]
+		# so sending it told the first finisher to load the game it was in. [GSGameManager._swap_to]
 		# sends the real one to every session in LOADING once the new scene is live.
-	if games != null and games.phase == DotGameManager.Phase.SYNCING:
+	if games != null and games.phase == GSGameManager.Phase.SYNCING:
 		return
 
 	_send_load_game(session)
 
 
-func _send_load_game(session: DotClientSession) -> void:
+func _send_load_game(session: GSClientSession) -> void:
 	var info := {}
 	if games != null:
 		info = games.load_info()
@@ -550,7 +550,7 @@ func _send_load_game(session: DotClientSession) -> void:
 	# the server's values already in its link rather than predicting a few ticks under its
 	# own defaults. Again on every game change: the new game's module registered its own.
 	_send_replicated_cvars(session)
-	send_kind(session.peer_id, DotEnvelope.LOAD_GAME, info)
+	send_kind(session.peer_id, GSEnvelope.LOAD_GAME, info)
 
 
 # Replicated cvars: the whole FLAG_REPLICATED table goes before each LOAD_GAME, and a change or a
@@ -560,16 +560,16 @@ func _send_load_game(session: DotClientSession) -> void:
 
 ## A client reporting that it has finished loading and is ready to play.
 func _on_loaded(peer_id: int, _payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
 	session.touch()
 
-	if not session.transition_to(DotClientSession.State.SPAWNED):
+	if not session.transition_to(GSClientSession.State.SPAWNED):
 		return
 
-	DotLog.info(
+	GSLog.info(
 		CHANNEL,
 		"client spawned",
 		{"user": session.label(), "took": session.connected_seconds()}
@@ -596,8 +596,8 @@ func _on_loaded(peer_id: int, _payload: Dictionary) -> void:
 
 ## A client's keepalive and ping sample.
 func _on_heartbeat(peer_id: int, payload: Dictionary) -> void:
-	var client_time_ms := int(DotEnvelope.number(payload, "t", 0))
-	var session: DotClientSession = _sessions.get(peer_id)
+	var client_time_ms := int(GSEnvelope.number(payload, "t", 0))
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 
@@ -612,28 +612,28 @@ func _on_heartbeat(peer_id: int, payload: Dictionary) -> void:
 
 		# "sv" is the server's own frame for net_stat: frames a second, their deviation in ms and the
 		# tick rate. A new key in a Dictionary, so an older client or server is unaffected.
-	send_kind(peer_id, DotEnvelope.HEARTBEAT_ACK, {
+	send_kind(peer_id, GSEnvelope.HEARTBEAT_ACK, {
 		"t": client_time_ms,
 		"sv": {
 			"fps": snappedf(1000.0 / _frame_ms, 0.1) if _frame_ms > 0.0 else 0.0,
 			"var_ms": snappedf(_frame_dev_ms, 0.01),
 			"tick": tickrate(),
 		},
-	}, DotEnvelope.Lane.UNRELIABLE)
+	}, GSEnvelope.Lane.UNRELIABLE)
 
 
 ## A client reporting its measured round-trip time.
 func _on_ping(peer_id: int, payload: Dictionary) -> void:
-	var session: DotClientSession = _sessions.get(peer_id)
+	var session: GSClientSession = _sessions.get(peer_id)
 	if session == null:
 		return
 	session.touch()
-	var reported := int(DotEnvelope.number(payload, "ms", 0))
+	var reported := int(GSEnvelope.number(payload, "ms", 0))
 	var max_ping := console.get_int("sv_max_ping_report", MAX_PING_REPORT)
 	if reported < 0 or (max_ping > 0 and reported > max_ping):
 		if not session.ping_refusal_logged:
 			session.ping_refusal_logged = true
-			DotLog.error(CHANNEL, "ping report refused: outside 0 to sv_max_ping_report", {
+			GSLog.error(CHANNEL, "ping report refused: outside 0 to sv_max_ping_report", {
 				"peer": peer_id, "ms": reported, "sv_max_ping_report": max_ping})
 		return
 	session.ping_ms = reported

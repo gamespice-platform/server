@@ -1,5 +1,5 @@
 @tool
-class_name DotAddressGuard
+class_name GSAddressGuard
 extends RefCounted
 
 ## How many clients one address may have connected at the same time.
@@ -10,7 +10,7 @@ extends RefCounted
 ## Loopback is here so a limit never locks the operator's own listen client or test harness out.
 const ALWAYS_EXEMPT := ["127.0.0.1", "::1", "localhost"]
 
-## What [DotServer] uses when the transport cannot report a peer's address.
+## What [GSServer] uses when the transport cannot report a peer's address.
 const UNKNOWN := "unknown"
 
 ## Most simultaneous connections from one address. 0 removes the limit.
@@ -31,7 +31,7 @@ func _init(p_limit: int = 0) -> void:
 
 ## Whether [param address] is never limited.
 func is_exempt(address: String) -> bool:
-	var host := DotBanManager.normalise_address(address)
+	var host := GSBanManager.normalise_address(address)
 
 	if host == "" or host == UNKNOWN:
 		# An address the transport could not report must not be limited: every such client would share one bucket.
@@ -41,7 +41,7 @@ func is_exempt(address: String) -> bool:
 		return true
 
 	for entry in exempt_addresses:
-		if DotBanManager.normalise_address(entry) == host:
+		if GSBanManager.normalise_address(entry) == host:
 			return true
 
 	return false
@@ -49,13 +49,13 @@ func is_exempt(address: String) -> bool:
 
 ## How many of [param in_use] are the same address as [param address] ([param in_use] includes duplicates).
 func count_for(address: String, in_use: PackedStringArray) -> int:
-	var host := DotBanManager.normalise_address(address)
+	var host := GSBanManager.normalise_address(address)
 	if host == "":
 		return 0
 
 	var total := 0
 	for entry in in_use:
-		if DotBanManager.normalise_address(entry) == host:
+		if GSBanManager.normalise_address(entry) == host:
 			total += 1
 
 	return total
@@ -63,24 +63,24 @@ func count_for(address: String, in_use: PackedStringArray) -> int:
 
 ## Whether one more connection from [param address] may be accepted.
 ## A failure carries a player-facing message so the peer is rejected with a reason; a silent drop makes it reconnect at once.
-func check(address: String, in_use: PackedStringArray) -> DotResult:
+func check(address: String, in_use: PackedStringArray) -> GSResult:
 	if limit <= 0:
-		return DotResult.success(0)
+		return GSResult.success(0)
 
 	if is_exempt(address):
-		return DotResult.success(0)
+		return GSResult.success(0)
 
 	var current := count_for(address, in_use)
 
 	if current < limit:
-		return DotResult.success(current)
+		return GSResult.success(current)
 
 	refused += 1
 
-	return DotResult.fail(
-		DotError.CODE_FORBIDDEN,
+	return GSResult.fail(
+		GSError.CODE_FORBIDDEN,
 		"Too many connections from your address (%d allowed)." % limit,
-		"%s already has %d" % [DotBanManager.normalise_address(address), current]
+		"%s already has %d" % [GSBanManager.normalise_address(address), current]
 	)
 
 
@@ -110,4 +110,4 @@ func describe_lines() -> PackedStringArray:
 
 
 func _to_string() -> String:
-	return "DotAddressGuard(limit=%d)" % limit
+	return "GSAddressGuard(limit=%d)" % limit

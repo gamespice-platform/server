@@ -1,8 +1,8 @@
 @tool
-class_name DotEnvelope
+class_name GSEnvelope
 extends RefCounted
 
-## The named kinds a [DotServer] and a [DotClientLink] say to each other, over six RPCs that do not change.
+## The named kinds a [GSServer] and a [GSClientLink] say to each other, over six RPCs that do not change.
 ## The RPC surface is frozen because Godot checksums the @rpc set; a feature is a new kind, and each end
 ## advertises what it knows. Unknown kinds are dropped, REQUIRED ones refuse the join (docs/design-notes.md).
 
@@ -26,9 +26,9 @@ const DISCONNECT := &"signon.disconnect"        ## CONTROL. Why the socket is ab
 const CONTENT_SYNC := &"content.sync"           ## CONTROL. Fetch this before you can play.
 const LOAD_GAME := &"game.load"                 ## CONTROL. Load this scene.
 const HEARTBEAT_ACK := &"heartbeat.ack"         ## UNRELIABLE. Your timestamp, back.
-const NOTICE := &"notice"                       ## EVENT. A HUD line; see DotNotice.
+const NOTICE := &"notice"                       ## EVENT. A HUD line; see GSNotice.
 const CHAT_LINE := &"chat.line"                 ## EVENT. A chat line, or chat's state.
-const SCOREBOARD := &"scoreboard"               ## UNRELIABLE. Who is here; see DotServer.scoreboard_snapshot.
+const SCOREBOARD := &"scoreboard"               ## UNRELIABLE. Who is here; see GSServer.scoreboard_snapshot.
 const CVARS := &"cvars"                         ## CONTROL. The replicated cvars: {"values": {name: value}, "full": bool}.
 # Client to server.
 const CREDENTIALS := &"signon.credentials"      ## CONTROL. The answer to the challenge.
@@ -79,7 +79,7 @@ static var max_kinds: int = MAX_KINDS
 ## Sets both limits (0 = unlimited). A negative value is refused with an error and nothing changes.
 static func set_limits(kinds: int, kind_bytes: int) -> bool:
 	if kinds < 0 or kind_bytes < 0:
-		DotLog.error(CHANNEL, "envelope limits refused: negative", {
+		GSLog.error(CHANNEL, "envelope limits refused: negative", {
 			"max_kinds": kinds, "max_kind_bytes": kind_bytes})
 		return false
 	max_kinds = kinds
@@ -109,7 +109,7 @@ var _noted: Dictionary = {}
 ## with this end; use it only where the join cannot complete without it.
 func register(kind: StringName, handler: Callable = Callable(), required: bool = false) -> void:
 	if kind == &"":
-		push_error("DotEnvelope.register: a kind needs a name")
+		push_error("GSEnvelope.register: a kind needs a name")
 		return
 	var existing: Dictionary = _kinds.get(kind, {})
 	_kinds[kind] = {
@@ -175,12 +175,12 @@ func advert() -> Dictionary:
 
 ## Takes a peer's [method advert] and says whether the two ends can play, in both directions.
 ## A malformed advert is refused as one: this is off the wire, before the peer has authenticated.
-func adopt(peer_id: int, raw: Variant, is_server: bool) -> DotResult:
+func adopt(peer_id: int, raw: Variant, is_server: bool) -> GSResult:
 	if not (raw is Dictionary):
-		return DotResult.fail(
-			DotError.CODE_VERSION,
+		return GSResult.fail(
+			GSError.CODE_VERSION,
 			"This %s does not say what it can do." % ("client" if is_server else "server"),
-			"no kinds advertised; it predates DotEnvelope, and a build that old cannot "
+			"no kinds advertised; it predates GSEnvelope, and a build that old cannot "
 			+ "complete a join with this one"
 		)
 
@@ -188,11 +188,11 @@ func adopt(peer_id: int, raw: Variant, is_server: bool) -> DotResult:
 	var their_required := _names(raw.get("required", []))
 
 	if max_kinds > 0 and (theirs.size() > max_kinds or their_required.size() > max_kinds):
-		DotLog.error(CHANNEL, "advert refused: more kinds than max_kinds allows", {
+		GSLog.error(CHANNEL, "advert refused: more kinds than max_kinds allows", {
 			"peer": peer_id, "kinds": maxi(theirs.size(), their_required.size()),
 			"setting": "sv_envelope_max_kinds", "max_kinds": max_kinds})
-		return DotResult.fail(
-			DotError.CODE_INVALID,
+		return GSResult.fail(
+			GSError.CODE_INVALID,
 			"The peer advertised too many kinds.",
 			"%d, limit %d (sv_envelope_max_kinds)" % [theirs.size(), max_kinds]
 		)
@@ -216,17 +216,17 @@ func adopt(peer_id: int, raw: Variant, is_server: bool) -> DotResult:
 
 	var err := explain(missing_there, missing_here, is_server)
 	if err != null:
-		return DotResult.failure(err)
+		return GSResult.failure(err)
 
 	var only_theirs := 0
 	for k in known.keys():
 		if not _kinds.has(StringName(k)):
 			only_theirs += 1
 
-	DotLog.debug(CHANNEL, "peer's kinds adopted", {
+	GSLog.debug(CHANNEL, "peer's kinds adopted", {
 		"peer": peer_id, "kinds": known.size(), "theirs_only": only_theirs,
 	})
-	return DotResult.success(peer_id)
+	return GSResult.success(peer_id)
 
 
 static func _names(raw: Variant) -> PackedStringArray:
@@ -242,7 +242,7 @@ static func _names(raw: Variant) -> PackedStringArray:
 			if s == "":
 				continue
 			if max_kind_bytes > 0 and s.to_utf8_buffer().size() > max_kind_bytes:
-				DotLog.error(CHANNEL, "kind name skipped: longer than max_kind_bytes", {
+				GSLog.error(CHANNEL, "kind name skipped: longer than max_kind_bytes", {
 					"setting": "sv_envelope_max_kind_bytes", "max_kind_bytes": max_kind_bytes,
 					"name": s.left(32)})
 				continue
@@ -309,16 +309,16 @@ func _note(peer_id: int, kind: StringName, what: String) -> void:
 	if _noted.has(key):
 		return
 	_noted[key] = true
-	DotLog.debug(CHANNEL, what, {"peer": peer_id, "kind": String(kind)})
+	GSLog.debug(CHANNEL, what, {"peer": peer_id, "kind": String(kind)})
 
 
 ## What to tell a player, and what to log, when two ends' kinds cannot work together. Null when they can.
-## Says who has to update, not which kinds differ (like [method DotSignon.explain]); the names go in the detail.
+## Says who has to update, not which kinds differ (like [method GSSignon.explain]); the names go in the detail.
 static func explain(
 	missing_there: PackedStringArray,
 	missing_here: PackedStringArray,
 	is_server: bool
-) -> DotError:
+) -> GSError:
 	if missing_there.is_empty() and missing_here.is_empty():
 		return null
 
@@ -342,8 +342,8 @@ static func explain(
 		parts.append("the %s does not know: %s"
 			% ["server" if is_server else "client", ", ".join(missing_here)])
 
-	return DotError.make(
-		DotError.CODE_VERSION,
+	return GSError.make(
+		GSError.CODE_VERSION,
 		message,
 		"; ".join(parts) + " -- they were built against different versions of dot-server"
 	)

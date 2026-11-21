@@ -5,9 +5,9 @@ extends "res://examples/selftest/content_switch_base.gd"
 ## Two [MultiplayerAPI] instances in one process, both link nodes named [code]Server[/code] since RPCs route by node path.
 
 func _ready() -> void:
-	DotLog.set_level(
-		DotLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
-		else DotLog.Level.ERROR
+	GSLog.set_level(
+		GSLog.Level.DEBUG if "--verbose" in OS.get_cmdline_user_args()
+		else GSLog.Level.ERROR
 	)
 	_run.call_deferred()
 
@@ -15,7 +15,7 @@ func _ready() -> void:
 func _run() -> void:
 	print("dot-server: changing to DELIVERED content under a live client")
 
-	DotPaths.remove_tree(DATA)
+	GSPaths.remove_tree(DATA)
 
 	if await _publish_content():
 		if await _boot():
@@ -28,7 +28,7 @@ func _run() -> void:
 	_test_retire_timer_ids()
 
 	_teardown()
-	DotPaths.remove_tree(DATA)
+	GSPaths.remove_tree(DATA)
 
 	print("")
 	_check(
@@ -53,7 +53,7 @@ func _run() -> void:
 
 func _test_retire_timer_ids() -> void:
 	_section("retire timers free by instance id, so a node freed early is not an error")
-	for helper in [DotGameManager._free_ids, DotClientLink._free_ids]:
+	for helper in [GSGameManager._free_ids, GSClientLink._free_ids]:
 		var gone := Node.new()
 		var live := Node.new()
 		add_child(live)
@@ -69,8 +69,8 @@ func _test_retire_timer_ids() -> void:
 func _test_connect() -> bool:
 	_section("a client connects to the builtin game")
 
-	_link = DotClientLink.new()
-	# "Server", the same as DotServer. The name is the routing.
+	_link = GSClientLink.new()
+	# "Server", the same as GSServer. The name is the routing.
 	_link.name = "Server"
 	_link.player_name = "Downloader"
 	_client_side.add_child(_link)
@@ -89,7 +89,7 @@ func _test_connect() -> bool:
 	)
 
 	var address := "127.0.0.1:%d" % PORT
-	var connecting: DotResult = await _link.connect_to_server(address)
+	var connecting: GSResult = await _link.connect_to_server(address)
 
 	if not _check(connecting.ok, "it starts connecting", str(connecting.error)):
 		_done()
@@ -152,7 +152,7 @@ func _test_switch_to_delivered() -> void:
 
 	# The client is told where the content is because it cannot know: a browser build can only guess
 	# its page origin, which is wrong for every CDN.
-	var client_cloud := DotRegistry.get_service(&"dot_cloud_client")
+	var client_cloud := GSRegistry.get_service(&"dot_cloud_client")
 	if _check(client_cloud != null, "the client's content service is resolvable"):
 		var bases: PackedStringArray = client_cloud.get("http_base_urls")
 		_check(
@@ -184,7 +184,7 @@ func _test_delivered_client_told() -> void:
 
 	var back := await _until(_client_playing)
 
-	var session: DotClientSession = (
+	var session: GSClientSession = (
 		_server.sessions()[0] if _server.sessions().size() > 0 else null
 	)
 	_check(session != null, "the session survives the change")
@@ -315,7 +315,7 @@ func _test_switch_back() -> void:
 ## Checks the client's download base URLs are not duplicated.
 ## The same address arrives on every game change, and a growing list costs a request per entry on every miss.
 func _check_bases_are_not_duplicated() -> void:
-	var client_cloud := DotRegistry.get_service(&"dot_cloud_client")
+	var client_cloud := GSRegistry.get_service(&"dot_cloud_client")
 	if client_cloud == null:
 		return
 
@@ -335,7 +335,7 @@ func _check_bases_are_not_duplicated() -> void:
 func _test_switch_to_delivered_again() -> void:
 	_section("changelevel back to the delivered game")
 
-	var session: DotClientSession = (
+	var session: GSClientSession = (
 		_server.sessions()[0] if _server.sessions().size() > 0 else null
 	)
 
@@ -351,18 +351,18 @@ func _test_switch_to_delivered_again() -> void:
 	)
 
 	var seen_downloading := [false]
-	var watcher := func(s: DotClientSession) -> void:
-		if s.state == DotClientSession.State.DOWNLOADING:
+	var watcher := func(s: GSClientSession) -> void:
+		if s.state == GSClientSession.State.DOWNLOADING:
 			seen_downloading[0] = true
 	_server.client_state_changed.connect(watcher)
 
 	# Loading yields: LOADING is on screen for a frame before the scene exists, so a browser paints it.
 	var load_seen := {"frame": -1, "old": null, "playing": -1}
-	var on_phase := func(ph: DotClientLink.Phase, _t: String) -> void:
-		if ph == DotClientLink.Phase.LOADING:
+	var on_phase := func(ph: GSClientLink.Phase, _t: String) -> void:
+		if ph == GSClientLink.Phase.LOADING:
 			load_seen["frame"] = Engine.get_process_frames()
 			load_seen["old"] = _link._scene_instance
-		elif ph == DotClientLink.Phase.PLAYING:
+		elif ph == GSClientLink.Phase.PLAYING:
 			load_seen["playing"] = Engine.get_process_frames()
 	_link.phase_changed.connect(on_phase)
 
@@ -396,7 +396,7 @@ func _test_switch_to_delivered_again() -> void:
 	_check(_refused[0] == "", "and is still connected")
 	_check(
 		_server.sessions().size() == 1
-			and _server.sessions()[0].state == DotClientSession.State.SPAWNED,
+			and _server.sessions()[0].state == GSClientSession.State.SPAWNED,
 		"and playing"
 	)
 	_done()
@@ -412,10 +412,10 @@ func _test_disconnect_mid_load() -> void:
 	_link.disconnect_from_server()
 	_check(_link._scene_instance == null, "the link starts with no scene")
 	_link._on_load_game(1, info)
-	_check(_link.phase == DotClientLink.Phase.LOADING, "the load begins")
+	_check(_link.phase == GSClientLink.Phase.LOADING, "the load begins")
 	await get_tree().process_frame
 	_link.disconnect_from_server()
 	await _until(func() -> bool: return false, 1.0)
 	_check(_link._scene_instance == null, "a disconnect mid-load leaves no scene")
-	_check(_link.phase == DotClientLink.Phase.IDLE, "and the phase stays IDLE")
+	_check(_link.phase == GSClientLink.Phase.IDLE, "and the phase stays IDLE")
 	_done()

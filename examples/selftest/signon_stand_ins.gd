@@ -9,14 +9,14 @@ class _TicketStandIn extends RefCounted:
 	var ids: Array[String] = []
 	var nonces: Array[String] = []
 
-	func request_ticket_for_address(address: String, _issuer := "", nonce := "") -> DotResult:
+	func request_ticket_for_address(address: String, _issuer := "", nonce := "") -> GSResult:
 		addresses.append(address)
 		nonces.append(nonce)
-		return DotResult.success(TICKET)
+		return GSResult.success(TICKET)
 
-	func request_ticket(_issuer: String, server_id: String) -> DotResult:
+	func request_ticket(_issuer: String, server_id: String) -> GSResult:
 		ids.append(server_id)
-		return DotResult.success(TICKET)
+		return GSResult.success(TICKET)
 
 
 ## GameSpice Auth's server half, as far as GameSpice Server asks: a strategy and a verdict.
@@ -33,10 +33,10 @@ class _AuthStandIn extends RefCounted:
 	func join_audience() -> String:
 		return audience
 
-	func authenticate(credential: Dictionary, _address: String, connection_nonce := "") -> DotResult:
+	func authenticate(credential: Dictionary, _address: String, connection_nonce := "") -> GSResult:
 		nonces.append(connection_nonce)
 		on_authenticate.call(credential)
-		return DotResult.fail(DotError.CODE_AUTH, "stand-in refuses everybody")
+		return GSResult.fail(GSError.CODE_AUTH, "stand-in refuses everybody")
 
 
 ## Lets everybody in as the same account, for `sv_single_seat`.
@@ -44,8 +44,8 @@ class _SameAccountStandIn extends RefCounted:
 	func strategy_name() -> String:
 		return "local"
 
-	func authenticate(_credential: Dictionary, _address: String, _nonce := "") -> DotResult:
-		return DotResult.success(_Account.new())
+	func authenticate(_credential: Dictionary, _address: String, _nonce := "") -> GSResult:
+		return GSResult.success(_Account.new())
 
 
 class _Account extends RefCounted:
@@ -61,19 +61,19 @@ class _TokenStandIn extends RefCounted:
 	const JOIN := "tmc_jt_join-token-for-the-test"
 	var minted_for: Array[String] = []
 	var minted_at: Array[String] = []
-	## Stands for DotAuthConfig: bind_join_address.
+	## Stands for GSAuthConfig: bind_join_address.
 	var config := _BindConfig.new()
 
-	func valid_access_token() -> DotResult:
-		return DotResult.success(SECRET)
+	func valid_access_token() -> GSResult:
+		return GSResult.success(SECRET)
 
 	func is_first_party(audience: String) -> bool:
 		return audience == _AuthStandIn.AUDIENCE
 
-	func request_join_token(audience: String, host: String = "", port: int = 0) -> DotResult:
+	func request_join_token(audience: String, host: String = "", port: int = 0) -> GSResult:
 		minted_for.append(audience)
 		minted_at.append("%s:%d" % [host, port])
-		return DotResult.success(JOIN)
+		return GSResult.success(JOIN)
 
 
 class _BindConfig extends RefCounted:
