@@ -409,7 +409,13 @@ func _test_disconnect_mid_load() -> void:
 	_section("a disconnect during the load leaves no scene")
 
 	var info: Dictionary = _server.games.load_info()
+	var live: Node = _link._scene_instance
 	_link.disconnect_from_server()
+	if live != null and is_instance_valid(live):
+		_check(
+			live.is_queued_for_deletion() and not live.is_inside_tree(),
+			"a disconnect retires the scene by queue_free, never free() (a locked object when raised from a signal)"
+		)
 	_check(_link._scene_instance == null, "the link starts with no scene")
 	_link._on_load_game(1, info)
 	_check(_link.phase == GSClientLink.Phase.LOADING, "the load begins")

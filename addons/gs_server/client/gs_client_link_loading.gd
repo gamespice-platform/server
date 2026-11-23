@@ -252,7 +252,9 @@ func _unload_scene() -> void:
 		return
 	if is_instance_valid(_scene_instance):
 		_game_root.remove_child(_scene_instance)
-		_scene_instance.free()
+		# Not free(): a refused map reaches here from inside a signal the scene's own nodes may be emitting, and
+		# freeing a locked object is an engine error. Out of the tree already, so its name is released at once.
+		_scene_instance.queue_free()
 	_scene_instance = null
 
 
