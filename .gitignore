@@ -28,3 +28,7 @@ admins.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Sibling addons linked for local suites (absolute links must never be tracked; CI resolves them from addons.lock):
+/addons/gs_sql
+/addons/gs_voice
