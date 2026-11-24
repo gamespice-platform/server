@@ -415,6 +415,9 @@ func _free_game_children() -> void:
 	for child in server.get_children():
 		if child in _server_children_before_game:
 			continue
+		# A module that survives the switch (a mode change inside one pack rebinds its bridge, it does not rebuild it) still owns its link; retiring it left every later RPC to "Server/<link>" with no node.
+		if _link_of_live_bridge(child):
+			continue
 		retired.append(child)
 		child.name = "%s_retired_%d" % [child.name, child.get_instance_id()]
 
@@ -429,6 +432,14 @@ func _free_game_children() -> void:
 
 	server.get_tree().create_timer(RETIRED_SECONDS, true, false, true).timeout.connect(
 		_free_ids.bind(retired.map(func(n: Node) -> int: return n.get_instance_id())))
+
+
+## True for a game's RPC link whose bridge is still in the tree: the bridge frees the link itself when it leaves.
+static func _link_of_live_bridge(child: Node) -> bool:
+	if not ("bridge" in child):
+		return false
+	var bridge: Variant = child.get("bridge")
+	return bridge is Node and is_instance_valid(bridge) and (bridge as Node).is_inside_tree()
 
 
 ## Frees the nodes still alive by instance id; a lambda capturing them errors once one is freed early.
