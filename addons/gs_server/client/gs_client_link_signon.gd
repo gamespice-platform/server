@@ -7,7 +7,7 @@ extends "res://addons/gs_server/client/gs_client_link_connect.gd"
 ## Refuses a server whose RPC set or protocol differs: Godot would silently drop every
 ## message after the first, which the player sees as a spinner and "Timed out".
 func _revision_compatible(challenge: Dictionary) -> bool:
-	var ours := GSSignon.revision([load("uid://bbnmrseos3avj")])  # GSClientLink, loaded: this file is one of its bases
+	var ours := GSSignon.revision([load("res://addons/gs_server/client/gs_client_link.gd")])  # GSClientLink, loaded: this file is one of its bases
 	var theirs := str(challenge.get("signon", ""))
 
 	# Kept before the refusal so a shell can tell the page which build the server wants.

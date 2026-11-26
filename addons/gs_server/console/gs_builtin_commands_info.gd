@@ -124,7 +124,7 @@ static func _register_status(server: Node, console: GSConsole) -> void:
 	console.command(
 		"signon",
 		func(ctx: GSCmdContext) -> void:
-			var d := GSSignon.describe([load("uid://bmmt0ykk31iv0")])  # GSServer, loaded so the two parsers do not hold each other
+			var d := GSSignon.describe([load("res://addons/gs_server/server/gs_server.gd")])  # GSServer, loaded so the two parsers do not hold each other
 			ctx.reply("revision   %s" % str(d.get("revision", "")))
 			ctx.reply("protocol   %d" % int(d.get("protocol", 0)))
 			ctx.reply("methods    %d" % int(d.get("rpc_methods", 0)))

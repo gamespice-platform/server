@@ -167,7 +167,7 @@ func warn_about_risky_settings() -> void:
 	# An entry that can never match is worse than none: the operator believes they have an allow-list.
 	# "192.168" is the typical case, a subnet prefix without the trailing dot.
 	for raw in rcon_allowed_addresses:
-		var entry: String = (load("uid://cj8tjaegb7y5t") as GDScript).normalise_address(raw)  # GSBanManager, loaded so the two parsers do not hold each other
+		var entry: String = (load("res://addons/gs_server/moderation/gs_ban_manager.gd") as GDScript).normalise_address(raw)  # GSBanManager, loaded so the two parsers do not hold each other
 		if entry == "":
 			GSLog.warn(
 				"server",

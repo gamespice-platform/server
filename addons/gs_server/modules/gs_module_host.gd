@@ -467,7 +467,7 @@ func describe_lines() -> PackedStringArray:
 static func _is_module(instance: Variant) -> bool:
 	if not (instance is Object):
 		return false
-	var want: Script = load("uid://dgwlrdlk67gwp")
+	var want: Script = load("res://addons/gs_server/modules/gs_module.gd")
 	var s: Script = (instance as Object).get_script()
 	while s != null:
 		if s == want:
